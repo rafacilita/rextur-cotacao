@@ -1,0 +1,3313 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculadora de Reemissão • Gerador de cálculo de reemissão</title>
+  <style>
+    :root{
+      --bg:#0b0f17;
+      --card:#121a27;
+      --muted:#8ea0b7;
+      --text:#e8eef7;
+      --accent:#9b5cff;
+      --shadow: 0 14px 40px rgba(0,0,0,.38);
+      --radius: 18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+
+    :root[data-theme="light"]{--bg:#f6f7fb;
+      --card:#ffffff;
+      --muted:#334155;
+      --text:#0f172a;
+      --shadow: 0 14px 40px rgba(0,0,0,.14);
+
+  /* --- CONTRASTE MELHORADO (tema claro) --- */
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #334155;
+  --line: rgba(15, 23, 42, .14);
+  --shadow: 0 10px 26px rgba(2, 6, 23, .10);
+  --input-bg: #ffffff;
+  --input-border: rgba(15, 23, 42, .20);
+  --input-text: #0f172a;
+  --chip-bg: #eef2ff;
+  --chip-border: rgba(124, 58, 237, .28);
+
+}
+
+/* ===== Melhorias visuais (tema claro) ===== */
+[data-theme="light"] .legend .item{color:var(--text);font-weight:700}
+[data-theme="light"] .legend .dot{box-shadow:0 0 0 3px rgba(15,23,42,.06)}
+/* Destaque por área */
+[data-theme="light"] .accent-calc{color:#1d4ed8}
+[data-theme="light"] .accent-rent{color:#166534}
+[data-theme="light"] .accent-cco{color:#6d28d9}
+/* Tags das saídas */
+[data-theme="light"] .tag{
+  border:1px solid rgba(15,23,42,.16);
+  color:#0f172a;
+  font-weight:800;
+}
+[data-theme="light"] .tag.agencia{background:rgba(29,78,216,.10);border-color:rgba(29,78,216,.28)}
+[data-theme="light"] .tag.rent{background:rgba(22,101,52,.10);border-color:rgba(22,101,52,.25)}
+[data-theme="light"] .tag.cco{background:rgba(109,40,217,.10);border-color:rgba(109,40,217,.28)}
+[data-theme="light"] .tag.crr{background:rgba(15,23,42,.06);border-color:rgba(15,23,42,.14)}
+/* Títulos de blocos mais “na cara” */
+[data-theme="light"] .section-title{color:#0f172a;font-weight:900}
+[data-theme="light"] .section-title .sub{color:#334155;font-weight:700}
+/* Botões por intenção (mantém legível no claro) */
+[data-theme="light"] .btn.primary{background:rgba(29,78,216,.12);border-color:rgba(29,78,216,.30)}
+[data-theme="light"] .btn.purple{background:rgba(109,40,217,.12);border-color:rgba(109,40,217,.30)}
+[data-theme="light"] .btn.green{background:rgba(22,101,52,.12);border-color:rgba(22,101,52,.25)}
+
+
+    :root[data-theme="light"] body{
+      background: radial-gradient(1000px 600px at 15% 0%, rgba(155,92,255,.18), transparent 55%),
+                  radial-gradient(800px 400px at 85% 20%, rgba(61,220,151,.12), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+    }
+    :root[data-theme="light"] .card{
+      background: linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.01));
+      border:1px solid rgba(15,23,42,.12);
+    }
+    :root[data-theme="light"] input,
+    :root[data-theme="light"] select,
+    :root[data-theme="light"] textarea{
+      border:1px solid rgba(15,23,42,.14);
+      background: rgba(255,255,255,.90);
+      color: var(--text);
+    }
+    :root[data-theme="light"] .tab,
+    :root[data-theme="light"] .action,
+    :root[data-theme="light"] .pill{
+      border:1px solid rgba(15,23,42,.14);
+      background: rgba(255,255,255,.82);
+      color: var(--text);
+    }
+    :root[data-theme="light"] .hr{ background: rgba(15,23,42,.10); }
+    :root[data-theme="light"] .muted{ color: var(--muted); }
+    :root[data-theme="light"] .note{
+      border-left: 3px solid rgba(245,158,11,.65);
+      background: rgba(245,158,11,.10);
+    }
+    :root[data-theme="light"] .codebox{
+      border:1px solid rgba(15,23,42,.14);
+      background: rgba(15,23,42,.06);
+      color: var(--text);
+    }
+        *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1000px 600px at 15% 0%, rgba(155,92,255,.25), transparent 55%),
+                  radial-gradient(800px 400px at 85% 20%, rgba(61,220,151,.15), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    header{ padding: 26px 18px 10px; max-width: 1240px; margin: 0 auto; }
+    
+    .brand{ display:flex; align-items:center; gap:14px; }
+    .logoMark{
+      width:56px; height:40px; border-radius: 14px;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(255,255,255,.04);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.07);
+      overflow:hidden;
+    }
+    .logoMark img{
+      width:170px; height:40px; display:block;
+      object-fit: cover; object-position: right center;
+      filter: saturate(1.05);
+    }
+    .titles{ min-width: 0; }
+    .titles h1{ margin:0 0 6px; }
+h1{ margin:0 0 6px; font-size: 20px; font-weight: 800; letter-spacing:.2px; }
+    .sub{ color:var(--muted); font-size: 13px; line-height:1.35; max-width: 1100px; }
+    .wrap{
+      max-width: 1240px; margin: 0 auto; padding: 12px 18px 40px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 980px){ .wrap{grid-template-columns: 1fr} }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card > .hd{
+      padding: 14px 14px 10px;display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .pill{
+      font-size:12px; color: var(--muted);
+      border:1px solid rgba(255,255,255,.10);
+      padding:4px 10px; border-radius: 999px;
+      background: rgba(0,0,0,.18); white-space:nowrap;
+    }
+    .card .bd{ padding: 14px; }
+    .tabs{ display:flex; gap:8px; flex-wrap:wrap; }
+    .tab{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.16);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor:pointer;
+      font-weight:800;
+      font-size: 13px;
+    }
+    .tab[aria-selected="true"]{
+      border-color: rgba(155,92,255,.55);
+      box-shadow: 0 0 0 3px rgba(155,92,255,.15) inset;
+      background: rgba(155,92,255,.14);
+    }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 520px){ .grid{grid-template-columns:1fr} }
+    label{ display:block; font-size:12px; color: var(--muted); margin: 0 0 6px; }
+    input, select, textarea{
+      width:100%; padding: 10px 10px;
+      border-radius: 12px; border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.22); color: var(--text); outline:none;
+    }
+    textarea{ min-height: 84px; resize: vertical; }
+    input:focus, select:focus, textarea:focus{
+      border-color: rgba(155,92,255,.55);
+      box-shadow: 0 0 0 3px rgba(155,92,255,.14);
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+    .row > div{ flex: 1 1 140px; }
+    .muted{ color: var(--muted); font-size: 12px; }
+    .small{ font-size: 12px; }
+    .kpi{
+      display:grid; grid-template-columns: 1fr 1fr;
+      gap:10px; margin-top: 10px;
+    }
+    .kpi .box{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,.16);
+    }
+    .kpi .t{ color: var(--muted); font-size:12px; }
+    .kpi .v{ font-family: var(--mono); font-size: 16px; font-weight:900; margin-top:4px; }
+    .hr{ height:1px; background: rgba(255,255,255,.06); margin: 14px 0; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px; }
+    button.action{
+      appearance:none; border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.20); color: var(--text);
+      padding: 10px 12px; border-radius: 14px;
+      cursor:pointer; font-weight: 900; font-size: 13px;
+    }
+    .action:disabled{ opacity:.45; cursor:not-allowed; filter: grayscale(25%); }
+    .action:disabled:hover{ transform:none; }
+    button.action.primary{ border-color: rgba(155,92,255,.55); background: rgba(155,92,255,.18); }
+    button.action.good{ border-color: rgba(61,220,151,.40); background: rgba(61,220,151,.14); }
+    button.action.warn{ border-color: rgba(255,204,102,.55); background: rgba(255,204,102,.12); }
+    button.action:active{ transform: translateY(1px); }
+    .preview{
+      background: #ffffff; color:#0b0f17;
+      border-radius: 14px; border: 1px solid rgba(0,0,0,.08);
+      padding: 12px; min-height: 240px; overflow:auto;
+    }
+    .codebox{
+      width:100%;
+      min-height: 240px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      padding: 10px;
+      outline:none;
+    }
+    .toast{
+      position: fixed; left:50%; bottom: 16px; transform: translateX(-50%);
+      background: rgba(18,26,39,.92);
+      border:1px solid rgba(255,255,255,.10);
+      color: var(--text);
+      padding: 10px 12px; border-radius: 999px;
+      font-size: 13px; box-shadow: var(--shadow);
+      opacity: 0; pointer-events:none; transition: opacity .18s ease;
+    }
+    .toast.show{ opacity: 1; }
+    .note{
+      border-left: 3px solid rgba(255,204,102,.7);
+      background: rgba(255,204,102,.10);
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .tbl{ width:100%; border-collapse: collapse; font-size: 12px; }
+    .tbl td,.tbl th{ border:1px solid rgba(0,0,0,.18); padding: 6px 8px; vertical-align: top; }
+    .tbl th{ background: rgba(0,0,0,.05); text-align:left; }
+    .right{ text-align:right; }
+    .badge{
+      display:inline-block; font-size:11px;
+      padding: 2px 8px; border-radius: 999px;
+      border:1px solid rgba(0,0,0,.18);
+      background: rgba(0,0,0,.04);
+      margin-left:6px;
+    }
+    .hidden{ display:none !important; }
+    code{ font-family: var(--mono); font-size: 12px; }
+  
+    /* --- PAX dynamic fields --- */
+    .qtywrap{ display:none !important; }
+    .paxBox{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      background: rgba(0,0,0,.14);
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .paxSecTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-weight:700;
+      margin: 6px 0 8px;
+    }
+    .paxRow{
+      display:grid;
+      grid-template-columns: 1fr 220px;
+      gap:10px;
+      padding: 6px 0;
+      border-bottom:1px dashed rgba(255,255,255,.08);
+    }
+    .paxRow:last-child{ border-bottom:none; }
+    .paxRow label{ margin:0 0 4px; }
+    .paxTag{
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      font-weight:600;
+    }
+    .paxHint{
+      margin-top:8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    @media (max-width: 720px){
+      .paxRow{ grid-template-columns: 1fr; }
+    }
+
+  
+
+    .topRow{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .themeCtl{ display:flex; align-items:center; gap:8px; }
+    .themeCtl label{ font-size:12px; color: var(--muted); font-weight:800; }
+    .themeCtl select{
+      width:auto; min-width: 130px;
+      padding: 8px 10px;
+      border-radius: 12px;
+    }
+    
+    .grid3{ display:grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+    @media (max-width: 720px){ .grid3{ grid-template-columns: 1fr; } }
+
+    :root[data-theme="light"] input::placeholder, :root[data-theme="light"] textarea::placeholder{ color:#64748b; opacity:1; }
+
+    .rentCtl{ display:flex; align-items:center; gap:8px; }
+    .rentCtl .chk{ display:flex; align-items:center; gap:8px; user-select:none; }
+    .rentCtl input[type="checkbox"]{ width:16px; height:16px; }
+
+    .subHd{
+      padding: 0 14px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap: 14px;
+      flex-wrap:wrap;
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    :root[data-theme="light"] .subHd{ border-bottom:1px solid rgba(15,23,42,.10); }
+    .subHd .muted{ font-size:12px; }
+
+
+    /* Rentabilização (uso interno) */
+    .rentSection{ margin-top: 10px; }
+    .rentToggle{
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(34,197,94,.14);
+      border: 1px solid rgba(34,197,94,.28);
+    }
+    .rentToggle input{ width: 16px; height: 16px; }
+    .rentToggle span{
+      font-weight: 800;
+      color: rgba(134,239,172,1);
+    }
+    :root[data-theme="light"] .rentToggle{
+      background: rgba(34,197,94,.10);
+      border-color: rgba(34,197,94,.22);
+    }
+    :root[data-theme="light"] .rentToggle span{
+      color: rgba(21,128,61,1);
+    }
+
+    .rentHint{
+      margin: 6px 0 0 2px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.25;
+      opacity: .92;
+      font-style: italic;
+    }
+
+    .rentDivider{ margin: 10px 0 0; }
+
+
+    .rentPanel{
+      display:none;
+      margin: 10px 0 4px;
+      padding: 12px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.10);
+      border-left: 3px solid rgba(34,197,94,.40);
+    }
+    :root[data-theme="light"] .rentPanel{
+      background: rgba(15,23,42,.03);
+      border-color: rgba(15,23,42,.12);
+      border-left-color: rgba(21,128,61,.35);
+    }
+    .rentRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+    .rentSection{ margin-top:10px; }
+    .rentChk{ display:flex; gap:8px; align-items:center; margin:8px 0 8px; }
+    .rentBlock{ border:1px dashed rgba(255,255,255,.18); border-radius:12px; padding:10px; margin-bottom:10px; }
+    body.theme-light .rentBlock{ border-color: rgba(0,0,0,.18); }
+    .rentBlockHdr{ font-weight:800; margin-bottom:8px; font-size:12px; color: var(--text); opacity:.95; }
+
+    .rentOpts{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+    .rentOpts label{ display:flex; gap:8px; align-items:center; font-size:13px; }
+    .rentTitle{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .rentTitle b{ color: var(--text); }
+    .rentMuted{ color: var(--muted); font-size:12px; }
+
+
+    .rentSection input[readonly]{
+      background: rgba(0,0,0,.14);
+      border-style: dashed;
+      opacity: .92;
+    }
+    :root[data-theme="light"] .rentSection input[readonly]{
+      background: rgba(15,23,42,.04);
+    }
+
+    /* ====== Visual cues (Cálculo / Rentabilização / CCO) ====== */
+    :root{
+      --calc:#38bdf8;   /* cálculo */
+      --rent:#22c55e;   /* rentabilização */
+      --cco:#a78bfa;    /* CCO / RF */
+      --sys:#94a3b8;    /* utilitários */
+    }
+    .legend{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .badge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 6px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 900; letter-spacing:.2px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+    }
+    .badge::before{ content:""; width:10px; height:10px; border-radius:999px; display:inline-block; }
+    .badge--calc::before{ background: var(--calc); box-shadow: 0 0 0 3px rgba(56,189,248,.18); }
+    .badge--rent::before{ background: var(--rent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); }
+    .badge--cco::before{  background: var(--cco);  box-shadow: 0 0 0 3px rgba(167,139,250,.18); }
+
+    /* Section accents */
+    .card.calcCard{ position:relative; }
+    .card.calcCard::before{
+      content:""; position:absolute; left:0; right:0; top:0; height:3px;
+      background: linear-gradient(90deg, rgba(56,189,248,.85), rgba(56,189,248,.15), transparent 70%);
+    }
+    .card.outputsCard{ position:relative; }
+    .card.outputsCard::before{
+      content:""; position:absolute; left:0; right:0; top:0; height:3px;
+      background: linear-gradient(90deg, rgba(167,139,250,.85), rgba(167,139,250,.15), transparent 70%);
+    }
+    .rentPanel{
+      border-left: 4px solid rgba(34,197,94,.55);
+      background: linear-gradient(180deg, rgba(34,197,94,.08), rgba(255,255,255,.02));
+    }
+
+    /* Output titles + tags */
+    .outTitle{ display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; }
+    .tag{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding: 4px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 900; letter-spacing:.35px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.16);
+    }
+    .tag--agency{ color: #cffafe; border-color: rgba(56,189,248,.40); background: rgba(56,189,248,.14); }
+    .tag--rent{   color: #dcfce7; border-color: rgba(34,197,94,.40);  background: rgba(34,197,94,.14); }
+    .tag--cco{    color: #ede9fe; border-color: rgba(167,139,250,.42); background: rgba(167,139,250,.16); }
+    .tag--sys{    color: #e2e8f0; border-color: rgba(148,163,184,.35); background: rgba(148,163,184,.12); }
+
+    /* Highlight areas */
+    #obsCode.codebox{
+      border-color: rgba(167,139,250,.45);
+      background: rgba(167,139,250,.10);
+    }
+    #rentFormCode.codebox{
+      border-color: rgba(34,197,94,.35);
+      background: rgba(34,197,94,.06);
+    }
+
+    /* Button flavors */
+    button.action.cco{ border-color: rgba(167,139,250,.55); background: rgba(167,139,250,.18); }
+    button.action.rent{ border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.16); }
+    button.action.calc{ border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.14); }
+
+  
+/* Fallbacks caso classes não existam (não quebra nada) */
+[data-theme="light"] h1,[data-theme="light"] h2{color:#0f172a}
+
+</style>
+</head>
+<body>
+  <header>
+    <div class="topRow">
+      <div class="brand">
+      <div class="logoMark" title="RexturAdvance">
+        <img alt="RA" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAIAAAAiOjnJAAAQAElEQVR4Aey9B5xmRZU+fCrd9KbO3ZMTk4BhyDmIiKCsgoJpDWtOu+667q6r+9+k3xrXXXNWDKuuggEBQRFRouSBmWGYnEPnftONlb5zu0dgpRsdGJgefO88771161adqjr13FOnzu0fUNs6Whp4GjRAoXW0NPA0aKBFrKdBqS2RAC1itVjwtGigRaynRa0toS1itTjwtGigRaynRa3TUOgz3KUWsZ5hhf+pNNci1p/KTD/D42wR6xlW+J9Kcy1i/anM9DM8zhaxnmGF/6k01yLWn8pMP8PjbBHrGVb4o809u1MtYj275/eQja5FrEOm+md3w9OOWNaAtROY+Cshba22ICF/oJWRsU4jmylQGpQFBTafIDxJa5TRoE0OaTILiBQgBS3zZAwQAjTz0q3f06+BaUesqYasJLGWESoEcx3igCE6lTJKFUFy5RSzloClGSEIySmzgODWMAAGBO8AeJ6cqoFW/kHVAD2o0p5GYZQSlI4EsWiX0pRm2kGGCT+zmbFSgHaAcEoYJYqSmCCrFLOKGcOMpZYSywxwCy60jmdEA4cPsXRGwFBQghkXTZDOII4gTajNhFYgcbnLIE0hTTIZhqoBVo8DiAEwBIkFlqnW3589I6zCRg4bYgHNwKaWmNSqCGzmebZUhEIgwUmBAxHABHDBHKck3HbuK4p0omAtXgBt1vgVOYZjngqt/IOogcOGWFK4IePDwAeot5t7WxhfA/Aggd3U2crFes42ErLF0B2SDEheUzykIqZMUQ4kpxexgKbLHkTNtUQ9oQYOG2LtBbEdxAZN78/gpip8Z3v6sTsH3nf95rf8cO07fvrQu29c/8H7d12+u3ZLTLYJqHOIgCaEppTgMjiuAQ3ofUE2nm6dnnYNHDbEGgZYPZD+8M4Nn7n6jv/+2R3funPjDXvCuyJ3U2HOA6L7pkRcsXf0a2s2f/aWVZ+6fu2nf74eAw1IItwz6v06NEAwidh/37o8rRqYdsQiKh9vPRsFPUqSqibsPsK+bcTfPDD47lvWXb4l3eguqVeW1gqlqhOP8T0RayaqSTJKZKWRdW2ls39je75WE6d8//b/b0d6u4VhtF5cJ6apAZ2zBAx6WxZwUUTkTT02OX7fOh0MDUw7YuWOuIWyKBBebDilNbG9acvYj25d9/CGnbGibseMzC8PSBKmjnJ6nPbFTeVmrJx5lYy5sTYjWVonRgZCBd2/fnDLN3+5+tb+sEE4OGX0tliIhux3asvDF79Lt64HWwPTjliKqixpECtScFcn/Nsb9lyxYd8vNo0yfwZ43U0rhjMJ3AG/DAnJto9wr0CFxygDxkBw4jvW943nxN6sbZl/61B87faBOxpmDBgFp8QDSwAB5FFFYhLx6H0rdTA0QA+GkIMpI4M00xK3cttiuGbH2Hc27r0v4ln7woYqSVpU1tjGIIxubR/bdpQZO72Tzx14ePHYlqXxvkVqrEs1izIV+KVHO7FxaM+Ckfa5V+8Y+Z/7H36gpjI0htrRBHIA4EqIOJhdb8l6jAamHbGwbzYo75Rw7cbR67f2D2cC2mY4nTOlojqOi9HYkV78kgXeO1e2v++U3g8/d+H3Ljv+f16x8vKXLvvI85e+fvnsU3zWXa/C3n1UKW2NdEs14/12KLl1V3UDfif0PPTeEUgpgy09Arx/JN1KHAwNTDtiMSg0Gb95WP5k256HGhK6Zvuub5qNkh6d78Rndos3rpj1L2cv+ZsVs18yMzjNT0/m4UrZONbK80vwhqNL7zhp5isW953X6VaSgWzvFtAaZi+uep3Xb9h13ZaBXRSQT8iiR865DvE+v7R+B1MD045YGGDfXIert++8T0pdbKu4BRgecsORHrnjwiWld5419xULK0cCtKmIxCH6RoQ4RCsajrXp5hHUnF2BS47wXrYoWOw0Cs1+GtcF5QkprB5Lr9u278ZwP7GQS8itg6nIlqz/q4FpRyybwZb++h27d6e+77Z3QBSn+/Z0CXj+sTPOO7JzhQNdxrhxLIzgXiUBdwhE7LWzYhuAZtlIG8RH+ealR888Y+mM5TPaS6BkrQFuoThn4T7gP129bYJSeP6/emjdHWQNHDJi4TfiVBuNFsQakBo0ZAD9Gu4pwnd2bgzcmVAvpqEkXeUlPjmli37wmCPOpdABwAg1rrDcCpIVIWkHWwRLjQBSZryLG68IBDP/dmnXi+e4XdnOCtrAUUjDjgHZdudo+v098TCQRDbS5iiGzAY1jOjQklED2I9JcJD1/Scj7pARCzVMCMFzvvPHT8V5CtllN4zBzqFaJGmlowdcUd21rS9g5x4zF4sSwECBpYCLGHabgmUW2Hi9SU744MjZs47vm+E26k6A33YyXAbT1P52/Y4tCUgmgsADrcro0/HAgD+JiFbWU9AAztAB1D6IRZFU9JEFaYI1gJSx924dHtN+Cq7MNFjbQdIzF/QdVQIKKQVFLVoZIFjRckBWWTFVl7DIcZ3BhXNmz9ZJgWdApWZCaX7XrtHbNg+k1DOUkKThWRBAjG0RaypFPsn8Q0Ys7C8hBM85xi2WBpDWrB+OM69TixL67qCSLpudNKtjtlEMNMlhCK5XSDMApI7JK0/+szbrBTitKzirr+ylw2CbUPAsLwx5HXfsGt4NUDfEEQTCJsOGn0DQ5OJbuX9AA4eWWHnnbM4qi1RBW4TE2hPKOnGU4wWFIjOahfVZHp0j8DkaKEAjh2TMLVZe9Yl+BaA8U4sCeP6Rc7uyEUirDKwkIil2PlzTt+zJqtSzjocSVWwpCn0iYa1nB6yBQ0csmztXE/3NXScANByK2GqW4peZzOgoTXSWzpnRM7uTc9AUGDOMIgcsxbXrkYoTicefC4RTrRwCx/aQ49rcPiNJ1Myoblg7SNzr1u3aCTAKLvhOGjeRr4+X0Mp5KhqgT6XyU6z7mJXQ5qxCbuEyxy04RGKYIEvwNHPmbAGgUsm0SyynhudLIDZM1PifwUhMTgrHABNCk9QHuGDZopWlopNExOMWfbdC20PD6a+2xkMoglAn4I9yfFJZrcwD18ChJNZEb9FcGQJmwmey1i0wyEJCbHtPOzA6Uq3VUuBugMsfwXI5BbDPWNwYQDYiJsT8/lnFQDhLIElU49Q5hSXlsm+UV/RwTWVBMRLFmx/cWAdoyEQEQk8p5vfFtu7/SA3gJP2RJZ+WYhooWhbCXC2N1arkcHc4Y5obj4xVa93SiXW6xwUwOuWQCpsxa6gxGMoiuHwxrGuBaCCKIusIECScokZyI00h551QXh93OkFfekZPT7I7GBiojHlJHEUz3NsaI9fcO6hISREeiUxhcAsgNHFsQwsZRVhNjX1ahj39hT7lHh5KYj0yabk1IgTPOVk4EYJBmgEh2pI4TjUOkrJHCuPd74EAYMX9mQRHRDDNAPDCkH8WjZQpU1g6dw5PIlZkBDMaqV/pvWf77s0RZABIWiwvLBGWccso4DF+sgZTLTwJDYyr70nUOwhVHqUKIbjjI5xS5EFPe8lHYhnNONfW1prJ4FiikQqQO1eWAALGD+QN9h7P43dII9xeYsb+OyRKDsJBGmZtJ8CZyxZ3yth6ErIMYm5p+92jzZ/vGqwB5A6ZBY4JoA7QCZkoTulHOzkht3X+IzXwyEz8keUPXjGLE5dPG84iEgv7wS2ygCyb3ePoBIgSlCnLatKu2zGAc6/HifVI87l5AyRTbquoxYSF8cMCBTRaCGtsZgBviHAN8QFOmuMsLolGOkaTGNfaJOFj5c6rNmxa3cw0CcBALpNwQjAuQUFbbYzGLGgdT0YD9MlUOjh1LBqk/ZIsWixglAigx/T6fjRKTEbAGO4kTun+PSN7Dc77OJCGkDMArzjp2HukAAIecxjIfS8Ao5TKsylnlAljZwMcP7NN1YYKlNBYAkbt2/tWj4Q3rNuxV7PIgLIAhACe91tF9P+wBWgdT0IDh0xxucEa72/eA5xLAhhW4ECWFmAWk0HSpEoax88K7egGrRodn27Iz+OV8lPOLbyiG2QNyVmHN1iA5Df5M4tRMcgTeTWBOwOAY2d2OMqWOZVRXXgCDLVux00bhm8bhprBb9FoogDQ2gEejBDCGMdUC09CA/m0PolqT70KmivklkUmoCwklsU1DBjAAheOn9XtZyHRShFWo/4gK964sYZFDJb8HQjeW8jPExIAkFuYAeOHRS4hrwTHxRDTmFcQxAWY3xEsbu8TUrlcUxVBGDGnfWfk/nh9OGazBhh05CEnFgXCGGGCYtUWnowGppHmsCuIPgZHz53hAm71MbpEQJkm8+7ehHHy/cN7LL1+Ryrk5/5sNFcTTDIWN3gM18IknchAl06XPL6od1YaNssVL62PgFTcONrruGXLvtiaFBdg+J1IbA2tHZ6nCQ63buBUHpouc0c4lLlA8unDBYcDJVDEeY3hjL7ywrbIsp0Bb0It0U09XCl86t5d/UCkSnWjCZRmhINBMjUg38Y5QAUQhhJQkoB8VQWKAXUIKPguDhAjF3lbfcyeu8i14d5IE+AVKoUnbbPZTH3nPVfcVWWOtBrNljK0IfPFldhmblYP5IeNtYAaoPibVnA9IAbOO/LoIAopSKCaB4E1dN2+0S0NkNz1ygEWEASUMqDYgXa+5HKXgJYZEJggDKXUGFNTzk3rhgxhQDlnIJOEIOX1hLU70EZa5YFONx2g1Skm8QsWzDi6GCT1YQiYFNxY54Hh+PYt+5pAMO4AMiRKM+oqHRxo/7uLUBTEZjGaPSQWUooyUDobsMWf3fPwxibgg0wmnCjkVWbQ/B1oC63yuQamHbEATC8XS/DL8eIFMLYXfKoyCdbZA/7NW/q3A4zhaiW0Tpq4GIJ7wBM/04deZFYaEYMxDIvEIoRgZGKUBJuq+vpVm4YBQinLZQ8fMcezBCZFrrzWb2oN0KkfHZonxliX0SC1Z83vXFwUblIHmaZaJaKwsSZv2RoOEidjnAUCvXFz4N3vBpjXXhIqBaXAGK1xe4ptqgz9Kqfyy3V7btlWywolDdRabWzuaaEr93gcGu0cPq0e+Mw8zWOjloHWlGYzXXjBskXdjboPNlYJAAsx7rB25/aMjOA8MxtFzSfRlxLAgt52x2ibRWAsHsgtgnELGUZUbEnFdWt3o9HCBZEyIRP5JJpoVUENTDtiYdQcg08gqA9w/hFzlnO3rDJrU/S1wSutGwxv3TQ6ah20KITnFgXHcEDwwMzpbHewmSQDa43BZTBjQAiEWqmm33XX7sav141WVS4VOY7e+6SA/HnrN6UGph2xcMdnOM/AOLhmlWFZRydLQmDW4xyY29DOras34VJYTaPAd8Ci7ZpybJM+YJC1FQPcVAKuhjY/wBj034sY8zIqE4X+lNx41wMY/JJGux72YlIxrcw/oIFpR6wM4wsEAnALRuLXvcvO7us1g21JnMVUhTEhZHvTfuY327e5nQPK9wgFq9KkiS4/As0PWNAJOk/AAAhA/sN9JiWMUA/QCtIo4/O6A16V4/yPQwAAEABJREFUAfSAqWHYCki31qqR9AVeD1RHMID283743D0j2zUDK4VJhJUcAxQyoqCNikA3BODSDK3jCTQw7YjFGEMWoEutpTI67RZw/qknQLVfOEZmsbTM0NLG7YMbdinBodqoAaGEchxhpnSWZZggGIbCyxSgBHDM2EoeLkPziAAA3GnKWKYNyBLhe9wN7lz98O46JNS1lMVpTiOHsyQJOSWCCch9eqzWwpQaQCVP+ezQPEAbBJBJ7QhBsqQMcNGKrqUly2g9KLmOX0lJebDB7167IwRgpUBaoI6LJ1zVCCHYZ61lksSYmBQcLNLQd4TVaNg0LqbEaKb13M6CHNnreBQ5p4X/0O6B6+5eu01iiNaJpDYAjDCZhIyix4V3eJ5UfCtzvwamHbFwxmRmGeOE0LIjWFyfC/DilUdAfZcPsVJqtJpFtOO2tduvuXtbSkRGqAKiADhzXNcFgsbEPsHfUSEHkViBx43FShqMITpjSj33uIW+bnQ4GHyNUkNVoesHt9x7/UP9aKx4qX24iasttJUrudqQkfml9XsiDdAnenhInhlNCMlXG02BsjZOA9werlh0fE+BjOy1UR0oS73Ctqa8cc2WDSmkaN4AmnFmfmdH8Cuk53tT9Z2TfFvgu67RGbIKvSiqNJP6uUfS5x49z47s0bVRa9AWdu+OyNV3P3zfjhEMOaTgaGD4tcfgaqsJYHqqBlr54xqg4+dpdCKgBPowAPUGxpmYx4WQ8WyPveK4Y7qTqpuOuhWnQXVW6dqWOlfft7tp0F/HieY6X68w6qmkkflnnynHRDjYgutgnAFwobP5n1EQlS5y4DXPObEUjfoqZQaaie6Yf+SDu0auv31VFUAUgyhviGlDQXhgx7sIrWNKDdApnxyiBwztFACSRDgBKAqWeZTjpv/03so5R8wpmkaaDmRZLfTcHQn92b3b1m7cmAG4DkUfHimmtUaDp5AxU/XfWgbgORyMQp+dWktNzi2vWj+pBy48aWWPy7k0IAmGzRIerNq672e3b4kA+0LDTBHuA3EkWtOp5LfyxzUw7YiFM5hl6EqB50OCMUxpBBMcYCaDF591Sl+JQzQCAc66O5aSfSG56+57h+o474BxLiCAbhajuC1E8oyPb7ITA8s5MsrmD/HDEBotbaE25AO8/AUndPq+SRLueqMDw365M9L0uptuGaqjbDBUEO5gtSz/K+a8dus3lQboVA8OVb6BQDjMc9CSWKfiGleg1SqB7SMDp3bAhUtmL3A9GKxB/2gxCKgvPjbU9b87mrhDpFRmmUGXqx4bJKIFaS1+B0TY8QNyCqElAlcD9WhaoBmkmUnAStcBZ0RUooY8wYV/euHKPrON6X1BoUwa3rC3aGPNv/yq24YMMM76+0fQLuaxVdK0OSIgKW4eCLFoKRGHSm/Trd1pR6wpFcTdZtS86KyjF7W5RVUXHkV3vZZZI+3Pb73vgVE7kKFpo0k9qvg8yXAzN6UkfGAtQO7s4/AJRUtkdCahuyTQbZ/TUbjsvFPTfTtYFmZp2Ihkub3nvgcevvmOjXUs09c5NFYrldEiYl0KdvyMElv4vxpAvfzfjGl7Z7wS4wsFvOqsY2bYaqdrsjSVbpFasnFIffkXD+yyMBKnlTKR4ajrFKcaByF5gJQYghjnFn4uQjdLRjFyDWiWLe5il506/6TZZdYcKHBlrMi0wwvdV1x942ADJECpo2yJySn1+6xCqkLrmNDA4UMscCuux+L4vLnuZScv4dXdrkuAc5zzkHXcsjP9xq+20oILVik5ZXQUx0zwh1BA8IuN4cwSbhRVMnBLiQTfs+0snu/Amy44o5fGBVsjlmjLmwmtpc7l3/tpfwOdLZIobIJBHnQggBk5w2D8aHFrXA2Qv737Uwf/cnAloqnRZoYviip9w3NXLCrSdkigMZylVhQ6h+r6qvs2/nzTWBV8v9Jt7JRtIx3yZxoowlJhCYbdmck6ix7N3zIFKvTC6rlLOl9w3CIv3tcuCMmkBVd4vavW7b3xtjWhgSglYPk4JlbDXOT4r0WscTUcRsRSAARJYXUnpx0A77j0wkI04MVDMgPBcme9Dt4Xf3bHuohHxImjBKY+CD4ylBjGcZuHFsviJ53MUxAwiLMsiZIOz68oeMNFJx8zg5NGvw1H24OKsoFfWXDtz+9etWY4KGDUFmmIwKbxjBIRLVahEvbjEaXsv5+2l1iNRz0VEsyk9frps4PnLZ+3JFCeVwlHhirdpWaWbVOlz//swUEAFwMOU48kJ5Y2YAixlCNdrWFaeiq3cpEh2ikAc4sE5vvwiuef3EHDClFDe/YEXse+gagWOlf++Ne7sQ0sPgFcCg8jwz+1Wg7uk8OGWITRJEuRBs2xele5nEl4/UtPm1diSlmP2dqeLZXurn0xueGBbVde94Dnij+gJkOQWNQCQYABa9p8ogy4XoV77Vi34EB9dOzco4+84OyTuY4Lrrtv10B7+yzHa9+1t3bFFb/GMpPBTpb5p5g37YhFDNkPS4g1BBQBjIJLQQl1fMVxleq2GrqpXWTNl9558RK1oxKPFP2O5mjig7Da+9nq2tfWQQpiOG2Opg2JhEFApqW0UstswAFoDG2exUf6qro31mWuQh20dSgXvyZpDdooq7XVM9sqJQNvvnDRyfNNh9hbDJqpShqpE6me+9ZEX/3xrTvrkLG8f4ZgjyAxBt2vP0USTTbmaUes/Z3Ml6vxZL7heuQGcyzeoKURNv8s7BnyhsueN7NInLRR5iKtR/V6uHtg6IfX3rR5LLFuxffaLMg4qlJruRDAGeW5MctD+8aiuUJRoJVDUSoKz0HIo2m8LzJ445+/vMyhq+A4kPmCoktHCLvxpnu2bh+SFsIks6ApGJWkDsmFY60Wpiux8pnBZeWR7uFkG5y8iXsGlhvwLfEVueAY/7QjKr0sccJGhwhmzZznlTq2DQ5/9Ue376yCApxwW/RcQo01hlBg3E8BpNTEWAFUKC2kKtIJwUAINpS3Tcj+RAFgYbf31j+/lDSHfB3atOEKpqQZHhU/vfq2dRvGAs/J0jhL4qJfssmfpv+ea+z3fvsV+nu5h/IWJxQByKqJXlBAo4UAa/NMXHYMtSAIOIb4hswA+epzjz136UxnbJ+bRRgziDIVGnLjvTuv+fX63TUQvACEgzbopWmUTEWSgEw1kk4YI7QRMutwHDJ+TDSJSUzgOYdSaLTOOb7zJc87ORzYVHE0ZAnmd3UvX/Xgzl/8/I6BoUTwwGECe0fzBrBqC9NxO6MBEI+dGwbAKGhqdf7VD00NMosQIIAIVHVFT+lFpx954vx2L+pv9O+wMvPccqFj4Q23PPir29aPpNAIQeXfD0FmAMCj0KhUMQuOJTxLPan6igV8gCDjx0QCzwgdJ8SAb+HSC1Zc9JyVqr6n4FnANhLS2T77nrvWf/fb19THkLVecyzkHvYJK7UwDYmF04jAndr+2SFoCRAcXaI8x6A7Y5EUyC3kGwdPcx/0cQvaX3nhcYu7gDb3dbhugRWI4ko5N9y2+rpbN0IxMMLNpPXRbwcIo0xmmhmKoVGeSk+rGaXiOKP20wLTMH5gggVFoyQ+KHDz+lc8f9n8zubYHsHSLG52lDoc0r7q7p2//Pmq2igU2zBOMV6tdYJpSCwk0f6JQX+F7E8CEG2pwRwANBcAihKLxKIAtC2LsiK3Zxw74/lnLl7Q6ZBGLeofC4cGi35l10D409+sunNL2jBotyKwCsNhcZwZZSlgzN0SpVxjektllDsBQshjE8gp9NCzrOm52hfRm17/kq52R1BZcExteLSzNKvozb3xhgdv+vX9qcLtq5qo2zrTaakCC7nRGu+aHT/jCRMIYnGZtEgzMJjQBFREPN+3Ji6BeunzTzr3tGPbXLfdL/VUio1azQ3adw8nn/3q/967tr/SVpBhHSOsUkpjkFgAeDaagy25+/+UmZD/wypstpkBd4XjCpM1KyVnzszCW9/0mrA24jAVN5tpqHzeWa/aX9105+133Y9rJFZpATUw7YhFwBmHIIThLOM+bgLgeMA9BkgB4QF1AYPmgDaLVGSmGl6WllU218Lrzzn2pad0FcM70UIJQZLYunzmYL/z3e/devfaGil0ND3YuHVb2TIvSlgW+77ITOL5+UdDYQmusQiCBMm9ufznQRW/9ABAovO/Sy77sLCHvu0VpxaSwT7fCmlqQ2lPx1EjA8UffveBu24drlWNxQgHWi+NYQhlQY3VRlOZYWQMDa5ByWhuATIDsbJhprEEviEWcHcBUurx/wIKtoa2eT8s0j9/i4yCHFgYgeXBgjWA7xnmgsT6CvQk0GkCCh8/Kk1blRrsGwrIG0VDG2c2khCmORTgG5sDZaUmkTpJZRSnU/53wrCvk4JOmnsYZcZaC+FzLwBCcUb7uviJxxx57uknRKNDbYETcJE1m74bDA01fnHDbQ8+VEWdRQ2VJcpmxhPcdUnB5wsXzJpqyJy7AOjgAckPCwR6+9yTTj52xbGLtG0Mj+7wfDswuLdUKMZNedUPb2jUksF9sWCgMluv19I0bq+UXEEZs4QaMm6JCQCj4HDiOQyspBYtr2HUCGoZkhq3GFJDTCdAEopgKeXjYCGwOthhSPeaxvZ4dEN18KGhvWv6t931WDyabm5P61vjaGuS7lJ6kJIxykLuYsQtBpIAk+Bq8IEEFAoih5YKLHpIlAHhlFtKmOCO68IBHvQAy0+74oZgAIADGi/KiTWYWrawctF5p564bJ4aHXCysA05l0LUtGse7v/hNXfs2Qn1ERnwsiCU4uvcGMmikb7uKRUnuG8tN5owhr6+lEqjBe3tE294y4WLl3V39fJ6uLu3p6hSVfK7+nc1P/7hzzZrSibgu67DXc/1hocH0J7Uw9EkCy0GOdA/zGHAKiUzToHgTCKTUgOaEeMAQgsYg2QfDK2PN926+84frbruSzf+4GM//tYHvvfht3zyw2//5Mf+6r8/8bf//dn3fu5L//yVr/375d/44Df/50NXTorP/v0XPvN3n//kuz/z33/96U/+zWc+/3df/do//s+33v/9X3zlmrt/dMeu326NtlXNUAajCqoKGsalDpW0WWuGzchoxXC0yP282wc29fTAik+/0g6lscR1hgKqgBiVZBgNWDa39Ko/O3duh+OkdZFGHuVtld5myB9Yu+/HP7zx4TXbuXVdDBGkCUmbRc/M6Z16YLmRIpw7jnAo2iGVpFkeBi2W4RWvPn/uwkJHNwwMbCqX/LHBZtnrG9jd/OZXr9i2sZo0wPeKY0NjXV259MDzHS4ApVlCLCeGMstd5kCd2zo3dREPQv/G2qqbNvz0W7/6+n9e8cH3fPFj7//CFz/09e9//sc3fv/mVb9Yvfm2rbvu2eOMeAh3zPdrhUKjVGyWS2GlGLW1p+XJ0eiqNDpLtfagWnEGA7JHyO2QbjXrf73t1ivu/N5/Xfmp93/x8//65Wu+fv3mO7fJfVL2Z2jJSm7RRVuW4k+aoQwAABAASURBVBoABiAz6dQKmvwJnTz78MklgI6+1eiqAOQ+kUyoTlywJxzpvvxFZx+1sDMe2eUTXXC9KJSUlR68f0ttJPGpJzQwmXhUdZb8J9BCrlrYf3DGfN/xPG6trIWNBYs73/y2y3pn8O4ep3/P5kqxVBtqzJt15M6tw1//8vdGBrKkBu3tPeFYAtqFzKEqB0gGIcSDcmR7o3/96K+uuv+HX7/xMx/6zofe94WP/tNXvvHZn/76qlVrbt8NIaeRoLHDM49nvpCBqwq+LnLtOsrliAwfCSYFz3I4Vk8KmjCRCl/7gQk87bGEmbrJRjONBA3bC7LXC9urW5O7f776u5/60X++93M/+dpP1t28FqoguPCEn0Voo5VLfTjA4wlUeoCSDlHx/NsOOgGCYftILL8YuB43WehyOO2EORdfcOrK5bPSWn9zbKhSLlFCfK9SCjpcEEJrYUyR0xldHc26wuqTAr9KGwtKZZlMjZ0oRtFCCtfB8jNm+m99xys7OqFUpiptFnyvOSY91h7V7Fe/8D9jgxkkUCiUTAic4laCju1IHrpjx/U/uO2bn7ny0//+lY+8/zM//c6vb/vF6l0Pj+m6V+a9Xd7sDn92hzeDaMjjxIYYjS8MMZbgGqwIjXUamjSxWUJkDDKx+RkTKYsnRaSaiYkSSDSVlmvNleVK0ywKsyRUaImEwXY7ut3eHq+vR/RtvnvzL//3V9defu3uu3dBCIEb+KxA4YB5csAVUJvTCsykjKC/aVD9xhh0WLB7lKEhiwPPnnjczEtffM6ieR02q7YXHWsSJa1MszgMkRcuAZ87ixcsbC9yrDUpCNXGZMZKazUexuLFAlBXuM0wMRZ6e4NLX3ZBZwcPAvTHtUqpxAU2IrgX/K+PfWnTuibyY9e26KrLb/7W56756qe+963PX/nzK2/dfP8+qBd73fmdxd6OQnfJKXOc8GYS12qItNEgSCSigWrLDb4ByrXSy2EqFqFLBqFKWpe0KipEyM2kcLop67CmlCZuI+TVJssR8lqlz/UqFpxU21BnoY5CWW0kI9Vu0pPsS+++8e6rv3ft/b9eZWtADFAjJlXOE2Qe9sTKmZSkoCWg6wIQx6kxmgnRjIYYU4LDiqO7XnzReV3txbGRfW3FwFpLCKFgPUdYqcJa3eUuhvGn0hGhGogWgrmOK7ighDPGHMHjGIoFr9GsMW6PO2nhRS96nueCTBsFv+y7BU6csJ7pjH7p85f//Ts+/YmPfu62m+576P4tI/tCJoOS6Cqydpr5ssElWhOpBaW+wKWHCWFdrh0hkcoKZA6iJFWK6YznaEKU8EwXidcVdM3rmbV83uLjli4/6aiVp50yKWYvn9l7RHdlVkm0MxMo6aWZm+A5saMZjCmoUx57rvZdcLkWIJtDjZltM3pLvetXbbjiu1f+5oZbwuGEmqnUM2X+s4BYDrgBUMcAoY7L/UAyJyXCCSphiiqDthI859SOt7z25BkVWR/Y7ZhG0ZEmaug0LfvlzkKPowo0hNFavyWKEKK1JUAIGCMjQhKrnDR00ogACACWRGlYT7UEBz8kAXh+JUuJjOCMU5e++tUXFcohj4cCE3vUuK6XprTZYLVRkTUqRM+lemZaCxzTTlUAJGgmaDACSju1CVLFUmuUZ2xBp4Uw9mtR+z47o1o50h7xnI4zX770kned9sZ/fsE7PnzJB37wnn/57l+/9/K3/eUXXvcXn7j05f/fC1/0z+e94H3nvPD9p0+KSz724pd/8rLXf+n17/jmO//yG3/99i//5Rs+89ZXf+L1F7z7z1e+6vz2k48Ie4MBVw9zXfN4Ugq8Lm9kaMwdCxamRxydrbz9q7f+9ge3khBfLlKvNkIVpgRHnEliCRCbkqmYRad6cHjl4ygf6fDEkCyA63rWgkHXwocVxyxFo3LCsUtBK26J4JRZksbZ0MDYqnvWXnfNgx1tM2pVtHbAOcRpA0Azh0dRnGldKDMvEGkWJWnsBW6h5KJYBqhX0DJxHBBuzkTPCebPXsiUK8A1uLWqxjrWFa/S19bVXqjUqqNgjeuyOK1l0CReykpxTe+rqc0NuyNh+6BY65rnnnjOsle++cXv/ue3f/TTH/7Ax/7lb//fX7/mbX9+/qXnH3vW8fNXLpyxeBbjZFKgBiYF7pj1eHepQ/yS6OwtzZrbPW/h7GPOmPO8lx7/hr9/yfs//s73fvCvLnrVc7vnB0PJzj2je72KS/Gf7yg8Qr32zrUP3bQWFFTKZUa4ARxWbIzSGlAwTHFMzMIUDw+TbFToIz2deINwVBTdZeAavS6GtkyVSvCC5x916slHBox5nPnCQe+q7FccGuzYMvCbG++55kf3CFKkBDKZ+B7HNzRJkyAoE5HV46o0seswz3XCZj1sNjkaL6UEgYLn1QeyH377V//8D5//6he+s21zP9OeahKWOWgLu4J2E6b1fSPh4GhfRxvRGSGSe7bQQSIyYEu1tvnmglcd/9p3Xfjej775A5/967/+0F9c/ObzV569tG9ZO/gA+J3JAcgpDBinsMYiGCOTAoiaHIAH6gPP+0EZCBRbAAgMBAAdUFjuHffiY1/2zhe9+f2vXn7KslE9ureO9CqG9bDidtgav/nKW3av24POojACz0QTPJBVhOyX+fjL/2ny8Y+nf45Bd4nABLcmBoODRVDLlDZILMqJtVKp1BOQO+lpKptN1WhmUeRSUfbbdcz6d9V+9qPbf/qD2+pD1uGB1vg6Ks8NkJaCQcF3CSGNZqykKRTaCkFRJ4Yk/I4bHvjkB7/xoX/+7E3X3Vftt2nDlVHADKWaWGlMkuk4pZkOuNNVLGbNejWPQDS7uisXvOjct77rte/9wF/+/b+9/YWvPu/4C1Z0LalA0SY2jm2kPAUFAg6AC/nZAeuAcfFsrWOnOoDaSUEYB0rQfgMB3GpIZZNUoSFWRKYki3RDQpK3UoLi0u75pyy76HUXzVs5L/XSuqpaaotOMZB+sie79YbboQHcMp95BSfghDEGlE1JEDrlk8PkgQGYwER/cTwTYITkCYr6NkkWh2EdLOzcsokpIpTxGLFZrJNIELT6Xsmr2FDcceN9P/ru9bvXDzFVYqQAVujEoHAKnIFfEB2c+JDC7vWDv/nZ7f/+d5+/4vIbdj5UM/htms1u82cFrL290BsmI8zXpQpnQllIHJc4zCQxxjG9BXNmdXd2yCQVlB2xbEbX7CKuTYlKpMQvh8YK4ga+UwgI5woAhAFcdsZhmVW46lqTWm2mOLDGpCDw6ORTBlwQ4RDHpQYEo57jlajjWXw5KeC7EINsW9b+0rdedvxzjx+Oh72yF0XRyN6xmW1z1t390N6H90EGxFA+LjPX76Oy4fcO+nv3h90tvosI7DYyAM/4biJQbRQoY4xyGmUZo6JSLNsINqxaFxCnINz2QsFn1CC30hisLBWCwDolUrrnV6u/88WrN63qh4japhUObh19ogVRhCrYtqr6vc9f/5X//t4vfnybrLrpmJtWRThqZWh1mjXqw83GQNArY7KvYff5HbrQhS55Lda1oI0P9O9s1EfDarN/5+Cvb7jjpmtX1XZJQsDzfM4co6nKQClAo4LDQWQykSrVWpvckyEsHw0XTFirJwUAmxTIAjJusVAmIucFI4zTLFZZamRm09TgTlpawDfMKTgJzfy5zikXnDp3xdwmNIGbSqUU1RpZVW5csxkzwAD2yGhl87UQVT45Dnti4TBxZLnK8DIOJBZe0fArnCgAo0EIH8AdHUpG+qvcUNzZ6DhmkJUCVilyAlJmYUWIaKhRJF31vfTbn7/2xp/cpyMw9RRNFMSwfU3ze1++5euf/eF9N28O+0k8xLK6IikpecXOSrlSYsKJuDPa2ZNGor88B8688Ni3/O2r3/XeN11wyTmVXq9/dGd7W9HzPFcEbYXePZtGfnX1Hb+48rbBdSptZjhVnIEQgMuuIMCsJkYKxjlFs4vrOMECOeFMTjs6xQGAUzkJkLsAyATQyAWdqQmYtOjxwKG+IIFL81gvQQprY41yVJRlM5f3POdFZ4e2AQHpmtHZP7KvKEobVq8PxyJIwCiLjEexMlN4nhTYlUnzD6fMCW5N9HiCVRPpJIksgMjVRutjjeGBUdC86AZaSpli+NSdP2/2EYsXdHeWBNJNppWgJHRAZSkchauu+MWV3/0RJXTDmj3f+tq1n/r4l2755d1pDRwoedDW7vV2trcHvkuJlmm92RyIk73Fcrz8qM53v/+t//ax9770jc+fsajUPkuc87yTzjn/rK5ZnVpL5AhOq8MCh5RUKO78zQNf+9S3x4aH0R6A0pD/EUyqs4ZC599GhGLjnBLOMEUB6U8pMAJ4nhSohEmhDCiLMNpaQ8BSQljOTchXV2wuwpcKXy1BFYISia05BQEBLD5modfmRbI5VB1yA9elzq6tu6NaaDPDGEPeE2KlzmCKg06Rf9hkOxYQ3OKLDsSCRd2NA6xbKpYy0+BUg6Zlt7T2jk1e5uvm8JzeIiGjI7X1x50+57K/OOW8S05kbY06oCcbUhuVQfeyYkfWvfaGgX974+Xf+sBPHv7VVi+ibYJyHRKZUGVsQp0x5FQ18rY3Kht7VsKl77rwPZ999yX/dGn3MTOyipbCKs9mjjaV7PgLlvzDf75N+ipx4sSNB5t7LIvRyamAyPbVP/Gu/73rqq1ygEFGDbroToGIgmYFGQFIirYKzRQBpIRiIGVct5ZNCmrtpOAEnTfrUOJQ5hA0iw6zglrHEmaZQ3FzLAICDtgcmC9w8cOGcOFvNyeev5IE1irbW+gtpoVC5q25dw3hFAghjEtFAw93lTDpQSfNfRZkJonCUTDgBGiWKbCwd+cuI43vVEYGqo7wy5XiEUvm+V2wYuURr37dpcVOGpRJBuFYYzBNmoFwBXGTWupox1FCaEdozgylgIcBasbqgzNm95z93DPe/Xd/+Z5/+JvTzj6hrb2Y6YjgcwA858pnjHJc0jh32Ec+9Y/zl82qxyNBm9PWUcKn1jCXBzMqfVd976ef/o+vrLtjK4TAFBpBhl468YjmyhBlAFcopTQ6/YnCdR2e3sMgj8BSHIFLZ82Zg/3E9qIkppQTwqrVfA+EOYgJXWBiUtBJc58FmaggHAXqBRcQk5j6Prl7+24P0PstZZH1vKCjt6ttJgUXyjP4kacueMd7Xrvw6N5IDzI/q3QUiLUkNm28zZWurzxfeq4SjubUGiAaSFbu8l752pe+5BUXLD5mPisC8BwWA035rAABgnpnHASuGS5zHC59/co3v/ilr3uhKJlGOmaJSVIZRmpsV21h1+JwX/z9z1/x8+/+cmRjnWH0lIpQh5ZYRXU1rCYqY4y7rpfKKZceOEgHw5USiDEG5S1YsAAThLNMSUYFIXRoaAhfUWuMtRoHiGWmAp3qweGe7/suDoEBtwpffufBu1frhiyLQlpTlUKntXbx0vnAACgoUwdI+5aXX/TK5z7vktPBT7ftWS9VVA76nKh4AAAQAElEQVQKJCNorhzluEp4ynE0xSWEQGZpOtTcM3dphSKlUAgqGy0LMYRaagiBXOcEAPDHgbqUesxp116nfd7Fp7zi9RcXu9zRaMQvB16pUHZKY3tGfRm4kX/D92+68qs/3vHgEIyALwINOLukUmpzhRvGodSyo60DnuaDA8Eua6mwHdbBMq2Y4MAoIejgocWq4VjNOO2wAOAA88skv2ctsXK7AkAJt7ipp3Dv7feWcBukqW7G5cCNk/pxp6wwwoCQhilgWTMc7lrYefFrXnjhy8/tXdgRyrFYNoMCpwS5SbhGB4sKS7gxHAylmVOg0tgowq9oEtDFoxa1SylHhaK1w/R+EAPUADeKxLRgDc+WHjv3Xe972/kXP6emx4aTYUXSIPDCapNLZ1H3kl1r9l3+qW//7Lu3oCWzIcYhHGY5A1H0yw7z4iTZL/ZpuxAABEwcFqmNJhq5hPeYjYPDxASQ9IiJ9CTnxxad5PHhnGWNVagMxiHs1/1b9xVZAUJZcMGoMCiwBUt7NctQdQZfReo4npcmdSiSMy857Y1/85rjzj7SeOFovFfxRLOEUM3B5tFKAAooVpe6CqKLiIAnMs6S2CiL3AFgxNIcueJQ7/uB2zKtbbNZowHQNijOJi9+zZkvf8slpE3WyehwOhBU/MD1qv1V3xY9Wfz5j371X//42fuvXwNNgBSjHgAZBUs9p5ALfjp/1hijccmn2IgaVYwxXH+l0dbg+0LaKh3IO0opEAvIOnxtsNxkoJNlHpK8g9yo1CkhBHD4Fu757X3cYkiBQKrLBVDZ2HEnLMEdtQKJXr0hDoBrgTHPSWUsVdZ7VOelb7rknD87zRaTzImlyDSVaALRwUIwACTZ4NgwKOCCCeEqA9TnlGF7AhWOyNvNB2QsWGUzZaTLi8Viu0zTMBwBD0gHHHXaEf/8n3/fd3Rn2/ziWDo8XBsu+EUT2biaHL1gZUfc/cPPXfWRd37mgZ89TFUuS4ZKpuOp/O7p+hlUicZ3jeIQtmzbCpRqrZng+GJYa7u7u5FYhKIdR07pJ+gEfYJnh/UjtCAEuYATYeG+e+4rBiUMwAhCOVdWh6eefBxutoCh9piDjlcKrusz5jEMerkAAlg3nH7+yW959xsVw7VyHCR3oVAnFAziiKVHZNLEMrWAMnGvDlmW6xwLPBbaamOM1lInGiQIzysUA21i4FDqI0E3f/cH33TORWfPXNDnFTwDNggK6F317x0kY3ymNzsZlN/96ve/8NGvP3TnesG4i917rPSnIc0Yvh8EOWQTtWvXLkxgr1zPQ7fKGmhDJ48AEANorzALjRamJgOdLPPZkMd5WaaMNaG2qs7600JiuVJc2FQNlGYGPUfNzkD6zENjZdOMCMDpt8ZQQxj6UXjnGDKfzHxO7/s+/85TLznG7SLVaNQVXsUtJrWo4PrloudYGtgC2kLrQsIz66rMpoQrYNISaUFbsIwwwVxXFIgrDGPGYBTKZcQFbRA+ktiBM1907MV/89IFz1/aaJc1G3skmMV7PFbyLH67biuHXUOr6j/+9M++89ErH/7lFtsgROVQscH1lxCcZIuyFEkUQWprQiwBYlNNEsCSkO9h9cTZ5sELqW2GIERpSHO+4wtHLFZD4EeAJkdteDRy1BZ+zxWrinEBXzgWKFtqSr+28iy09AYrpjoVxAfJp+LKs5ZYscwIIWiT1j34kAmzovDKgecwapldfsyRwNHG7x87EzxJYpjicHudU886+dznnV0p+Q5nDBexcptsJo6PnNxfx1qLKQJAARdfCnYSEEoRFM8MsFfjMBi2UkaCD/OO7Hj5G57/ktdftODYWXEwNkj2WvzqLCVSx8f4Gm8zVfvgLWt/8KUrP/Mfn73tqjvjvYlA2wLUNNH8IVs5B4EUi5M4yVILmnoUfAsCdGYR2Ag6nERj/x1OXARYxsFzmI9poqhJjU6MTcABLwslKHjgrgdcfAEk6e3oHdg9MFIfmTlvRlD0IR9tPhTAI7dceJkEdJK8Z0UWIUQQgBpsuG+1I62QWmjDQdmAHXvKsUgsoMyiPc8URRpgyalGLYzf4/fObJdZaJIoGhsLqCCpaWuv5EKwIgECCDxRihJh8gOnAIHPx6GNzrRJkRTMN4bKxKa6CCvPnf+itz3vqBcsbnaNNNSYpBl3CBCjY8VSXjKVQlYaeGDo5itu/s4nv/fbK+7KtktKmSAcYizFOXExgOE6viE2Ax3aaDAa5ATzOQN8pSgxBBUwARmlNtOgwUpANxBfNFdQJJpjuCPE4Obh3/z8Nx2FLkjI6GC1o9yVkHD5CUf7laLFGlpy4uA4c47hZTLQyTKfDXkOEZDCttWbmrtHO0WRxajHiEHaNru9Y8FMNDHG4pLBqCNwpl3fRSJOikTVpaoPj+5xGXgUuNIu0I5CuaOnDdD2YGXAA70u5BZaKsxClU6COFZJqtJUSiWN0ZQBYxRRjcckpNQxGTQhMN1LShe//YK//fhfdq1oM13JkO2vqjEWQEd3h+e41ZFqp+5yG8HAQyPXfvP6j/7jf17+b9/acNMm5IepAY4X3TiV2DSRGgwnohyUAMc3GURBENcCx3VNSpNImWipALkfk2Rbcst1t9T6azQDV3jDQ6PFUqlnce8xpxwFARhirCE4Zhww4eOJ/Ob3f/T3M54t9yyx0IAt967zYmgjng+MM2UgPuL4JVACxVFBOPYcSZpMqR4ALoTwnD27dheE41hScn0ZJ1bLrt5OYIDKBcDZAArEWtxMTSnJc7jLORoDQQQFbJ7hYgRGlP2KA+iT84LjGaXqjXqmsu7ZXe/46Ote9e7LTnnh8aW57lDSP9jcR3zbOaO9QMoidUXqdImeLtFb29b44Vd+/JE3fuJXP7hl3U2bou2ZUCRgvm9cxzoylBZwZ/oolJFZTu8kVmmiM7xFo+gFrlvAjQvHYTTW16/5n6sfvmv9rO5Zo6Oj1KHl7uKukd3HnXNsaUkZOw6EUEoBvTZrcg3A5AeWmPwBwOGdLzRJB6rRrpGK9nhTuRQnXhmhl518FLgADlBGTE4JiHOnxExqrvJMLOp4I3uHrdRpMyr4rtJZrVnrnLBYRCOxrLW5sjRQ/AfIrUlApEFAakASkjLIBCQOpA6LfVtnZhRXbc6UU3bLjnaiIRVHavaivpe86gWvfeNrTzztBN934ziK41i4XqFYKXptRtJoJA2HpBqjtO7e8dPbfvLlH3/lP772nQ9//47/vbP/vkHoJyVd1lVjaviOERIyEnMukXC+C4FPCp4JuHYh4xBSuS8dWLN34x0PX/uNqzfeubEIQUBdNEgj0RBps+0LS0efeiSyCldt1BulbFxzkI8VJj/o5NnPglwNG+5+UI2GJXC4tNxaTeS85fPa5vRYBhrHTSDLMi1NsVhUoKYasVUMH6ZNhQYAX2rHcbzALbUXy+1lfF9R6jincBHMCYaEmkoO4xRBOUWyAi7CSMgMIIN0ACh+4a2JwQeGtv5qx/bf9D90w7bfXv3Ar6+5+ZrvXv/LK2/ZfP8WqEGFtRdswdTNvrGhsbDeSGP8yq4l9Wip7HSVRWcX7XJDN9xe33H39luvvPXbH/2fT/zNJ/7zbf99y3fuvOP7997749Xrrt+08+a9I3fXogez7CEjN0D8kBq7u7HjF7vv+c69133hFz/55NU//e9r193+cBkqZV6Ow5hj+JdHooe/4LUv6JzbgcRC1SGlJl4kHIgZH/ykQ0YFT5p/+GdG9r7b7oxHG65B/TiUUsd3Tzj1BBBUgcVFEUeopEnTlBHkAwIzJoGKDNQhC/G9doQQYRhaYoJKgXgcCJi8np1Q4oS6AXU9Gap79u7bvO3he1ffev2tP/72T778X9/4+L999gPv/cSH/uXj//JXH/n3d3/4yx//+vc+9/1vffI7V37tp3dce/cdP/vtrVffetcN9zz82/V71g9EA3FgCn3FGW7Fc4sedRkQyqjjcJ9qkTZMVk1FKjqcjr5gRsW08RqlY8xrundede9tP7zzxu/85pqvXv/9T/3w8g9/+wv/+pXP/NMXPvJXn/jvf/js1z74jR995qqbv//brbft0Nttudm2oG8BN7w6VOWcN6Nae1/b4pVHLDhzLhruMGoQlqvIgCW49AOR6JblGZP8JnQyyYPDJauuZKYksciWDDBuQzRRQJpE/3zrzGa5k/uMhJKNNuiYnhd4z10G3AoGRbDC2kLRDYKAaVaUTh0gAlATwzaAPi3umTILgvFkz6Bbq7VBWnCVW7Rj1f6Vixc1ZRYqpYgDIBwaEEldZaHaJCGQfghXN7ffsPveb62+7kM3feOvrvj0q7/+hXf8+Bvv+dlPPnDzbV+8f8NV26u3V+Fh6W0jYhdzhhxe91jiceV7xg0y7sXWqxfbaQ9RfCQca7KmrOi6G47xupBSRw1hZOABY4m2NcPq1qm7vhAus9Zk6AJmxidBgRSQagF3PMp9wh1DXAVOakSieax63GIFey4tNdpxsQSTrm7YsDoWltoq/uzCmuraZmd48qWnnPWyc8ABa0kQFInl1DKPeMziFtg6qMoJjT3uTB+Xc5hluMLhlFmtCUFGGWNwSSJQjx544AFQ2tOEZZJqWygXjjv1JBAAOGKSv3H2d2c0PJjpArobhuPoUYIyJkOyAiM5BgYGlLFxmtQa9SRJyoViRxm33U7BcJwqkgCMQHPDyI7bNq35+f2X/78vffnfPnv5J75y1devvPWamzbevW5060Ay1GSx5QkISQXWso5DXIe6HvfLoq3EKwWK4dBAKJemHGJqI+JqjHb7eHaUK6TDM4FgKefWmRRWUoTJiEqsjE0W6TRUSVN6UEC4xkc5BM1uykxMICKmaW1CmXLQzULJJGE2ppCwoDPYMbRj5+D2Bcvm/9mlLzzr3DPcNg4MDvRANR9olelVHqnAGNMa3yhq8PVTBFI7um3vzm3bC8BLhpS5a0GJdm/JccuRM0gjpJQmoGEcJCcZZrpgmTU2TSFNkGfcExxFA9jI7t2xp1IqB35R4QqqbV9bd19bFwyDWlPdfNXqX33quh984JtXfOR713322pu/elOyuaF2hHZPxoeNX2WFxGnXfpctehlzU+pkIFKCEXIrrVFESzDSWGWppZxwl7uBizHIYikoOY4n0AQxQSn2g+ILg2NUyuCeblJo0AgURDhhDhNY2xMobmxsrFGtRVGE5pUR6rouvhjlcplz7jBOKTVK49sSx7HOJE7tvmRvMCs49yXnvu6drznl4pNJB0iZ1Ro1fHRAOOyJlb9LuKUmyBJCCOPoXo4m2+97WGgItHWkKgeeElCe0w0zKplQyKocgOVzWMiJhTm51ggQV4DvAKeYEyZprd4gzWzvhh02Q9PPOHOoFTJMt6zd8JP/98XvffjyX3zlp2uvvXvswX6+l3RHnbPtnKDpFBK/ogtl4/uSs1CqWpxUw6IQgSMEo5QB9lcZifyIVRL7TUTTqTVEtUpHRmFoxA4Om4EaHUU0x5kl4AAAEABJREFURS1yG2kQyWKiy5ltU1lbPCnGvBHEqDuMGHGGJjAsBotzA2+Ox/qY7TBpMWm6jTE6OgLDcRAhQq/ZdBuRH5pOE8wLupZ0nPGSM1/29pdd8Jbnd6zoAApJEoOwxUqQ6+dAfvRACk/HskYjN4BQji+0g250BnLL0MC9WwqK8ESxTGdUy3ax8IxjoA3cAocpjhRIBjQDSJSNE5x0UxRuR1CCptEDdVONSUaKQaXkFZNavOr2++SuulfVPVCZU5g5M+hrZ20spbKeqURqmVtGSy1OCfGAlbhb4SEPI95MnSQVkXRj5WcySHUh07MTttCUjvZmnta9/MIjTn7Zcc/5izPOf/NzXvZ3F7/iH17y5++77HX//Mo3/vtr3vofr3/HR970zo+++Z0ff9ukePtH3/q2j7zlzf/xxr/4t9e++v+96hX/+LLL/v6lL33PJStffNSKP1u+4gVLl5y/cNF58+afPWvWmX0zTu8RS2hxhT/79N4VL1r+nL8487J3v/gv/vXVr//wq5//uvNmnzYTAtBKZTr1Si4XFA78eDJ1DryVp7MG2hYCnIvc/kiAgXjowa3u7kZJ0woIV4g6pN7ime0nLwUHu6GIhRyQuw0MgCDGcwCY1EQm1rHMp47QFIYsbG3U73ioGNpOGhTRZ1WWoCEUvs+cNhqUqOcifdCLj5uNrJFQaXygHS60s6xoml48KhqjXqNeaITtSdvK9hknz1z+vOVnv+rsl73r0nd84G3/9Kn3/usX3/cvX3j/P37y7/76w+98w/tfe+k7L77gdeedeelpp7z4xIWnz59/6ty5J8+edUJf37GdXSvKbcuD8lKvsqQ0KXqP7ek7rnfWiTPnnjx33inz5p86f8FpCxaevvDsV5117muec94bnvfCt77w4r+85LK/fdmr/uHPX/O+177zg29787+88VV//8oXveWFZ1x26sKzFxSWBNAD4EGm8CNBal3iFFwAk2ZZ409wKaQcskwRAsSgT2qirfv6798415Y7jAiAMs9JSs7cs47V+f+PVeOeCdchJBaz+4mFCbzFTKbA06RAWG61BkDfvm3T16/59Ye+tvq6m4tNU1Lc0ywL0ziMHe52ljs4EE4Zc5jhJuFJ6ERpKdNd0E9wWyW9haX5Zy49/ZXPeem7X/6WD7/z3Z9+z2v/9S9e9t5XXPj2C0++7OSF5yxqP6rCZlPoBhCAG1QUoqjKSJbYJLFxbCIeMAT1CDiAewpFbQY6h07RkEwFaTJ8O6gDAmNugfAKDvYaYVimeaZZallmWIqAIoUCAR/wTAKCn3cUTVMdKYYvFndLLnMYumXNZkQA2kptcIAHPcDy07F4muEKBgytT6zGdg9Wt+2b5be7hug4zVRK2/y5Jx5ZwzUOUkoJGEAaIZkeAd5iJpfAYoh21NZfd/cvPnP5tZ//zu5bVneOWlqLetyyUOAQ3l5q6yh3uEKkcWaIQT8pzsK6amSOKs0sH3HS4pMuPOXvP/y+v/73v3vde9/4Z29+0akvPmXhKQtLRxRhBiQVnZV1WpIS+YcrYJBaP7NeYjWAIRQwdMod4Xiu53t+4AdW58HXR85ojym6eZY6zJ0U1DgTYFZQw4ilE0DhObAuMEbQsReUOQiwFGUaqa1EjSANsAOCU5FZrfOtAmiMuAAEvi+Yo9P9cRj4ow+U+EeXnZYFVdz0A2EBaUGhP9v5m1W97Z1DyCGZVdvI9plw5MVnIeU66uBFIgEfoghUqoluEogI0ZSAJFAlsDXa9vmrt/3rt/jlt/f+tn+p7FrQPj+smSOy7qCKmwBbcEDYcGjf5tQ2bJvpD8ayBXTWhUvP+7sXv/qTb33lp9505j+9cPGbjhfHCrvM2jnW9ljbYW3ZWtdaagVQRhCcoBiCHXY04AbDtcQgDOC2zxj7KBiFSWHBTgomAEHH//rekkfLUCQM5YQwIMxSZgm1dByEWGSacIBjRA8r5MDCPmMiL2Tz3mIByglKcFw4wOOwJ5YQAigaFMA1Zeftd7crJmKVJFFfZ9vAvl2FjmJlXi8UUCto1zMOICsYLeKGMCdVhQxYFWq/WX/zp77xow99ass9a6AuHU2KzMuqjXjvyEy3hBHJGkuka4eTaoOkzpzK/HNWLrzgpNd84D0X/+2bT3vlRfPPWFFc0AElbonRWmFLk4ICTIpJCz8LMnGwh/koCFdg0ZrDntre2x/obugKvpqgm1G1MqPjxPPPgA43USmUebFcaNRGm+Ao4CIDtz8Jr1u17iPf2vzNa3s21+Y2+GLWWYrBhFlHqb2j0MYS5aYmLVGouG6HL4U0JZhx4qIll5w+/9JTYHkJFvqmi2a+xeBixrR1LPWm1Cc1MCkm1f6zIHNKRRw2YzNEZZIndtPNd1XGknJddTm+5zlRmRSX9LlLZsAsz1Tc0Ej0ZdBJKjalNxiHNz+09nNXbPjGzyrrRxY0qL9zbP4ImdNkfW7F8YIxGzdxmar4GAlPdIzxabCSU61Z1oMCFzhpL2QFSAJIfKO5IhSfGgqWAHpMB6Y5MsVxYFKmX+nDn1hAi5Kpjf2Dd6yeTQKBdiHLCr67s6BmPec421MYM8YCcORVZGAkpr94eNOnfrz+S1e3bxxbbiuFakqqcV+pvZsVGvuGBseGhli0y03Zst7OE49oFK2TKs+ADhucGHRIZs7uxW1CUysLyCTjEvAZcwmlBkllALOn3xwfkh7RQ9LqwWwURxCaxm1r2/fGRU3B59WozggZ7hD+CUeRdpeFuS/lDqrstg2rv/qTjZ/7SfuaoeWqUq5bVYt8L3DKxaqMod0dKujqLF+csmjOi05ZfNlzO09ZGoqkaJiH2ySlkUftvd2ktwMYcNBKxaBSpiTgpxRlQCqbSZ2mBzq0KQwWOVA50608Tst069KB92fT3vTOTfNSh0idYHjPp0SrY557FuA016EcO3D/YOPKW7d/65fOXbuWix7oDxv9o06x6HR1jEA6pCLSUbyV9dPnLlv+jouPfPvFi15+OixuA1kXKqYSJO7JfW+UyPKCWeAxQAddq4C7Dkf7KACJRjkIN3Pc2Jty94S8nBQHPtrDo8ZhTyzcpg+u3wo7hwuSARqqpB50tmG0ataSxUAFxHb0zjV3ffn7zbs2dffLJWkRvaByuc2rVGpa9qeNJA93VgodbSe/61UL/+Zl7OwFzR6ucBcpk4HtW5LBQc8NiOuWZvTacqFvyYL8S6IDnPPMGCScws83Ov/FFDLGFXOmmnYDMCmmKn+45087YtkpDtBpGFWbkKRgTCbRbERjkQWg165N7tmojIS2AjhulqnhAqu84nnAaLJm6/AXr9bf+s1RO9PeMRkIVrcxUONw6zCb8KzWJbJzF3l/e2Hx069lJ/VBOxon6VCIaikkfPddG48vLdQmbecsGditTTNY1m27oSHTghWMCiYcjsFGzgXjvoEC2CL671OsbRzIpJiKQFOImXbZU/V/2hFrqo7iguN4rjB4teBwrUzgBTAUj61azxNV9IuQZUBgzsxZczu6YKTRuOqOnVffMrJ6Q2BZsVhMojCrNduIs89NN9n6Nj8TKxcc88oXLHvFRe3LF9bTBAQaPBDYgjJl10127haEGWM4ZxJMRkz3vJngCuwe5xzo4aM37PGhwGGjoBAwAMxd/CqYagUk1hKXltp9m2trtzrVzCc8y1KTJgKAjYbNB9fDL1cv6E8X64BWQxklQVdHoaM0XBvZ1cvZGUvnv/b5M151Hpy8ELq5LoPX7lFHpEhNtCragoWda9Y7lEmtKKWplU1mFqxYDuMuFKfkUMzUYdbmYUOsCPAzBYDlDD9yAXjchR3V+p3rujO3rHhAXacQUFzkwiQbGLa7h0qairpEUvhu0Wq5vbpvZ6DFacuOfeWFC158ZnDaMljUlnTQhrCxwe91FiMGajzO6loKI3Jk/TYvs8poIKZpZVYSnUctAm8/pyx6aofZRD/T3T1siAVAsgxNFQPGIcGoJMT3btDr9jippbEyqQKlQaP7lbFUutI0hJJOvnACUaEPckGXe/4xlTee75y2hCzuzQq0btBAGUGIR0FgXQDCGRIJNIH122l/TaQYZgClVESkO6cLENRYawnyVGfQOp5QA/QJn06jhz4QnFQ8YZ/YWAybhkfvWx+MZhg8opTj4pQ0o6QZEmsohVRF1SKrVsSAn+0pSXrSEYtfd9GMy85Ty3uAA7jgFETgCCEVkRkHNIMULHr0HKSBZjb84Ma20BQlQSIZo5RLepcvggLVFDcO+d5O5gTEjrQwpQYOG2IVpPEcX2F/lWXVpHbLA2b7cBfzWbFAiwHxCp7jesKhrkt9YV1RaS/3Q7Sv1y1eclrlVefC0bNSrhiDzIOUmlRKbo3PuMu5sSpMmsRYRglFVg7XxjbuaJO0gv68tgCGBd7cozF4YTXDMsApAzqlQlsPJjRw2GiIZPlOO6bIiQxis3fVw7yRMr+QgI7jBJIEcInkAnSWGQU+q+0ZWHTk0mNf9WeVi07TS9tVt+cWXJJACKAZdXB/RwgordI4UdL4HB12QGOEpq/ejIfGAoxmMkG1RaoJ3+FzZ8WgMYQBWAtwU3jY6G1imp/587RTkCZkAgancAITWvFEmNgSMBeXwf+9qmMsnNHZoVXURgEtlPUsVLjsdAY9GGQ6KxcrH3m5eMPpcGwf+MZIrTNlCIAHbdb6Fvd91lJiBWdu4POgaH3QVDKA0WToZ/csajqRkXtMzXSX6gWy+NxTNZM04A72R9Ek0xkNmAWCYgjY3wFvMRNax7gGph2xxnsFyIGJBLo+EwmDEUj85NvIwgcfclPpUarT2DKrhJVWEq3AWGNUHBBx7LyuVzy32NUhOipQ9HDpIpRiREpKqSUapQl5jztz4BLS3UO0kVhrXd/3haPDhHVXnI4y88T+qgQwjkXQej1OQCvjsRqYjsSaYBX2DC0C9hUtASKMY0Dy7Ny75457y3HmEytNal2SESVKPrgsTBtpWXSfuaL7RafCc5bQrjKUPWAAFBgjuKKhKKQXnieFZkDrKlmznY3iagl+IXCZMGHiLp5FZrRBgMumTpGWZJyoLWJNqsTHZNLHpKdFkoz3AruFrEI+IdB+IHCeYXgsXLfFbt9TzKQglvvMuuhNcRC0UaLNBe3+OUcFLziFrZxbL0CKXhMD3MfpcYGCc4cL/AYzfjfJyWLe3tFk9VavkaF7TghRRuNGsbRiPnRXLAXKiLYqt6XWOli4hSfUAM7gEz5/xh9ihxCPZRVSDcEIGVr1YLJhSx8RyBkrFO/0tWsIsaMQN+ZX2i45VVxyGiwoR0S5AAkxsUULAygNqxMChEFOC5j84AqyzXth+5CXGo9ylaShkWR+T3HZbChyrOhSyhhROtNaOng/uZhW7n4NoNr3p6bJBSmFQEOFQENFsFvoaxsL/cPNDZthcKhS9EFoWQAoMevYPU5Elvd2Pm+le/ritI1G1HDQrjaCcwbEamuVtRl6X0Ypo/LwAUqcDJujxB4AABAASURBVLsb8cM7vVCBMoD/4iz2GTt1CetrA+SVAgeAE4YxU5L3aTIJrbzHaIA+Jj0tksgnBHblUVZZvIP6fQ96tbCIs05BC23LTkJSy21yyvz25x/vnrg0dZE/CQfjMAbWuIQ6QLgBDBmgQIpsBVCYyoVN9nt4Z3Pz7oJwlUIfXjrKko6iOH0ZRlNzo2eAGACrGMV1EpdYNZmIVt6jGjhoxHpU5EFJoYmakGMnLrB7zcNtlPuUgUxTqqEgIp0AtXNf+hxYPge4tbhVTI2DFXEDSSwDIOheoYlCQhBKGEVKUDrleOPt/elQlXtekmWQKQGUVgp0SXfOIKyEVipTVqMsyA+VZ+eJ1m8KDaDOpnhyiLIxDmpkndg6fhqsxxTQ/NT2bbjy48tEPUk2N0oj0JYFYIZH6rXjj7L/+hYxoxcCHzzfK7UJvwhUAHOAibz7HMCj4NN8GWPAIL8SPIBE1ToBkihrMGjWtGrLyJbr753tddm9tSIPah3O2mVu8byjOQVcUAGFITzOucOBA967JRQzKaB1jGuAjp+n0QltAnM8q0yok2IAkNhw89ZChPYo85nrGa6TNCu6bUcv6lk83/O8A+06mposjgulijaWivHhJ2bwrrWd3E/G6qRUQirhjtLvbOuaM/NAhbfKP6KBcc0+cjcNEkaDBpFQZqjFzqW7tow99HClrpBwHncFiBhIOqe7ePKKwrKFnKP9OLBOI7GSKAab15IAjAFsG4huWdsFgoRJfl92mp6dsWIJzO5S2IO8YOt3wBqYdppDI6LRv3H8YuBCY1+4dS0b2FdsKu45ABSEI2b2OUcdAUvnQNk36E7BgR1I0BKaJWsZIxm6Sgk00FztaqDLVuIuBi5SNIJ9bYUTjwSPSDZOwANroVU618D0IxYB/CjMgBJIwq0Pyr3rOpjGLzaEs6aWSdF3ly92j1qqSqUULKE0H8SB/LTJiCOAEauhg3LYvG/43oc7pMj/stnlDa52QdR3ypEwo5hYpQ9Y/IF05VlddtppLg8IKM3BQnUk2bbGbex2A2k9jUfo8XBWByybBz0dGjAObolzwP0nUZZ/Nmag0wwiqN+5jgzUgFCkmuRadgSNNh6cegwIMAw/RaKBe1bP/5MY3B9X5YAn5o8T++RL2SwNXA61WvjQGjqys0LqwJtJyeDK5czpJkfNU7O7NDrYwISm9sDbCQxNjYoBAxQENvTL1ds7GX5StLh/DAVEZT7z5BXQU0isZII7QA+8hVaNXAPTTnFpHIK1yehY/+YNfhoS12jTzALieF5l7gx/4ezYdTPI2cENSHPA1KLczbQalQ1wRO2+tWy4UfIKGQflMO3xOlG9px6nkxjDrKgehgsyXlo4cA0cQmIpwE8nj/YYOZJYiGTQAclYvOk33XKn5ykLzJbKiY7vmdlOlq3wSwsKadm3LnFZpjOaRY8K+L0Uyvsd6zIlU5lJazSWoRRZOpuWYPWu6u0PliIFPh9jKTW6KtTCF50Fs9tswD1CHEI0wQotPBkNHEJi/Z/u4geciXufJarar5M6AwloMThLjRJ+MHPePFIsAgGlsomSlDP06CfSjz8b3DBaO5FPgVBKGSEUIKOSMwpD9eqa9QFjBoMbKvUFH4a0OLfPm9UHDpNGY38sWk509SZEtM4HqAFU9QHWeBqK/44AuWiuqs3+jZCMCCoBfXhGEw1ee9esBYvBLYC2OWPygkDxYBgRH7953EkZjWVzflibF0RqAUEDFDsWpIaNu6v3risZoqmJZUyJrbU5HSuOgIUz0W3XyCdjrTZGoVl9nOhWxh+hgUNPrEdYlZMAZ7SxMxrcKHTVERo/IEtGUjcIZmLUqh0oA2uQJRPjskDHqTJx9/tnlIYUxDMBQglFoGwERhr0zr3p6s2F4aZIpRUkZjq2GT9yjjhyPgSQgaWC560YS/abvN8X3rr/gxqgf7DE01rgsaza39DIJhLu82gEjgGrY+aQtm7oWwCGgSFofBzcM1pAc4R2Bam3v9bjLhhTwDwkFp5zIEUwep/KIFNjazbVNm7v9sskwZgWywq8UWI9Jx8Fc7uwkdBI4QikIyGEMZbXnea/adm9Q0as3IP5Ha0mrkgCRDK81YW6yyQwowCUWwhmzIeOGZGC1FhLGeR/wK7xAErM1DplyAmK3CB5EWQVQqo8dvXQ7mTDjnSsCp5LicWl0HQF/KjZhWXzocyrWYJiaV4HKGOETiTH71unA9HAoVfcI6ya6HZS3+ehG4QrEmiJxCi1l+ccYd026hWAuflMW63Q9UFSEfxNVJrkjNaGUooC8mfIKmPRYVIYFL1ltTfStNSapA6+o62CrsKMc46FIkazgDrcEyJXislJm+8i8/qt3wFrINfhAVc6eBUmWPVYeTKNPA6A8220xo1fUCTtXTGgk04Z4/gRR2G+kRRJA5BP/mMrPyZNgKBfRQjZn4ctaaOlytZsDqRxPDFQG4aCm8csiq5YsUgraSl4nE9oBMkL5Ink7xfbukyhgQk1TvHw6cwmyuCcEwrjMJQqplOWhSn3GoRXDUTYesF1iwEw6gO4BtdGINYwQbzA4ZQIAz76Wbh8TgamZBw2UoCIQD2KkSO0Gq7/5neFVwc11B7Ytq7CQDTCVyzpOf+chlsgFW7BOmAFIActcVG85WCxFy08CQ3QJ1Hn4FQhyKvHSbI0oMSxWliNk0osGGMgkwoe6efvErgM4uPJZOwXSphwvAw/NQOUiz4MDTRX3VfOMpkqBzcBqQzBsLndbcccQbu73P11WpeDpgF60CQdsCAK9jGt52kKhBSJFUq61jgA1FidZDbObG5EJhogAAgAtCVEAdGYmhwEV0IupeRorExc3/DQ4Kr7Z8qMWeCUG2WjAhcrF8GJS6HkiVRPLqSV+2Q1QJ9sxade77FNT3jZmENx4kmmOWWAXpTMVNyUUd1BAk3QCZvNKYg36F9pIBIzJoWS+CVRu8Q6KoRd2+Ntm4J6NTCaebiuMi2oM2+Ge9wi21s0FEisJxXyJDNb1eDRJeYZVwYhgHi0WZInCTGimBoOzEFigY5NNKYa/WCbgM8RaKiwzzm3aF4erdH45fEnIoBZU6AW+vfuu+duMjDQF3iQRuCJhFnZWSoftcBbMKsOUE8i8NA+Pl5GK+fJa2Biep58/SdfcyKC+Uh9wgBhCeuYF/KSJDjThBNFszFd3QW17UAiIBng8pdXwWWUATIsR34/yY8aB+1ZdUxu2pyu3+Q1G+BQkHHMoFEW9ogZwdL5VnCtFQWG/yaR0Mp6ChqgT6HuU6tKJqtOCJ29LAu6QtyfATCquW3KsW0w8BBAPI6JNYsAcgE3cHieTAzmWZCQNNXGjfG6Tb2ZKSEFw1C7LHY5nd9XPn4JzOoiQAMJBce1HFrHwdXAoSPW48cxscD1zNV+JQKK8SrCkDuJbA7GwzsBiQIK8rXP5OthHgcgMDUjEt2wUWNoy+Z49x4/KBLhVsMGKQTGF4W5fWLJfKStjGJPU0ahgYIf359WzlPQwKEjFrZMgMB+AFoU4YFTgqx75oIzSGX5kOqIbYloUdbSD0eH7/6F3rGOjA1BnBGATOMVDCEkIwQIxuhTQiJNskQTLJBkxS1rR27+sd53Z+/sECoDkg7oAgsJtxecQZYsBusBONb3G9xG2gQcI2STA1rHk9IATu+Tqvf0VeIOL1eK7d2iUKDcEQ5hkOr6cLJvUzqwGaq7iBoFK11mqKzpuJ6RJFYZhrs4QIErF0Ko7tU7Ht51281qaKCI/BseywZGjRd48+aw+TPKnZ1uqQScARBGmGCcI7dbFgsO8jHtiGWoA23dpZlzvfYexbgGK6hmEBbCnaR/bbTtLrX1Thh8COrbPVNzbMNxMl8kHm3wbAhGd5gdaxvr7hp58Nb2tNmuZBt3fLesqTdMRTZzRnDS8e6MGVApA4YzABhQlzFOCMY4DrJe/+TF0emmgchgjzzonuP1zpdeW6SooRQc0cGiIOknww+HO37bWP/rZOudemAdjG7TIxthaCPseVhtXNVcdUvj/lvs5vuLA1uKKuJRA8LEaKYKXWz2fHf5kXDUkSgKGBopAkCtNkTh92ggFBtt4WBqYNppVDDHgABR4TOWBDOX6/LMJpSyTOQeECQ+0ksPm9GHG7vuHd70271rb+m/85cDd904cvdNtQdv1ZvXeqO7yqoWiAR0yooFXSiNUl/3zek7/vRg6VEp8SQQjf4ccKtBZxhtUPndtFPDwZzjQyJr2mmUA2SKaOtDcZ4z7/hg7omqsrA/KwMpaAycgma2SZNBFu0R4R6Mb5Vqu5zhbXRoq9ccqLDQ9TUgeWgDkFWeF3V1iaNWFI89EeYsBBagy59mRuH6aoGg5w/5/hII5Nw6JOp/9jY67YiF7g5OuSaBhjYozvVmH1dadJo35zhVmhXySqyJMpKRuOxkHX7WKeJykLYHWXtRFQoaAiSkTJ207iRVrfeCrXd1uUev4IuXKaegJC0RzqiguPppAEDXHe2jkAQSaB0HWQPTjliQZCQfI5UgqqkDxZnO/GN6lp9GyzMh6LB+yfH9IHC4C2CSrDGq6vtA1oCkGc3qJhyyUTWApDMQnd2zV66cdcopzry5iVswjuA41hQcThhB9wrygyK5QBEbyzi/bf0OngbowRN1cCQZX3CHccDQuy0jIWjZ0D7TdQw98fnlE/5Mz3vOPm/lHlgwIjszXirNnMH9wLhO6nhpUFKVOaTrGOg42badXnjJO8gJL4DOhYQGYvyPIxIGiY87QaAYahAACJr32QfSLnwyxZGXaP0OXAPjqj3wak+1xpOob8tQmluaf8KMlc+dddwF5aVnme4VYbBopLCwVlqcdCwnM48tLDql+8gzeo89t/f484EwIOiwMcgdKENJTim8gdbxjGjgsCFWg/fGwSxdPgK6j4G5p4uF53lLL/SW/Vnnc9/cfvbrKqdeWlzxAnfRGTDjWOhYAsV5GtCNdw1xLVBKMFKluUXYZ0SrrUbyt/nw0IJhVFqWAI/AT0i78mbr8jLoPEp5C5W/AJH4s2K3J2aVGLwEhCGeoY4FRgDtFpD88w/uA9XhMdrDv5eHjcUSBhyS+0VIEwSGDKJENUIZaxopEimrFFhDxO/K5Cug5SRnFQVLgZDDf7IOpxHQw6WzHslckA4oBwwHI0C7FDxGAkYLnJU48xl4YKgx3GL0MycU8m+CTYTgFUeKZ8ThMuLDu5+o7sNjAJSge6QNfoXRmTWKUesI8FxOdAoqUVmks1SrjGgDxuCQiLE5rCVALFANVAFH4KMWngENHDbESgG/wVBLKGGcUOy2xcVPpTFllDGe/5ECz4OfQDlQfApg86URLxNKzFkJoCduWuenXwPjcwAAT39Lf2QLaF4mhWNdZjFozsEyi8C1jrvMDazFpY9ZKgjlhFEMfVqwCOACOMtJhiYLsDS4kOOP7Ear2FPUAH2K9VvVWxqYVAMtYk2qllbmU9VAi1hPVYOt+pNqoEWsSdXSynwPx+vSAAAAeUlEQVSqGmgR66lqsFV/Ug20iDWpWp7Fmc/Q0FrEeoYU/afWzLQjFjlIx5/aRE638U47Yk03BbX68+Q00CLWk9Nbq9Yf0ECLWH9AQa3HT04DLWI9Ob21av0BDbSI9QcU9PQ/fna20CLWs3NeD/moWsQ65FPw7OzA/w8AAP//chSFMwAAAAZJREFUAwBPtz82ImB0NQAAAABJRU5ErkJggg==" />
+      </div>
+      <div class="titles">
+        <h1>Calculadora de Reemissão</h1>
+        <div class="sub">
+          Gere o e-mail pra agência e, <b>se aprovado</b>, cole o <b>código</b> na <b>observação da OP no RF (Reserva Fácil)</b> para o <b>CCO</b> visualizar a tabela com valores.
+          <span class="muted">LGPD: não trafegar dados de cartão.</span>
+        </div>
+
+        <div class="legend" aria-label="Legenda de cores">
+          <span class="badge badge--calc">Cálculo</span>
+          <span class="badge badge--rent">Rentabilização</span>
+          <span class="badge badge--cco">CCO / RF</span>
+        </div>
+      </div>
+
+      <div class="themeCtl">
+        <label for="themeSel">Tema</label>
+        <select id="themeSel">
+          <option value="dark">Escuro</option>
+          <option value="light">Claro</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- FORM -->
+    <section class="card calcCard">
+      <div class="hd">
+        <div class="tabs" role="tablist" aria-label="Modos">
+          <button class="tab" id="tabNac" role="tab" aria-selected="true" aria-controls="panelNac">Nacional</button>
+          <button class="tab" id="tabInter" role="tab" aria-selected="false" aria-controls="panelInter">Internacional</button>
+        </div>
+        <span class="pill" id="statusPill">Calculando…</span>
+      
+      </div>
+      <div class="subHd">
+      </div>
+
+      <div class="bd">
+        <div class="note" id="tipBox"></div>
+        <div id="rentSection" class="rentSection">
+          <label class="rentToggle"><input id="rentab" type="checkbox" /> <span>Rentabilização</span></label>
+          <div class="rentHint">Uso interno — não vai para agência. Entra apenas na OBS (RF) para o CCO. (adiciona @# no final do CRR no e-mail)</div>
+          <div class="rentPanel" id="rentPanel">
+          
+          <div class="rentMeta" id="rentMeta" style="margin-top:6px;">
+            <div class="grid3" style="grid-column: 1 / -1;">
+              <div>
+                <label>OP (RF) <span class="muted small">(opcional)</span></label>
+                <input id="op_rf" placeholder="Ex.: 8-444.807/0" />
+              </div>
+              <div>
+                <label>Agência <span class="muted small">(opcional)</span></label>
+                <input id="agencia" placeholder="Ex.: 258022 - ONFLY" />
+              </div>
+              <div>
+                <label>Filial</label>
+                <select id="filial">
+                  <option>BR1</option>
+                  <option>BR2</option>
+                  <option>Concierge</option>
+                  <option>Exclusivo</option>
+                  <option selected>LOT</option>
+                  <option>SAO</option>
+                  <option>SPI</option>
+                  <option>SUL</option>
+                  <option>Emergencial</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+<div class="rentRow">
+            <div class="rentOpts" role="group" aria-label="Tipo de rentabilização">
+              <label><input type="checkbox" id="rent_tipo_multa" /> Multa</label>
+              <label><input type="checkbox" id="rent_tipo_diftar" /> Dif. tarifa</label>
+              <label><input type="checkbox" id="rent_tipo_diftax" /> Dif. taxa</label>
+            </div>
+          </div>
+
+          
+          <div id="rentBlocks" style="display:none; margin-top:10px;">
+            <div class="rentBlock" id="rentBlock_multa" style="display:none;">
+              <div class="rentBlockHdr">Multa</div>
+              <div class="rentRow">
+                <div class="field">
+                  <label>Pago na CIA por PAX (<span class="rentCur">BRL</span>)</label>
+                  <div class="grid3" style="grid-template-columns: 1fr 1fr 1fr; margin-top:6px;">
+                    <div>
+                      <label class="muted small">ADT</label>
+                      <input type="text" id="rent_pago_cia_multa_adt" placeholder="ADT">
+                    </div>
+                    <div>
+                      <label class="muted small">CHD</label>
+                      <input type="text" id="rent_pago_cia_multa_chd" placeholder="CHD">
+                    </div>
+                    <div>
+                      <label class="muted small">INF</label>
+                      <input type="text" id="rent_pago_cia_multa_inf" placeholder="INF">
+                    </div>
+                  </div>
+                  <div class="rentMuted" style="margin-top:6px;">Total pago na CIA: <b id="rent_pago_cia_multa_total">—</b></div>
+                </div>
+                <div class="field">
+                  <label>Valor a cobrar da agência (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_cobrar_ag_multa" placeholder="Automático" readonly>
+                </div>
+                <div class="field">
+                  <label>Lucro (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_lucro_multa" placeholder="Automático" readonly>
+                </div>
+              </div>
+              <div class="rentMuted" id="rent_break_multa" style="margin-top:8px; line-height:1.35;"></div>
+            </div>
+
+            <div class="rentBlock" id="rentBlock_diftar" style="display:none;">
+              <div class="rentBlockHdr">Diferença de tarifa</div>
+              <div class="rentRow">
+                <div class="field">
+                  <label>Pago na CIA por PAX (<span class="rentCur">BRL</span>)</label>
+                  <div class="grid3" style="grid-template-columns: 1fr 1fr 1fr; margin-top:6px;">
+                    <div>
+                      <label class="muted small">ADT</label>
+                      <input type="text" id="rent_pago_cia_diftar_adt" placeholder="ADT">
+                    </div>
+                    <div>
+                      <label class="muted small">CHD</label>
+                      <input type="text" id="rent_pago_cia_diftar_chd" placeholder="CHD">
+                    </div>
+                    <div>
+                      <label class="muted small">INF</label>
+                      <input type="text" id="rent_pago_cia_diftar_inf" placeholder="INF">
+                    </div>
+                  </div>
+                  <div class="rentMuted" style="margin-top:6px;">Total pago na CIA: <b id="rent_pago_cia_diftar_total">—</b></div>
+                </div>
+                <div class="field">
+                  <label>Valor a cobrar da agência (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_cobrar_ag_diftar" placeholder="Automático" readonly>
+                </div>
+                <div class="field">
+                  <label>Lucro (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_lucro_diftar" placeholder="Automático" readonly>
+                </div>
+              </div>
+              <div class="rentMuted" id="rent_break_diftar" style="margin-top:8px; line-height:1.35;"></div>
+            </div>
+
+            <div class="rentBlock" id="rentBlock_diftax" style="display:none;">
+              <div class="rentBlockHdr">Diferença de taxa</div>
+              <div class="rentRow">
+                <div class="field">
+                  <label>Pago na CIA por PAX (<span class="rentCur">BRL</span>)</label>
+                  <div class="grid3" style="grid-template-columns: 1fr 1fr 1fr; margin-top:6px;">
+                    <div>
+                      <label class="muted small">ADT</label>
+                      <input type="text" id="rent_pago_cia_diftax_adt" placeholder="ADT">
+                    </div>
+                    <div>
+                      <label class="muted small">CHD</label>
+                      <input type="text" id="rent_pago_cia_diftax_chd" placeholder="CHD">
+                    </div>
+                    <div>
+                      <label class="muted small">INF</label>
+                      <input type="text" id="rent_pago_cia_diftax_inf" placeholder="INF">
+                    </div>
+                  </div>
+                  <div class="rentMuted" style="margin-top:6px;">Total pago na CIA: <b id="rent_pago_cia_diftax_total">—</b></div>
+                </div>
+                <div class="field">
+                  <label>Valor a cobrar da agência (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_cobrar_ag_diftax" placeholder="Automático" readonly>
+                </div>
+                <div class="field">
+                  <label>Lucro (<span class="rentCur">BRL</span>) <span class="rentMuted">(auto)</span></label>
+                  <input type="text" id="rent_lucro_diftax" placeholder="Automático" readonly>
+                </div>
+              </div>
+              <div class="rentMuted" id="rent_break_diftax" style="margin-top:8px; line-height:1.35;"></div>
+            </div>
+          
+
+            <div class="kpi" id="rentKpis" style="display:none; margin-top:10px;">
+              <div class="box">
+                <div class="t">Cobrar agência (selecionado)</div>
+                <div class="v" id="rent_sum_cobrar">—</div>
+              </div>
+              <div class="box">
+                <div class="t">Pago na cia (selecionado)</div>
+                <div class="v" id="rent_sum_pago">—</div>
+              </div>
+              <div class="box">
+                <div class="t">Lucro (selecionado)</div>
+                <div class="v" id="rent_sum_lucro">—</div>
+              </div>
+              <div class="box" id="rent_box_lucro_brl" style="display:none;">
+                <div class="t">Lucro em BRL (câmbio)</div>
+                <div class="v" id="rent_sum_lucro_brl">—</div>
+              </div>
+            </div>
+</div>
+
+
+            
+        </div>
+
+          <div class="hr rentDivider"></div>
+
+                </div>
+
+<div class="hr"></div>
+
+        <!-- COMMON -->
+        <div class="grid">
+          <div>
+            <label>Cia aérea</label>
+            <input id="cia" placeholder="Ex.: LA / G3 / AD / TP..." />
+          </div>
+          <div>
+            <label>Prazo</label>
+            <select id="prazo">
+              <option>Imediato</option>
+              <option>Até 30 min</option>
+              <option>Até 1h</option>
+              <option>Até 2h</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="grid3" style="grid-column: 1 / -1;">
+            <div>
+              <label>Localizador (LOC)</label>
+              <input id="loc" placeholder="Ex.: ABC123" />
+            </div>
+
+            <div id="oacWrap">
+              <label>OAC</label>
+              <input id="oac" placeholder="Ex.: SAOKL (opcional)" />
+            </div>
+
+            <div id="novoLocWrap">
+              <label>Novo LOC</label>
+              <input id="novo_loc" placeholder="Se houver" />
+            </div>
+          </div>
+<div>
+            <label>Qtd ADT</label>
+            <input id="paxq_adt" value="1" inputmode="numeric" />
+          </div>
+          <div>
+            <label>Qtd CHD</label>
+            <input id="paxq_chd" value="0" inputmode="numeric" />
+          </div>
+          <div>
+            <label>Qtd INF</label>
+            <input id="paxq_inf" value="0" inputmode="numeric" />
+          </div>
+          <div style="grid-column:1/-1">
+            <div class="paxBox" id="paxBox">
+              <div class="paxSecTitle">
+                <span>PAX & Bilhetes</span>
+                <span class="paxTag" id="paxTotalTag">Total: 1</span>
+              </div>
+              <div id="paxFields"></div>
+              <div class="paxHint">
+                • Preencha <b>Nome</b> e <b>Bilhete</b> para cada passageiro.<br/>
+                • O bilhete é formatado automaticamente como <code>957-1234567890</code> (hífen após 3 dígitos) para o RF não confundir com cartão.
+              </div>
+            </div>
+            <textarea id="pax_json" style="display:none"></textarea>
+          </div>
+
+          <div>
+            <label>Família tarifária</label>
+            <input id="familia" placeholder="Ex.: Light / Basic / Flex..." />
+          </div>
+          <div>
+            <label>Passageiro(s) (auto)</label>
+            <input id="pax" placeholder="Ex.: SILVA/JOAO MR; SOUZA/MARIA MRS"  readonly placeholder="Gerado automaticamente" />
+          </div>
+          <div>
+            <label>Bilhete(s) (auto)</label>
+            <input id="tks" placeholder="Ex.: 957-1234567890 / OAC 012345"  readonly placeholder="Gerado automaticamente (957-1234567890)" />
+          </div>
+          <div>
+            <label>Bagagem</label>
+            <input id="bag" placeholder="Ex.: 1x23kg / sem bagagem..." />
+          </div>
+          <div>
+            <label>Permite parcelamento?</label>
+            <select id="parcelamento">
+              <option value="Sim">Sim</option>
+              <option value="Não">Não</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <!-- PANELS -->
+        <div id="panelNac" role="tabpanel" aria-labelledby="tabNac">
+          <div class="muted small"><b>Nacional</b> — valores em BRL (R$). Dif. tarifa = (Tarifa nova − Tarifa antiga).</div>
+
+          <div class="hr"></div>
+
+          <div class="row">
+            <div>
+              <label>Forma de pagamento</label>
+              <select id="nac_fp">
+                <option>Faturado</option>
+                <option>Link de pagamento</option>
+              </select>
+            </div>
+            <div>
+              <label>Link de pagamento (se aplicável)</label>
+              <input id="nac_link" placeholder="Cole o link aqui (opcional)" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="muted small"><b>Valores por tipo de pax</b></div>
+          <div class="hr"></div>
+          
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD ADT</label><input id="nac_qty_ADT" value="1" inputmode="numeric" /></div>
+            <div><label>Tarifa antiga (ADT)</label><input id="nac_old_ADT" placeholder="0,00" /></div>
+            <div><label>Tarifa nova (ADT)</label><input id="nac_new_ADT" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (ADT)</label><input id="nac_tax_ADT" placeholder="0,00" /></div>
+            <div><label>DU/Rav (ADT)</label><input id="nac_du_ADT" placeholder="0,00" /></div>
+            <div><label>Multa (ADT)</label><input id="nac_pen_ADT" placeholder="0,00" /></div>
+          </div>
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD CHD</label><input id="nac_qty_CHD" value="0" inputmode="numeric" /></div>
+            <div><label>Tarifa antiga (CHD)</label><input id="nac_old_CHD" placeholder="0,00" /></div>
+            <div><label>Tarifa nova (CHD)</label><input id="nac_new_CHD" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (CHD)</label><input id="nac_tax_CHD" placeholder="0,00" /></div>
+            <div><label>DU/Rav (CHD)</label><input id="nac_du_CHD" placeholder="0,00" /></div>
+            <div><label>Multa (CHD)</label><input id="nac_pen_CHD" placeholder="0,00" /></div>
+          </div>
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD INF</label><input id="nac_qty_INF" value="0" inputmode="numeric" /></div>
+            <div><label>Tarifa antiga (INF)</label><input id="nac_old_INF" placeholder="0,00" /></div>
+            <div><label>Tarifa nova (INF)</label><input id="nac_new_INF" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (INF)</label><input id="nac_tax_INF" placeholder="0,00" /></div>
+            <div><label>DU/Rav (INF)</label><input id="nac_du_INF" placeholder="0,00" /></div>
+            <div><label>Multa (INF)</label><input id="nac_pen_INF" placeholder="0,00" /></div>
+          </div>
+
+          <div class="kpi">
+            <div class="box">
+              <div class="t">Total a pagar (BRL)</div>
+              <div class="v" id="nac_total_brl">R$ 0,00</div>
+            </div>
+</div>
+
+          <div id="rentAnchorNac"></div>
+
+          <div class="hr"></div>
+
+          <label>Voos simulados (opcional)</label>
+          <textarea id="nac_voos" placeholder="Cole aqui os voos simulados (um por linha)"></textarea>
+
+          <div class="hr"></div>
+
+          <label>Regras / observações (opcional)</label>
+          <textarea id="nac_regras" placeholder="Ex.: LOC deve ser cancelado em até 30 min se não prosseguir, risco de ADM..."></textarea>
+        </div>
+
+        <div id="panelInter" role="tabpanel" aria-labelledby="tabInter" class="hidden">
+          <div class="muted small"><b>Internacional</b> — valores em moeda estrangeira + conversão para BRL via câmbio informado.</div>
+
+          <div class="hr"></div>
+
+          <div class="grid">
+            <div>
+              <label>Moeda</label>
+              <select id="inter_cur">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="CNY">CNY</option>
+                <option value="GBP">GBP</option>
+                <option value="OTHER">Outra (código)</option>
+              </select>
+            </div>
+            <div id="inter_cur_other_wrap" class="hidden">
+              <label>Código da moeda (ISO)</label>
+              <input id="inter_cur_other" placeholder="Ex.: JPY, CAD, ARS..." maxlength="3" />
+            </div>
+            <div>
+              <label>Câmbio (Moeda → BRL)</label>
+              <input id="inter_fx" placeholder="Ex.: 5,40" />
+            </div>
+            <div>
+              <label>Recuperação de incentivo?</label>
+              <select id="inter_incentivo">
+                <option>Não</option>
+                <option>Sim</option>
+              </select>
+            </div>
+            <div>
+              <label>Tipo de cálculo</label>
+              <select id="inter_tipo">
+                <option>Manual</option>
+                <option>Automático</option>
+              </select>
+            </div>
+            <div>
+              <label>Forma de pagamento</label>
+              <select id="inter_fp">
+                <option>Faturado</option>
+                <option>Link de pagamento</option>
+              </select>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>Link de pagamento (se aplicável)</label>
+              <input id="inter_link" placeholder="Cole o link aqui (opcional)" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="muted small"><b>Valores por tipo de pax (na moeda selecionada)</b></div>
+          <div class="hr"></div>
+          
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD ADT</label><input id="inter_qty_ADT" value="1" inputmode="numeric" /></div>
+            <div><label>Dif. tarifa (ADT)</label><input id="inter_fare_ADT" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (ADT)</label><input id="inter_tax_ADT" placeholder="0,00" /></div>
+            <div><label>DU/Rav (ADT)</label><input id="inter_du_ADT" placeholder="0,00" /></div>
+            <div><label>Multa (ADT)</label><input id="inter_pen_ADT" placeholder="0,00" /></div>
+            <div><label>RC (ADT)</label><input id="inter_fee_ADT" placeholder="0,00" /></div>
+          </div>
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD CHD</label><input id="inter_qty_CHD" value="0" inputmode="numeric" /></div>
+            <div><label>Dif. tarifa (CHD)</label><input id="inter_fare_CHD" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (CHD)</label><input id="inter_tax_CHD" placeholder="0,00" /></div>
+            <div><label>DU/Rav (CHD)</label><input id="inter_du_CHD" placeholder="0,00" /></div>
+            <div><label>Multa (CHD)</label><input id="inter_pen_CHD" placeholder="0,00" /></div>
+            <div><label>RC (CHD)</label><input id="inter_fee_CHD" placeholder="0,00" /></div>
+          </div>
+
+          <div class="row">
+            <div class="qtywrap"><label>QTD INF</label><input id="inter_qty_INF" value="0" inputmode="numeric" /></div>
+            <div><label>Dif. tarifa (INF)</label><input id="inter_fare_INF" placeholder="0,00" /></div>
+            <div><label>Dif. taxa (INF)</label><input id="inter_tax_INF" placeholder="0,00" /></div>
+            <div><label>DU/Rav (INF)</label><input id="inter_du_INF" placeholder="0,00" /></div>
+            <div><label>Multa (INF)</label><input id="inter_pen_INF" placeholder="0,00" /></div>
+            <div><label>RC (INF)</label><input id="inter_fee_INF" placeholder="0,00" /></div>
+          </div>
+
+          <div class="kpi">
+            <div class="box">
+              <div class="t">Total (moeda)</div>
+              <div class="v" id="inter_total_cur">—</div>
+            </div>
+            <div class="box">
+              <div class="t">Total (BRL)</div>
+              <div class="v" id="inter_total_brl">R$ 0,00</div>
+            </div>
+          </div>
+
+          <div id="rentAnchorInter"></div>
+
+          <div class="hr"></div>
+
+          <label>Bilhete original (opcional)</label>
+          <textarea id="inter_original" placeholder="Cole aqui dados do bilhete original"></textarea>
+
+          <div class="hr"></div>
+
+          <label>Voos simulados (opcional)</label>
+          <textarea id="inter_voos" placeholder="Cole aqui os voos simulados (um por linha)"></textarea>
+
+          <div class="hr"></div>
+
+          <label>Cálculo (uso interno) — opcional</label>
+          <textarea id="inter_interno" placeholder="Cole aqui observações internas / máscara / prints (não enviar ao cliente se não quiser)"></textarea>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="btns">
+          <button class="action primary calc" id="btnGerar">Gerar E-mail (preview)</button>
+          <button class="action good" id="btnCopiarHtml">Copiar E-mail (HTML)</button>
+<button class="action cco" id="btnCopiarObs">Copiar código OBS (RF)</button>
+          <button class="action rent" id="btnCopiarRentForm">Formulário Rentabilização</button>
+          <button class="action" id="btnLimpar">Limpar</button>
+          <button class="action" id="btnSalvar">Salvar (local)</button>
+          <button class="action" id="btnCarregar">Carregar (local)</button>
+        </div>
+
+        <div class="muted small" style="margin-top:10px">
+          “Copiar código OBS (RF)” copia o <b>código</b> pra colar na observação da OP no RF. Se o RF não renderizar, teste colar só a tabela (sem o título).
+        </div>
+      </div>
+    </section>
+
+    <!-- OUTPUT -->
+    <section class="card outputsCard">
+      <div class="hd">
+        <div>
+          <div style="font-weight:900">Saídas</div>
+          <div class="muted small" id="previewHint">Gere o e-mail e/ou copie o código pro RF.</div>
+        </div>
+        <span class="pill" id="subjectPill">Assunto: —</span>
+      </div>
+      <div class="bd">
+        <div class="muted small outTitle" style="margin-bottom:6px"><span class="tag tag--agency">AGÊNCIA</span> <b>1) Preview do e-mail (agência)</b> — isso é o que você cola no Outlook.</div>
+        <div id="preview" class="preview" contenteditable="true" aria-label="Pré-visualização do e-mail"></div>
+
+        <div class="hr"></div>
+
+        <div class="muted small outTitle" style="margin-bottom:6px"><span class="tag tag--rent">RENT</span> <b>2) Formulário de rentabilidade (SICA)</b> — copie e cole no e-mail para o time de Rentabilização lançar no SICA.</div>
+        <div id="rentFormWrap">
+          <div id="rentFormOff" class="muted small">(Rentabilização desativada) — marque <b>Rentabilização</b> para liberar o formulário.</div>
+          <div id="rentFormContent">
+            <div id="rentFormPreview" class="preview" style="min-height:180px" contenteditable="true" aria-label="Formulário de Rentabilização (SICA)"></div>
+            <textarea id="rentFormCode" class="codebox" style="min-height:120px" spellcheck="false" aria-label="Código do formulário (HTML)"></textarea>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="muted small outTitle" style="margin-bottom:6px"><span class="tag tag--cco">CCO</span> <b>3) Código para OBS (OP no RF)</b> — cole direto na observação pra equipe de reemissão (CCO) ver a tabela.</div>
+        <textarea id="obsCode" class="codebox" spellcheck="false" aria-label="Código para Observação no RF"></textarea>
+
+        <div class="hr"></div>
+
+        <div class="muted small outTitle" style="margin-bottom:6px"><span class="tag tag--sys">CRR</span> <b>4) CRR (código de registro de reemissão)</b> — copie/cole este código na OP (RF) ou no Teams/e-mail. Depois, cole aqui e clique em “Carregar”.</div>
+        <textarea id="raCode" class="codebox" style="min-height:96px" spellcheck="false" aria-label="CRR para reabrir cálculo"></textarea>
+        <div class="btns" style="margin-top:10px">
+          <button class="action" id="btnCopiarRACode">Copiar CRR</button>
+          <button class="action" id="btnCarregarRACode">Carregar CRR</button>
+          <button class="action" id="btnCopiarLinkRACode">Copiar link (com CRR)</button>
+        </div>
+        <div class="muted small" style="margin-top:8px">Se você colar um texto maior (ex.: a observação inteira do RF), o sistema tenta achar automaticamente o trecho <b>CRR2-...</b> (ou <b>CRR1/RA1</b> antigos).</div>
+
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">Copiado!</div>
+
+  <script>
+    const PAX_TYPES = ["ADT","CHD","INF"];
+
+    // ---------- helpers ----------
+    function showToast(msg){
+      const t = document.getElementById("toast");
+      t.textContent = msg || "OK";
+      t.classList.add("show");
+      setTimeout(()=>t.classList.remove("show"), 1400);
+    }
+    // ---- Rentabilização (uso interno): controla campos e gera bloco para OBS (RF) ----
+    function getRentData(){
+      const enabled = !!document.getElementById("rentab")?.checked;
+      const multa = enabled && !!document.getElementById("rent_tipo_multa")?.checked;
+      const diftar = enabled && !!document.getElementById("rent_tipo_diftar")?.checked;
+      const diftax = enabled && !!document.getElementById("rent_tipo_diftax")?.checked;
+      const anyType = !!(multa || diftar || diftax);
+
+      const v = (id)=> (document.getElementById(id)?.value || "").trim();
+      return {
+        enabled,
+        multa, diftar, diftax,
+        anyType,
+        multa_pago: v("rent_pago_cia_multa"),
+        multa_cobrar: v("rent_cobrar_ag_multa"),
+        diftar_pago: v("rent_pago_cia_diftar"),
+        diftar_cobrar: v("rent_cobrar_ag_diftar"),
+        diftax_pago: v("rent_pago_cia_diftax"),
+        diftax_cobrar: v("rent_cobrar_ag_diftax"),
+        multa_lucro: v("rent_lucro_multa"),
+        diftar_lucro: v("rent_lucro_diftar"),
+        diftax_lucro: v("rent_lucro_diftax"),
+      };
+    }
+
+    function toggleRentUI(){
+      const panel = document.getElementById("rentPanel");
+      const blocks = document.getElementById("rentBlocks");
+      if(!panel || !blocks) return;
+
+      const rd = getRentData();
+      panel.style.display = rd.enabled ? "block" : "none";
+      blocks.style.display = (rd.enabled && rd.anyType) ? "block" : "none";
+
+      const setDisp = (id, on)=>{ const el=document.getElementById(id); if(el) el.style.display = on ? "block" : "none"; };
+      setDisp("rentBlock_multa", rd.enabled && rd.multa);
+      setDisp("rentBlock_diftar", rd.enabled && rd.diftar);
+      setDisp("rentBlock_diftax", rd.enabled && rd.diftax);
+
+      const clearVals = (ids)=> ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+
+      // se desmarcar rentabilização, limpa tudo (evita vazamento)
+      if(!rd.enabled){
+        for(const id of ["rent_tipo_multa","rent_tipo_diftar","rent_tipo_diftax"]){
+          const el = document.getElementById(id);
+          if(el) el.checked = false;
+        }
+        clearVals([
+          "rent_pago_cia_multa_adt","rent_pago_cia_multa_chd","rent_pago_cia_multa_inf","rent_cobrar_ag_multa","rent_lucro_multa",
+          "rent_pago_cia_diftar_adt","rent_pago_cia_diftar_chd","rent_pago_cia_diftar_inf","rent_cobrar_ag_diftar","rent_lucro_diftar",
+          "rent_pago_cia_diftax_adt","rent_pago_cia_diftax_chd","rent_pago_cia_diftax_inf","rent_cobrar_ag_diftax","rent_lucro_diftax",
+        ]);
+      } else {
+        // se desmarcar um tipo, limpa só aquele bloco
+        if(!rd.multa) clearVals(["rent_pago_cia_multa_adt","rent_pago_cia_multa_chd","rent_pago_cia_multa_inf","rent_cobrar_ag_multa","rent_lucro_multa"]);
+        if(!rd.diftar) clearVals(["rent_pago_cia_diftar_adt","rent_pago_cia_diftar_chd","rent_pago_cia_diftar_inf","rent_cobrar_ag_diftar","rent_lucro_diftar"]);
+        if(!rd.diftax) clearVals(["rent_pago_cia_diftax_adt","rent_pago_cia_diftax_chd","rent_pago_cia_diftax_inf","rent_cobrar_ag_diftax","rent_lucro_diftax"]);
+      }
+      // saída: formulário de rentabilização (SICA)
+      const btnRF = document.getElementById("btnCopiarRentForm");
+      if(btnRF){
+        btnRF.disabled = !rd.enabled;
+        btnRF.title = rd.enabled ? "Copiar formulário para Rentabilização" : "Marque Rentabilização para liberar";
+      }
+      const off = document.getElementById("rentFormOff");
+      const content = document.getElementById("rentFormContent");
+      if(off) off.classList.toggle("hidden", rd.enabled);
+      if(content) content.classList.toggle("hidden", !rd.enabled);
+      if(!rd.enabled){
+        const rfp = document.getElementById("rentFormPreview");
+        const rfc = document.getElementById("rentFormCode");
+        if(rfc) rfc.value = "";
+        if(rfp) rfp.innerHTML = "";
+      }
+
+    }
+
+    function calcRentAutoTotals(mode, calc){
+      const out = { multa:0, diftar:0, diftax:0, cur: (mode==="INTER") ? (calc.cur || getInterCurrency()) : "BRL" };
+      const rows = (calc && calc.rows) ? calc.rows : [];
+      for(const r of rows){
+        const qty = Number(r.qty || 0) || 0;
+        if(mode === "INTER"){
+          out.diftar += (Number(r.fare || 0) || 0) * qty;
+          out.diftax += (Number(r.tax || 0) || 0) * qty;
+          out.multa  += (Number(r.pen || 0) || 0) * qty;
+        } else {
+          out.diftar += (Number(r.diffFare || 0) || 0) * qty;
+          out.diftax += (Number(r.diffTax || 0) || 0) * qty;
+          out.multa  += (Number(r.pen || 0) || 0) * qty;
+        }
+      }
+      return out;
+    }
+
+    
+    
+    function calcRentAutoTotalsByPax(mode, calc){
+      const cur = (mode==="INTER") ? (calc.cur || getInterCurrency()) : "BRL";
+      const out = {
+        cur,
+        ADT:{multa:0, diftar:0, diftax:0},
+        CHD:{multa:0, diftar:0, diftax:0},
+        INF:{multa:0, diftar:0, diftax:0},
+      };
+      const rows = (calc && calc.rows) ? calc.rows : [];
+      for(const r of rows){
+        const t = String(r.t || "").toUpperCase();
+        if(!out[t]) continue;
+        const qty = Number(r.qty || 0) || 0;
+        if(mode === "INTER"){
+          out[t].diftar += (Number(r.fare || 0) || 0) * qty;
+          out[t].diftax += (Number(r.tax || 0) || 0) * qty;
+          out[t].multa  += (Number(r.pen || 0) || 0) * qty;
+        } else {
+          out[t].diftar += (Number(r.diffFare || 0) || 0) * qty;
+          out[t].diftax += (Number(r.diffTax || 0) || 0) * qty;
+          out[t].multa  += (Number(r.pen || 0) || 0) * qty;
+        }
+      }
+      return out;
+    }
+
+// ---------- RENTABILIZAÇÃO por PAX (rateio) ----------
+    function round2(n){
+      const x = Number(n || 0);
+      return Math.round((x + Number.EPSILON) * 100) / 100;
+    }
+
+    function getPaxFlatList(){
+      const store = getPaxStore();
+      const out = [];
+      const order = ["ADT","CHD","INF"];
+      for(const t of order){
+        const arr = Array.isArray(store[t]) ? store[t] : [];
+        for(let i=0;i<arr.length;i++){
+          const p = arr[i] || {};
+          out.push({
+            type: t,
+            idx: i+1,
+            name: normalizePaxName(p.name || ""),
+            ticket: ensureTicketHyphen(String(p.ticket || "")),
+          });
+        }
+      }
+      return out;
+    }
+
+    function getRentPerPax(mode, calc){
+      const rd = getRentData();
+      const cur = (mode === "INTER") ? (calc.cur || getInterCurrency()) : "BRL";
+      const pax = getPaxFlatList();
+      const byType = {};
+      const rows = (calc && calc.rows) ? calc.rows : [];
+      for(const r of rows){ byType[r.t] = r; }
+
+      const paidNum = (cat, pax)=> parseBRNumber((document.getElementById(`rent_pago_cia_${cat}_${pax}`)?.value || "").trim());
+      const paidTotals = {
+        multa: { ADT: paidNum("multa","adt"), CHD: paidNum("multa","chd"), INF: paidNum("multa","inf") },
+        diftar: { ADT: paidNum("diftar","adt"), CHD: paidNum("diftar","chd"), INF: paidNum("diftar","inf") },
+        diftax: { ADT: paidNum("diftax","adt"), CHD: paidNum("diftax","chd"), INF: paidNum("diftax","inf") },
+      };
+
+      // Base cobrar por pax (por tipo de pax)
+      const out = pax.map(p=>{
+        const r = byType[p.type] || {};
+        const cob = {
+          multa: Number(r.pen || 0) || 0,
+          diftar: Number((mode==="INTER" ? r.fare : r.diffFare) || 0) || 0,
+          diftax: Number((mode==="INTER" ? r.tax  : r.diffTax ) || 0) || 0,
+        };
+        return {
+          ...p,
+          cob,
+          pago: {multa:0, diftar:0, diftax:0},
+          cobrar: 0,
+          pagoTotal: 0,
+          lucro: 0,
+        };
+      });
+
+      // "Pago na CIA" é informado POR PAX por tipo (ADT/CHD/INF). Cada passageiro do tipo recebe o mesmo valor.
+      const cats = ["multa","diftar","diftax"];
+      const types = ["ADT","CHD","INF"];
+      for(const cat of cats){
+        if(!rd[cat]) continue;
+
+        for(const t of types){
+          const perVal = Number((paidTotals[cat] && paidTotals[cat][t]) || 0) || 0;
+          for(let i=0;i<out.length;i++){
+            if(out[i].type === t){
+              out[i].pago[cat] = round2(perVal);
+            }
+          }
+        }
+      }
+
+
+
+// Totais por pax
+      for(const r of out){
+        let cobSum = 0, pagSum = 0;
+        if(rd.multa){ cobSum += r.cob.multa;  pagSum += r.pago.multa; }
+        if(rd.diftar){ cobSum += r.cob.diftar; pagSum += r.pago.diftar; }
+        if(rd.diftax){ cobSum += r.cob.diftax; pagSum += r.pago.diftax; }
+        r.cobrar = cobSum;
+        r.pagoTotal = pagSum;
+        r.lucro = cobSum - pagSum;
+      }
+
+      // Totais gerais
+      const totals = {cobrar:0, pago:0, lucro:0};
+      for(const r of out){
+        totals.cobrar += r.cobrar;
+        totals.pago += r.pagoTotal;
+        totals.lucro += r.lucro;
+      }
+
+      return { enabled: rd.enabled && rd.anyType, cur, rows: out, totals, sel: {multa:rd.multa, diftar:rd.diftar, diftax:rd.diftax} };
+    }
+
+    function buildRentPaxTableRF(mode, calc, colspan){
+      const rp = getRentPerPax(mode, calc);
+      if(!rp.enabled || !rp.rows.length) return "";
+      const fmt = (mode === "INTER") ? fmtCur : fmtBRL;
+
+      let head = `
+        <tr>
+          <td><b>PAX</b></td>
+          <td><b>Bilhete</b></td>
+          <td align="right"><b>Cobrar (auto)</b></td>
+          <td align="right"><b>Pago na CIA</b></td>
+          <td align="right"><b>Lucro</b></td>
+        </tr>
+      `;
+      let body = "";
+      for(let i=0;i<rp.rows.length;i++){
+        const p = rp.rows[i];
+        const comp = [];
+        if(rp.sel.diftar) comp.push(`Dif.tar: ${stripHtml(fmt(p.cob.diftar))} | Pago: ${stripHtml(fmt(p.pago.diftar))}`);
+        if(rp.sel.multa)  comp.push(`Multa: ${stripHtml(fmt(p.cob.multa))} | Pago: ${stripHtml(fmt(p.pago.multa))}`);
+        if(rp.sel.diftax) comp.push(`Dif.taxa: ${stripHtml(fmt(p.cob.diftax))} | Pago: ${stripHtml(fmt(p.pago.diftax))}`);
+        body += `<tr>
+          <td>${escAttr(p.name || (`${p.type}${p.idx}`))}</td>
+          <td>${escAttr(maskRFText(p.ticket || "-"))}</td>
+          <td align="right">${escAttr(fmt(p.cobrar))}</td>
+          <td align="right">${escAttr(fmt(p.pagoTotal))}</td>
+          <td align="right"><b>${escAttr(fmt(p.lucro))}</b></td>
+        </tr>
+        <tr><td colspan="5"><span style="color:#666">${escAttr(comp.join(" • "))}</span></td></tr>`;
+        if(i < rp.rows.length-1){
+          body += `<tr><td colspan="5" style="color:#999;font-size:12px;line-height:14px;">----------------------------------------</td></tr>`;
+        }
+      }
+
+      const foot = `<tr>
+        <td colspan="2" align="right"><b>TOTAL</b></td>
+        <td align="right"><b>${escAttr(fmt(rp.totals.cobrar))}</b></td>
+        <td align="right"><b>${escAttr(fmt(rp.totals.pago))}</b></td>
+        <td align="right"><b>${escAttr(fmt(rp.totals.lucro))}</b></td>
+      </tr>`;
+
+      return `
+        <tr><td colspan="${colspan}"><b>Rentabilização por PAX</b> <span style="color:#666">(dividido por tipo de PAX)</span></td></tr>
+        <tr><td colspan="${colspan}">
+          <table border="1" cellspacing="0" cellpadding="3" width="100%">
+            ${head}
+            ${body}
+            ${foot}
+          </table>
+        </td></tr>
+      `;
+    }
+
+    function buildRentPaxTableSica(mode, calc){
+      const rp = getRentPerPax(mode, calc);
+      if(!rp.enabled || !rp.rows.length) return "";
+      const fmt = (mode === "INTER") ? fmtCur : fmtBRL;
+      const cur = rp.cur;
+
+      const th = (txt, right=false)=>`<th style="padding:8px;border:1px solid #d9d9e6;background:#eef2ff;font-weight:700;${right?'text-align:right;':''}">${txt}</th>`;
+      const td = (txt, right=false)=>`<td style="padding:7px 8px;border:1px solid #d9d9e6;${right?'text-align:right;white-space:nowrap;':''}">${txt}</td>`;
+
+      let rows = "";
+      for(let i=0;i<rp.rows.length;i++){
+        const p = rp.rows[i];
+        const comp = [];
+        if(rp.sel.diftar) comp.push(`Dif.tar: ${stripHtml(fmt(p.cob.diftar))} | Pago: ${stripHtml(fmt(p.pago.diftar))}`);
+        if(rp.sel.multa)  comp.push(`Multa: ${stripHtml(fmt(p.cob.multa))} | Pago: ${stripHtml(fmt(p.pago.multa))}`);
+        if(rp.sel.diftax) comp.push(`Dif.taxa: ${stripHtml(fmt(p.cob.diftax))} | Pago: ${stripHtml(fmt(p.pago.diftax))}`);
+        rows += `<tr>
+          ${td(`<b>${escapeHtml(p.name || (`${p.type}${p.idx}`))}</b><div style="color:#666;font-size:11px">${escapeHtml(p.ticket || "-")}</div>`)}
+          ${td(escapeHtml(comp.join(" • ")) )}
+          ${td(escapeHtml(stripHtml(fmt(p.cobrar))), true)}
+          ${td(escapeHtml(stripHtml(fmt(p.pagoTotal))), true)}
+          ${td(`<b style="color:${p.lucro>=0?'#0a7a33':'#b42318'}">${escapeHtml(stripHtml(fmt(p.lucro)))}</b>`, true)}
+        </tr>`;
+      }
+
+      const totalRow = `<tr>
+        ${td(`<b>TOTAL</b>`, false)}
+        ${td(``, false)}
+        ${td(`<b>${escapeHtml(stripHtml(fmt(rp.totals.cobrar)))}</b>`, true)}
+        ${td(`<b>${escapeHtml(stripHtml(fmt(rp.totals.pago)))}</b>`, true)}
+        ${td(`<b>${escapeHtml(stripHtml(fmt(rp.totals.lucro)))}</b>`, true)}
+      </tr>`;
+
+      return `
+        <div style="height:10px;"></div>
+        <div style="font-weight:700;margin:0 0 6px 0;">Rentabilização por passageiro <span style="color:#666;font-weight:400">(dividido por tipo de PAX)</span></div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            ${th("PAX")}
+            ${th("Composição (auto × pago)", false)}
+            ${th(`Cobrar (auto) • ${escapeHtml(cur)}`, true)}
+            ${th(`Pago na CIA • ${escapeHtml(cur)}`, true)}
+            ${th(`Lucro • ${escapeHtml(cur)}`, true)}
+          </tr>
+          ${rows}
+          ${totalRow}
+        </table>
+      `;
+    }
+
+function updateRentComputed(mode, calc){
+      const rd = getRentData();
+      const kpis = document.getElementById("rentKpis");
+      if(!rd.enabled){
+        if(kpis) kpis.style.display = "none";
+        return;
+      }
+
+      const auto = calcRentAutoTotals(mode, calc);
+
+      const setVal = (id, val)=>{
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.value = val;
+      };
+
+      const setOrClear = (on, id, val)=> setVal(id, on ? val : "");
+
+      // Cobrar (auto)
+      setOrClear(rd.multa, "rent_cobrar_ag_multa", fmtNumPT(auto.multa));
+      setOrClear(rd.diftar, "rent_cobrar_ag_diftar", fmtNumPT(auto.diftar));
+      setOrClear(rd.diftax, "rent_cobrar_ag_diftax", fmtNumPT(auto.diftax));
+
+      // Pago na CIA é informado POR PAX (ADT/CHD/INF). Total = valor_por_pax * quantidade_do_tipo.
+      const paidRaw = (cat, pax)=> (document.getElementById(`rent_pago_cia_${cat}_${pax}`)?.value || "").trim();
+      const paidPer = (cat, pax)=> parseBRNumber(paidRaw(cat, pax));
+
+      const qtyByType = (()=>{
+        const q = {ADT:0, CHD:0, INF:0};
+        const rows = (calc && Array.isArray(calc.rows)) ? calc.rows : [];
+        for(const r of rows){
+          const t = String(r.t||"").toUpperCase();
+          if(!(t in q)) continue;
+          q[t] += (Number(r.qty||0) || 0);
+        }
+        return q;
+      })();
+
+      const paidBy = (cat)=>{
+        const adtPer = paidPer(cat,"adt");
+        const chdPer = paidPer(cat,"chd");
+        const infPer = paidPer(cat,"inf");
+        const any = !!(paidRaw(cat,"adt") || paidRaw(cat,"chd") || paidRaw(cat,"inf"));
+
+        const totADT = adtPer * (qtyByType.ADT || 0);
+        const totCHD = chdPer * (qtyByType.CHD || 0);
+        const totINF = infPer * (qtyByType.INF || 0);
+        const total = totADT + totCHD + totINF;
+
+        return { per:{ADT:adtPer, CHD:chdPer, INF:infPer}, tot:{ADT:totADT, CHD:totCHD, INF:totINF}, total, any };
+      };
+
+      const pM = paidBy("multa");
+      const pT = paidBy("diftar");
+      const pX = paidBy("diftax");
+
+      const fmtSum = (n)=> (mode==="INTER") ? fmtCur(n) : fmtBRL(n);
+
+      // Atualiza "Total pago na CIA" em cada bloco
+      const setPaidTotalTxt = (cat, p)=>{
+        const el = document.getElementById(`rent_pago_cia_${cat}_total`);
+        if(!el) return;
+        el.textContent = p.any ? fmtSum(p.total) : "—";
+      };
+      setPaidTotalTxt("multa", pM);
+      setPaidTotalTxt("diftar", pT);
+      setPaidTotalTxt("diftax", pX);
+
+      const lM = auto.multa  - pM.total;
+      const lT = auto.diftar - pT.total;
+      const lX = auto.diftax - pX.total;
+
+      setOrClear(rd.multa, "rent_lucro_multa", fmtNumPT(lM));
+      setOrClear(rd.diftar, "rent_lucro_diftar", fmtNumPT(lT));
+      setOrClear(rd.diftax, "rent_lucro_diftax", fmtNumPT(lX));
+
+      // Resumo por tipo de PAX (ADT/CHD/INF)
+      const autoBy = calcRentAutoTotalsByPax(mode, calc);
+      const setBreak = (cat, p, elId)=>{
+        const el = document.getElementById(elId);
+        if(!el) return;
+        if(!rd[cat]){ el.innerHTML = ""; return; }
+        const mapPaidTot = (p && p.tot) ? p.tot : {ADT:0, CHD:0, INF:0};
+        const mapPaidPer = (p && p.per) ? p.per : {ADT:0, CHD:0, INF:0};
+        const order = ["ADT","CHD","INF"];
+        const lines = [];
+        for(const t of order){
+          const a = (autoBy[t] && autoBy[t][cat]) ? autoBy[t][cat] : 0;
+          const ppTot = (mapPaidTot[t] || 0);
+          const ppPer = (mapPaidPer[t] || 0);
+          const qty = (qtyByType && qtyByType[t]) ? qtyByType[t] : 0;
+
+          // mostrar só se existir quantidade no cálculo OU se foi preenchido pago (por pax)
+          const hasQty = qty > 0;
+          if(!hasQty && ppPer===0 && a===0) continue;
+
+          const luc = a - ppTot;
+          const suf = (hasQty && ppPer !== 0) ? ` <span style="color:#8ea0b7">(${fmtSum(ppPer)}/pax × ${qty})</span>` : "";
+          lines.push(`<b>${t}</b>: Cobrar ${fmtSum(a)} &nbsp;|&nbsp; Pago ${fmtSum(ppTot)}${suf} &nbsp;|&nbsp; Lucro ${fmtSum(luc)}`);
+        }
+        el.innerHTML = lines.length ? (`<b>Por tipo de PAX</b><br>` + lines.join("<br>")) : "";
+      };
+      setBreak("multa",  pM, "rent_break_multa");
+      setBreak("diftar", pT, "rent_break_diftar");
+      setBreak("diftax", pX, "rent_break_diftax");
+
+      // KPIs (somente tipos selecionados)
+      let sumCob = 0, sumPago = 0, sumLuc = 0;
+      if(rd.multa){ sumCob += auto.multa;   sumPago += pM.total; sumLuc += lM; }
+      if(rd.diftar){ sumCob += auto.diftar; sumPago += pT.total; sumLuc += lT; }
+      if(rd.diftax){ sumCob += auto.diftax; sumPago += pX.total; sumLuc += lX; }
+
+      const sumCobEl = document.getElementById("rent_sum_cobrar");
+      const sumPagoEl = document.getElementById("rent_sum_pago");
+      const sumLucEl  = document.getElementById("rent_sum_lucro");
+      if(sumCobEl) sumCobEl.textContent = (rd.anyType ? fmtSum(sumCob) : "—");
+      if(sumPagoEl) sumPagoEl.textContent = (rd.anyType ? fmtSum(sumPago) : "—");
+      if(sumLucEl)  sumLucEl.textContent  = (rd.anyType ? fmtSum(sumLuc) : "—");
+
+      // INTER: mostrar também o lucro total convertido em BRL (usando o câmbio informado)
+      const brlBox = document.getElementById("rent_box_lucro_brl");
+      const brlEl  = document.getElementById("rent_sum_lucro_brl");
+      if(mode === "INTER"){
+        if(brlBox) brlBox.style.display = "block";
+        const fx = Number(calc && calc.fx ? calc.fx : 0) || 0;
+        if(brlEl) brlEl.textContent = (rd.anyType && fx > 0) ? fmtBRL(sumLuc * fx) : (rd.anyType ? "Informe o câmbio" : "—");
+      }else{
+        if(brlBox) brlBox.style.display = "none";
+        if(brlEl) brlEl.textContent = "—";
+      }
+
+      if(kpis) kpis.style.display = (rd.anyType ? "grid" : "none");
+    }
+
+    function placeRentPanel(){
+      const sec = document.getElementById("rentSection");
+      const aN = document.getElementById("rentAnchorNac");
+      const aI = document.getElementById("rentAnchorInter");
+      if(!sec || !aN || !aI) return;
+
+      // Decide based on the selected tab (robust even when panels are hidden)
+      const tabNac = document.getElementById("tabNac");
+      const nacOn = tabNac ? (tabNac.getAttribute("aria-selected")==="true") : true;
+      const isInter = !nacOn;
+
+      (isInter ? aI : aN).appendChild(sec);
+    }
+
+
+
+    function brToHtml(s){
+      return (s || "").trim()
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/\n/g,"<br/>");
+    }
+    function parseBRNumber(v){
+      if(v === null || v === undefined) return 0;
+      const s = String(v).trim();
+      if(!s) return 0;
+      let x = s.replace(/[^\d,.\-]/g, "");
+      if(x.includes(".") && x.includes(",")){
+        x = x.replace(/\./g,"").replace(",",".");
+      }else{
+        x = x.replace(",",".");
+      }
+      const n = parseFloat(x);
+      return Number.isFinite(n) ? n : 0;
+    }
+    function fmtBRL(n){
+      return new Intl.NumberFormat("pt-BR", {style:"currency", currency:"BRL"}).format(n || 0);
+    }
+    function safeCurrency(code){
+      const c = String(code || "USD").toUpperCase().replace(/[^A-Z]/g,"").slice(0,3);
+      return c.length === 3 ? c : "USD";
+    }
+    function getInterCurrency(){
+      const sel = document.getElementById("inter_cur").value;
+      if(sel === "OTHER"){
+        return safeCurrency(document.getElementById("inter_cur_other").value);
+      }
+      return safeCurrency(sel);
+    }
+    function fmtCur(n){
+      const cur = getInterCurrency();
+      try{
+        return new Intl.NumberFormat("en-US", {style:"currency", currency: cur}).format(n || 0);
+      }catch(e){
+        return `${cur} ${(n||0).toFixed(2)}`;
+      }
+    }
+
+    function fmtNumPT(n){
+      const x = Number(n);
+      const v = Number.isFinite(x) ? x : 0;
+      return new Intl.NumberFormat("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}).format(v);
+    }
+
+    function intVal(id){
+      const v = parseInt(String(document.getElementById(id).value||"0").replace(/[^\d\-]/g,""),10);
+      return Number.isFinite(v) ? v : 0;
+    }
+    function val(id){ return parseBRNumber(document.getElementById(id).value); }
+    function getActiveMode(){
+      if(document.getElementById("tabNac").getAttribute("aria-selected")==="true") return "NAC";
+      return "INTER";
+    }
+    function setPill(ok, text){
+      const pill = document.getElementById("statusPill");
+      pill.textContent = text;
+      pill.style.borderColor = ok ? "rgba(61,220,151,.45)" : "rgba(255,204,102,.45)";
+      pill.style.background = ok ? "rgba(61,220,151,.14)" : "rgba(255,204,102,.12)";
+    }
+    function escapeHtml(s){
+      return String(s || "")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    }
+    function escAttr(s){
+      // safer for RF-ish environments
+      return escapeHtml(s).replace(/`/g,"");
+    }function escAttr(s){
+      // safer for RF-ish environments
+      return escapeHtml(s).replace(/`/g,"");
+    }
+
+    function normalizePaxName(name){
+      return (name || "").toString().trim().toUpperCase();
+    }
+
+    // For typing: keep spaces (do not trim), only uppercase
+    function normalizePaxNameInput(name){
+      return (name || "").toString().toUpperCase();
+    }
+
+
+    function minifyRF(h){
+      return String(h || "")
+        .replace(/[\r\n]+/g, "")
+        .replace(/>\s+</g, "><")
+        .trim();
+    }
+
+    function maskRFText(s){
+      const el = document.getElementById("rf_mask_numbers");
+      const on = el ? el.checked : true;
+      if(!on) return String(s || "");
+      let out = String(s || "");
+      // Proteção anti-detector de cartão: mascara apenas sequências longas "puras" (13–19 dígitos).
+      // Observação: bilhete vem no formato 957-1234567890 (com hífen), então NÃO será mascarado.
+      out = out.replace(/\b\d{13,19}\b/g, (m)=>`******${m.slice(-4)}`);
+      return out;
+    }
+
+    function ensureTicketHyphen(s){
+      let out = String(s || "").trim();
+      out = out.replace(/(\d{3})\s*-\s*(\d{10})/g, "$1-$2");
+      out = out.replace(/\b(\d{3})\s*(\d{10})\b/g, "$1-$2");
+      return out;
+    }
+
+    function joinTicketOac(tks, oac){
+      const a = String(tks || "").trim();
+      const b = String(oac || "").trim();
+      if(a && b) return `${a} / ${b}`;
+      return a || b || "";
+    }
+
+    function toIntSafe(v){
+      const n = parseInt(String(v ?? "").replace(/[^\d]/g,""), 10);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function setHiddenQtyAll(adt, chd, inf){
+      for(const [t,val] of [["ADT",adt],["CHD",chd],["INF",inf]]){
+        const a = String(Math.max(0, val|0));
+        const n1 = document.getElementById(`nac_qty_${t}`); if(n1) n1.value = a;
+        const n2 = document.getElementById(`inter_qty_${t}`); if(n2) n2.value = a;
+      }
+    }
+
+    function getPaxStore(){
+      const el = document.getElementById("pax_json");
+      if(!el) return { ADT:[], CHD:[], INF:[] };
+      const raw = String(el.value || "").trim();
+      if(!raw) return { ADT:[], CHD:[], INF:[] };
+      try{
+        const obj = JSON.parse(raw);
+        return {
+          ADT: Array.isArray(obj.ADT) ? obj.ADT : [],
+          CHD: Array.isArray(obj.CHD) ? obj.CHD : [],
+          INF: Array.isArray(obj.INF) ? obj.INF : [],
+        };
+      }catch(e){
+        return { ADT:[], CHD:[], INF:[] };
+      }
+    }
+
+    function setPaxStore(store){
+      const el = document.getElementById("pax_json");
+      if(!el) return;
+      el.value = JSON.stringify(store);
+    }
+
+    function reconcileArray(arr, n){
+      const out = [];
+      for(let i=0;i<n;i++){
+        const cur = arr && arr[i] ? arr[i] : {};
+        out.push({
+          name: normalizePaxName(cur.name || ""),
+          ticket: ensureTicketHyphen(String(cur.ticket || "")),
+        });
+      }
+      return out;
+    }
+
+    function renderPaxFields(){
+      const adt = Math.max(0, toIntSafe(document.getElementById("paxq_adt")?.value));
+      const chd = Math.max(0, toIntSafe(document.getElementById("paxq_chd")?.value));
+      const inf = Math.max(0, toIntSafe(document.getElementById("paxq_inf")?.value));
+      const total = adt + chd + inf;
+
+      const tag = document.getElementById("paxTotalTag");
+      if(tag) tag.textContent = `Total: ${total}`;
+
+      setHiddenQtyAll(adt, chd, inf);
+
+      const store = getPaxStore();
+      store.ADT = reconcileArray(store.ADT, adt);
+      store.CHD = reconcileArray(store.CHD, chd);
+      store.INF = reconcileArray(store.INF, inf);
+      setPaxStore(store);
+
+      const wrap = document.getElementById("paxFields");
+      if(!wrap) return;
+
+      const buildSection = (label, key, n)=> {
+        if(n <= 0) return "";
+        const rows = Array.from({length:n}).map((_,i)=>{
+          const p = store[key][i] || {name:"", ticket:""};
+          const idx = i+1;
+          return `
+            <div class="paxRow">
+              <div>
+                <label>Nome ${key}${idx}</label>
+                <input data-role="pax-name" data-type="${key}" data-idx="${i}" value="${escapeHtml(normalizePaxName(p.name))}" placeholder="Ex.: SILVA/JOAO MR" />
+              </div>
+              <div>
+                <label>Bilhete ${key}${idx}</label>
+                <input data-role="pax-ticket" data-type="${key}" data-idx="${i}" value="${escapeHtml(p.ticket)}" placeholder="957-1234567890" />
+              </div>
+            </div>
+          `;
+        }).join("");
+        return `
+          <div style="margin-top:8px">
+            <div class="paxSecTitle"><span>${label}</span><span class="paxTag">${key}</span></div>
+            ${rows}
+          </div>
+        `;
+      };
+
+      wrap.innerHTML =
+        buildSection("Adultos", "ADT", adt) +
+        buildSection("Crianças", "CHD", chd) +
+        buildSection("Infants", "INF", inf);
+
+      syncAggregateFromStore();
+    }
+
+    function syncAggregateFromStore(){
+      const store = getPaxStore();
+      const order = ["ADT","CHD","INF"];
+      const names = [];
+      const tks = [];
+      for(const k of order){
+        for(const p of store[k]){
+          const nm = normalizePaxName(p.name);
+          const tk = ensureTicketHyphen(String(p.ticket||"").trim());
+          if(nm) names.push(nm);
+          if(tk) tks.push(tk);
+        }
+      }
+      const paxEl = document.getElementById("pax");
+      const tksEl = document.getElementById("tks");
+      if(paxEl) paxEl.value = names.join("; ");
+      if(tksEl) tksEl.value = tks.join("; ");
+      updateAll();
+    }
+
+    function updatePaxStoreFromInput(target){
+      const role = target?.getAttribute?.("data-role");
+      if(!role) return;
+      const type = target.getAttribute("data-type");
+      const idx = parseInt(target.getAttribute("data-idx") || "-1", 10);
+      if(!type || idx < 0) return;
+
+      const store = getPaxStore();
+      if(!store[type] || !store[type][idx]) return;
+
+      if(role === "pax-name"){
+        const upRaw = normalizePaxNameInput(target.value);
+        if(upRaw !== target.value) target.value = upRaw; // keep spaces while typing
+        store[type][idx].name = normalizePaxName(upRaw); // store trimmed + upper
+      }else if(role === "pax-ticket"){
+        const f = ensureTicketHyphen(target.value);
+        if(f !== target.value) target.value = f;
+        store[type][idx].ticket = f;
+      }
+      setPaxStore(store);
+      syncAggregateFromStore();
+    }
+
+    function validateBeforeGenerate(){
+      renderPaxFields();
+
+      const adt = Math.max(0, toIntSafe(document.getElementById("paxq_adt")?.value));
+      const chd = Math.max(0, toIntSafe(document.getElementById("paxq_chd")?.value));
+      const inf = Math.max(0, toIntSafe(document.getElementById("paxq_inf")?.value));
+      const total = adt + chd + inf;
+      const errors = [];
+
+      if(total <= 0){
+        errors.push("Informe ao menos 1 passageiro (QTD ADT/CHD/INF).");
+        return errors;
+      }
+
+      const store = getPaxStore();
+      const checkType = (key, n)=>{
+        for(let i=0;i<n;i++){
+          const p = store[key] && store[key][i] ? store[key][i] : {};
+          const nm = String(p.name||"").trim();
+          const tk = ensureTicketHyphen(String(p.ticket||"").trim());
+          if(!nm){
+            errors.push(`Informe o nome do ${key}${i+1}.`);
+            return false;
+          }
+          if(!/^\d{3}-\d{10}$/.test(tk)){
+            errors.push(`Informe o bilhete do ${key}${i+1} no formato 957-1234567890.`);
+            return false;
+          }
+        }
+        return true;
+      };
+      if(!checkType("ADT", adt)) return errors;
+      if(!checkType("CHD", chd)) return errors;
+      if(!checkType("INF", inf)) return errors;
+
+      if(getActiveMode() === "INTER"){
+        const fx = val("inter_fx");
+        if(fx <= 0) errors.push("INTER: informe o câmbio (Moeda → BRL).");
+      }
+
+      return errors;
+    }
+
+    function chunk4(s){
+      const m = String(s || "").match(/.{1,4}/g);
+      return m ? m.join("-") : "";
+    }
+    function cleanB64Url(s){
+      // mantém os caracteres válidos do base64url (inclui '-' e '_')
+      return String(s || "")
+        .replace(/\s+/g,"")
+        .replace(/[^A-Za-z0-9\-_]/g,"");
+    }
+    function dechunkLegacy4(s){
+      // remove SOMENTE os separadores inseridos pelo chunk4 (um '-' após cada bloco de 4 chars),
+      // preservando '-' legítimo do base64url dentro do conteúdo.
+      const x = cleanB64Url(s);
+      let out = "";
+      let cnt = 0;
+      for(let i=0;i<x.length;i++){
+        const ch = x[i];
+        if(ch === "-" && cnt === 4){ cnt = 0; continue; } // separador
+        out += ch;
+        cnt++;
+        if(cnt > 4){ cnt = 1; } // segurança (se vier sem separador)
+      }
+      return out;
+    }
+    function b64UrlEncode(str){
+      const b64 = btoa(unescape(encodeURIComponent(String(str || ""))));
+      return b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    }
+    function b64UrlDecode(b64url){
+      let b64 = String(b64url || "").replace(/-/g,"+").replace(/_/g,"/");
+      while(b64.length % 4) b64 += "=";
+      return decodeURIComponent(escape(atob(b64)));
+    }
+    function getStatePayload(){
+      // legado (CRR1/RA1): salva TODOS os campos (fica grande). Mantido só por compatibilidade.
+      const data = { v: 1, mode: getActiveMode(), fields: {} };
+      for(const el of document.querySelectorAll("input, select, textarea")){
+        if(!el.id) continue;
+        if(el.id === "obsCode" || el.id === "raCode") continue;
+        if(el.type === "checkbox"){ data.fields[el.id] = !!el.checked; }
+        else{ data.fields[el.id] = el.value; }
+      }
+      return data;
+    }
+
+    function getStatePayloadV2(){
+      // CRR2: salva SOMENTE o que foi preenchido (ou diferente do padrão) e só do modo atual (NAC/INTER).
+      const mode = getActiveMode();
+      const COMMON = new Set(["cia","prazo","loc","novo_loc","op_rf","agencia","filial","familia","pax","tks","bag","parcelamento","paxq_adt","paxq_chd","paxq_inf","pax_json","oac","rentab","rent_tipo_multa","rent_tipo_diftar","rent_tipo_diftax","rent_pago_cia_multa_adt","rent_pago_cia_multa_chd","rent_pago_cia_multa_inf","rent_pago_cia_diftar_adt","rent_pago_cia_diftar_chd","rent_pago_cia_diftar_inf","rent_pago_cia_diftax_adt","rent_pago_cia_diftax_chd","rent_pago_cia_diftax_inf"]);
+      const DEFAULTS = {
+        // checkboxes
+        "rf_include_racode": true,
+        "rf_mask_numbers": true,
+        "rf_include_tks": true,
+
+        // selects / defaults úteis
+        "prazo":"Imediato",
+        "parcelamento":"Sim",
+        "nac_fp":"Faturado",
+        "inter_fp":"Faturado",
+        "inter_cur":"USD",
+        "inter_incentivo":"Não",
+        "inter_tipo":"Manual",
+
+        // qty defaults
+        "nac_qty_ADT":"1","nac_qty_CHD":"0","nac_qty_INF":"0",
+        "inter_qty_ADT":"1","inter_qty_CHD":"0","inter_qty_INF":"0",
+      };
+
+      const fields = {};
+      // Para manter o CRR curto: não incluir campos gigantes (máscaras do GDS). Esses campos continuam no e-mail/OP.
+      const SKIP_CRR = new Set(["pax","tks"]); 
+      for(const el of document.querySelectorAll("input, select, textarea")){
+        if(!el.id) continue;
+        if(el.id === "obsCode" || el.id === "raCode") continue;
+
+        const id = el.id;
+        if(SKIP_CRR && SKIP_CRR.has(id)) continue;
+        const isCommon = COMMON.has(id);
+        const isRF = id.startsWith("rf_");
+        const isNac = id.startsWith("nac_");
+        const isInter = id.startsWith("inter_");
+
+        const relevant = isRF || isCommon || (mode === "NAC" ? isNac : isInter);
+        if(!relevant) continue;
+
+        if(el.type === "checkbox"){
+          const cur = !!el.checked;
+          const def = (id in DEFAULTS) ? !!DEFAULTS[id] : false;
+          if(cur !== def) fields[id] = cur;
+          continue;
+        }
+
+        const v = String(el.value ?? "");
+        if(!v.trim()) continue;
+
+        if(id in DEFAULTS && v === String(DEFAULTS[id])) continue;
+        fields[id] = v;
+      }
+
+      return { v: 2, m: mode, f: fields };
+    }
+
+    
+    // ----- LZ-String (compactação offline para CRR3) -----
+    // Implementação baseada em lz-string (pieroxy). Usamos apenas compressToEncodedURIComponent / decompressFromEncodedURIComponent.
+    const LZString = (function(){
+      const f = String.fromCharCode;
+      const keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+      const baseReverseDic = {};
+
+      function getBaseValue(alphabet, character) {
+        if(!baseReverseDic[alphabet]) {
+          baseReverseDic[alphabet] = {};
+          for (let i=0; i<alphabet.length; i++) baseReverseDic[alphabet][alphabet.charAt(i)] = i;
+        }
+        return baseReverseDic[alphabet][character];
+      }
+
+      function _compress(uncompressed, bitsPerChar, getCharFromInt) {
+        if (uncompressed == null) return "";
+        let i, value;
+        const context_dictionary = {};
+        const context_dictionaryToCreate = {};
+        let context_c = "";
+        let context_wc = "";
+        let context_w = "";
+        let context_enlargeIn = 2;
+        let context_dictSize = 3;
+        let context_numBits = 2;
+        const context_data = [];
+        let context_data_val = 0;
+        let context_data_position = 0;
+
+        function writeBit(bit){
+          context_data_val = (context_data_val << 1) | bit;
+          if (context_data_position === bitsPerChar - 1) {
+            context_data_position = 0;
+            context_data.push(getCharFromInt(context_data_val));
+            context_data_val = 0;
+          } else {
+            context_data_position++;
+          }
+        }
+        function writeBits(numBits, val){
+          for (i=0;i<numBits;i++){
+            writeBit(val & 1);
+            val >>= 1;
+          }
+        }
+
+        for (let ii=0; ii<uncompressed.length; ii++){
+          context_c = uncompressed.charAt(ii);
+          if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
+            context_dictionary[context_c] = context_dictSize++;
+            context_dictionaryToCreate[context_c] = true;
+          }
+
+          context_wc = context_w + context_c;
+          if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
+            context_w = context_wc;
+          } else {
+            if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+              if (context_w.charCodeAt(0) < 256) {
+                writeBits(context_numBits, 0);
+                value = context_w.charCodeAt(0);
+                writeBits(8, value);
+              } else {
+                writeBits(context_numBits, 1);
+                value = context_w.charCodeAt(0);
+                writeBits(16, value);
+              }
+              context_enlargeIn--;
+              if (context_enlargeIn === 0) {
+                context_enlargeIn = Math.pow(2, context_numBits);
+                context_numBits++;
+              }
+              delete context_dictionaryToCreate[context_w];
+            } else {
+              value = context_dictionary[context_w];
+              writeBits(context_numBits, value);
+            }
+
+            context_enlargeIn--;
+            if (context_enlargeIn === 0) {
+              context_enlargeIn = Math.pow(2, context_numBits);
+              context_numBits++;
+            }
+
+            context_dictionary[context_wc] = context_dictSize++;
+            context_w = String(context_c);
+          }
+        }
+
+        if (context_w !== "") {
+          if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+            if (context_w.charCodeAt(0) < 256) {
+              writeBits(context_numBits, 0);
+              value = context_w.charCodeAt(0);
+              writeBits(8, value);
+            } else {
+              writeBits(context_numBits, 1);
+              value = context_w.charCodeAt(0);
+              writeBits(16, value);
+            }
+            context_enlargeIn--;
+            if (context_enlargeIn === 0) {
+              context_enlargeIn = Math.pow(2, context_numBits);
+              context_numBits++;
+            }
+            delete context_dictionaryToCreate[context_w];
+          } else {
+            value = context_dictionary[context_w];
+            writeBits(context_numBits, value);
+          }
+
+          context_enlargeIn--;
+          if (context_enlargeIn === 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+        }
+
+        writeBits(context_numBits, 2);
+
+        while (true) {
+          context_data_val = (context_data_val << 1);
+          if (context_data_position === bitsPerChar - 1) {
+            context_data.push(getCharFromInt(context_data_val));
+            break;
+          } else context_data_position++;
+        }
+
+        return context_data.join("");
+      }
+
+      function _decompress(length, resetValue, getNextValue) {
+        const dictionary = [];
+        let next;
+        let enlargeIn = 4;
+        let dictSize = 4;
+        let numBits = 3;
+        let entry = "";
+        const result = [];
+        let i;
+        let w;
+        let bits, resb, maxpower, power;
+        const data = { val: getNextValue(0), position: resetValue, index: 1 };
+
+        for (i=0; i<3; i++) dictionary[i] = i;
+
+        function readBits(nbits){
+          bits = 0;
+          maxpower = Math.pow(2, nbits);
+          power = 1;
+          while (power !== maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position === 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb > 0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+          return bits;
+        }
+
+        next = readBits(2);
+        switch (next) {
+          case 0:
+            w = f(readBits(8));
+            break;
+          case 1:
+            w = f(readBits(16));
+            break;
+          case 2:
+            return "";
+          default:
+            return null;
+        }
+
+        dictionary[3] = w;
+        result.push(w);
+
+        while (true) {
+          if (data.index > length) return null;
+
+          const c = readBits(numBits);
+
+          switch (c) {
+            case 0:
+              dictionary[dictSize++] = f(readBits(8));
+              next = dictSize - 1;
+              enlargeIn--;
+              break;
+            case 1:
+              dictionary[dictSize++] = f(readBits(16));
+              next = dictSize - 1;
+              enlargeIn--;
+              break;
+            case 2:
+              return result.join("");
+            default:
+              next = c;
+          }
+
+          if (enlargeIn === 0) {
+            enlargeIn = Math.pow(2, numBits);
+            numBits++;
+          }
+
+          if (dictionary[next]) {
+            entry = dictionary[next];
+          } else {
+            if (next === dictSize) entry = w + w.charAt(0);
+            else return null;
+          }
+          result.push(entry);
+
+          dictionary[dictSize++] = w + entry.charAt(0);
+          enlargeIn--;
+
+          w = entry;
+
+          if (enlargeIn === 0) {
+            enlargeIn = Math.pow(2, numBits);
+            numBits++;
+          }
+        }
+      }
+
+      return {
+        compressToEncodedURIComponent: function(input){
+          if (input == null) return "";
+          return _compress(input, 6, function(a){ return keyStrUriSafe.charAt(a); });
+        },
+        decompressFromEncodedURIComponent: function(input){
+          if (input == null) return "";
+          if (input === "") return null;
+          input = input.replace(/ /g, "+");
+          return _decompress(input.length, 32, function(index){ return getBaseValue(keyStrUriSafe, input.charAt(index)); });
+        }
+      };
+    })();
+
+function buildCRRCode(){
+      // padrão agora: CRR3 (compactado) — mantém curto sem perder voos/regras/cálculo
+      const payload = getStatePayloadV2();
+      const json = JSON.stringify(payload);
+      const packed = LZString.compressToEncodedURIComponent(json);
+      return "CRR3-" + packed;
+    }
+
+    function loadCRRCode(code){
+      // aceita CRR colado puro, dentro de texto maior (OBS RF / e-mail), com quebras de linha, etc.
+      let full = String(code || "");
+      const compact = full.replace(/\s+/g,"");
+      const mm = compact.match(/(?:CRR3|CRR2|CRR1|RA1)-[A-Za-z0-9\-_$\+]+/i);
+      let c = mm ? mm[0] : compact.trim();
+
+      const up = c.toUpperCase();
+      const prefix =
+        up.startsWith("CRR3-") ? "CRR3-" :
+        (up.startsWith("CRR2-") ? "CRR2-" :
+        (up.startsWith("CRR1-") ? "CRR1-" :
+        (up.startsWith("RA1-") ? "RA1-" : "")));
+      if(!prefix) throw new Error("Código inválido");
+
+      // CRR2 pode vir sem hífen, CRR1/RA1 vinha "chunkado" — unchunk resolve ambos
+      const raw = (prefix === "CRR1-" || prefix === "RA1-")
+        ? dechunkLegacy4(c.slice(prefix.length))
+        : (prefix === "CRR2-" ? cleanB64Url(c.slice(prefix.length)) : c.slice(prefix.length));
+      if(!raw || raw.length < 16) throw new Error("Código incompleto");
+
+      let payloadText = "";
+      try{
+        if(prefix === "CRR3-"){
+          payloadText = LZString.decompressFromEncodedURIComponent(raw);
+          if(payloadText == null) throw new Error("Falha ao decodificar");
+        } else {
+          payloadText = b64UrlDecode(raw);
+        }
+      }catch(e){
+        throw new Error("Falha ao decodificar");
+      }
+
+      let payload = null;
+      try{
+        payload = JSON.parse(payloadText);
+      }catch(e){
+        throw new Error("Conteúdo inválido");
+      }
+
+      // Normaliza formatos (v1 vs v2)
+      const mode = payload.mode || payload.m || "NAC";
+      const fields = payload.fields || payload.f || {};
+
+      // reseta tudo antes de aplicar (garante que campos omitidos voltem ao padrão)
+      const silentClear = true;
+      clearAll(silentClear);
+
+      // aplica modo primeiro (pra mostrar os campos certos)
+      if(String(mode).toUpperCase() === "INTER") {
+        switchTab("tabInter");
+      } else {
+        switchTab("tabNac");
+      }
+
+      // aplica campos
+      for(const [k,v] of Object.entries(fields)){
+        const el = document.getElementById(k);
+        if(!el) continue;
+
+        if(el.type === "checkbox"){
+          el.checked = (v === true || v === "true" || v === "on" || v === "1");
+          continue;
+        }
+        if(el.type === "radio"){
+          el.checked = (el.value === v);
+          continue;
+        }
+        if(["loc","novo_loc","oac","familia"].includes(k) && typeof v === "string"){ el.value = v.toUpperCase(); }
+        else{ el.value = v; }
+      }
+
+      // migração: CRR antigos (campos únicos) -> novo formato por tipo (preenche em ADT como padrão)
+      const migrateOne = (oldId, newId)=>{
+        if(!(oldId in fields)) return;
+        if((newId in fields)) return;
+        const el = document.getElementById(newId);
+        if(!el) return;
+        if(String(el.value || "").trim()) return;
+        el.value = fields[oldId];
+      };
+      migrateOne("rent_pago_cia_multa","rent_pago_cia_multa_adt");
+      migrateOne("rent_pago_cia_diftar","rent_pago_cia_diftar_adt");
+      migrateOne("rent_pago_cia_diftax","rent_pago_cia_diftax_adt");
+
+      renderPaxFields();
+      updateAll();
+      showToast("Cálculo carregado!");
+      return true;
+    }
+
+
+    // Compatibilidade: aceitar funções antigas
+    function buildRACode(){ return buildCRRCode(); }
+    function loadRACode(code){ return loadCRRCode(code); }
+
+
+    // ---------- calculations ----------
+    function calcNac(){
+      let total = 0;
+      let paxCount = 0;
+      const rows = [];
+      for(const t of PAX_TYPES){
+        const qty = intVal(`nac_qty_${t}`);
+        if(qty <= 0) continue;
+        paxCount += qty;
+        const oldFare = val(`nac_old_${t}`);
+        const newFare = val(`nac_new_${t}`);
+        const diffFare = newFare - oldFare;
+        const diffTax  = val(`nac_tax_${t}`);
+        const du       = val(`nac_du_${t}`);
+        const pen      = val(`nac_pen_${t}`);
+        const perPax = diffFare + diffTax + du + pen;
+        total += perPax * qty;
+        rows.push({t, qty, oldFare, newFare, diffFare, diffTax, du, pen, perPax, totalTipo: perPax*qty});
+      }
+      const avg = paxCount > 0 ? total / paxCount : 0;
+      document.getElementById("nac_total_brl").textContent = fmtBRL(total);
+      const _avgEl = document.getElementById("nac_total_avg"); if(_avgEl) _avgEl.textContent = fmtBRL(avg);
+      return {totalBRL: total, avgBRL: avg, paxCount, rows};
+    }
+
+    function calcInter(){
+      let totalCur = 0;
+      let paxCount = 0;
+      const rows = [];
+      for(const t of PAX_TYPES){
+        const qty = intVal(`inter_qty_${t}`);
+        if(qty <= 0) continue;
+        paxCount += qty;
+        const fare = val(`inter_fare_${t}`);
+        const tax  = val(`inter_tax_${t}`);
+        const du   = val(`inter_du_${t}`);
+        const pen  = val(`inter_pen_${t}`);
+        const fee  = val(`inter_fee_${t}`);
+        const perPax = fare + tax + du + pen + fee;
+        totalCur += perPax * qty;
+        rows.push({t, qty, fare, tax, du, pen, fee, perPax, totalTipo: perPax*qty});
+      }
+      const fx = val("inter_fx"); // 1 CUR -> BRL
+      const totalBRL = fx > 0 ? totalCur * fx : 0;
+      document.getElementById("inter_total_cur").textContent = fmtCur(totalCur);
+      document.getElementById("inter_total_brl").textContent = fmtBRL(totalBRL);
+      return {totalCur, fx, totalBRL, paxCount, cur: getInterCurrency(), rows};
+    }
+
+    // ---------- common ----------
+    function getCommon(){
+      return {
+        cia: document.getElementById("cia").value.trim(),
+        prazo: document.getElementById("prazo").value.trim(),
+        loc: document.getElementById("loc").value.trim().toUpperCase(),
+        novo_loc: (document.getElementById("novo_loc") ? document.getElementById("novo_loc").value.trim().toUpperCase() : ""),
+        pax: document.getElementById("pax").value.trim(),
+        tks: document.getElementById("tks").value.trim(),
+        oac: (document.getElementById("oac") ? document.getElementById("oac").value.trim().toUpperCase() : ""),
+        familia: document.getElementById("familia").value.trim().toUpperCase(),
+        bag: document.getElementById("bag").value.trim(),
+        parcelamento: document.getElementById("parcelamento").value.trim(),
+        rentab: !!(document.getElementById("rentab") && document.getElementById("rentab").checked),
+      };
+    }
+
+    
+    function buildPaxTicketPairsHtml(common){
+      // Preferir o cadastro por PAX (Nome/Bilhete) para vincular corretamente.
+      const store = getPaxStore();
+      const pairs = [];
+      function push(arr){
+        for(const it of (arr || [])){
+          const n = String(it?.name || "").trim();
+          const t = String(it?.ticket || "").trim();
+          if(!n && !t) continue;
+          const nn = n || "(sem nome)";
+          const tt = t || "(sem bilhete)";
+          pairs.push(`${escapeHtml(nn)} — ${escapeHtml(tt)}`);
+        }
+      }
+      push(store.ADT); push(store.CHD); push(store.INF);
+
+      if(pairs.length){
+        return pairs.join("<br>");
+      }
+      // Fallback (quando não preenchido por PAX)
+      const p = String(common?.pax || "").trim();
+      const t = String(common?.tks || "").trim();
+      if(p && t) return `${escapeHtml(p)} — ${escapeHtml(t)}`;
+      return escapeHtml(p || t || "");
+    }
+// ---------- email templates (Outlook) ----------
+    function buildEmailHtmlNac(){
+      const common = getCommon();
+      const calc = calcNac();
+      const crr = buildCRRCode();
+      const crrEmailHtml = escapeHtml(crr) + (common.rentab ? "<br/>@#" : "");
+      const fp = document.getElementById("nac_fp").value;
+      const link = document.getElementById("nac_link").value.trim();
+      const voos = document.getElementById("nac_voos").value.trim();
+      const regrasUser = document.getElementById("nac_regras").value.trim();
+
+      const paxRows = calc.rows.map(r => `
+        <tr>
+          <td><b>${r.t}</b> <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#EDE9FE;border:1px solid #C4B5FD;color:#111827;font-size:12px;font-weight:700;line-height:18px;">x${r.qty}</span></td>
+          <td style="text-align:right">${fmtBRL(r.oldFare)}</td>
+          <td style="text-align:right">${fmtBRL(r.newFare)}</td>
+          <td style="text-align:right">${fmtBRL(r.diffFare)}</td>
+          <td style="text-align:right">${fmtBRL(r.diffTax)}</td>
+          <td style="text-align:right">${fmtBRL(r.du)}</td>
+          <td style="text-align:right">${fmtBRL(r.pen)}</td>
+          <td style="text-align:right"><b>${fmtBRL(r.perPax)}</b></td>
+          <td style="text-align:right"><b>${fmtBRL(r.totalTipo)}</b></td>
+        </tr>
+      `);
+
+      const linkLine = (fp === "Link de pagamento" && link)
+        ? `<p style="margin:8px 0 0">Para pagamento via cartão, preencha os dados no link e nos responda com a quantidade de parcelas caso seja parcelado: <b>${escapeHtml(link)}</b></p>`
+        : `<p style="margin:8px 0 0">Forma de pagamento: <b>${escapeHtml(fp)}</b></p>`;
+
+      const regrasPadrao = `
+        <ul style="margin:8px 0 0; padding-left:18px">
+          <li>Em casos de reservas realizadas para o cálculo, caso não prossiga com a remarcação, o LOC deverá ser cancelado em até <b>30 minutos</b> para evitar risco de ADM (duplicidade), onde o mesmo poderá ser repassado para a agência.</li>
+          <li>Solicitações com menos de <b>2h</b> do embarque original poderão acarretar em multa de <b>no show</b>.</li>
+        </ul>
+      `;
+      const regrasExtra = regrasUser ? `<p style="margin:8px 0 0"><b>Observações:</b><br/>${brToHtml(regrasUser)}</p>` : "";
+
+      return `
+        <div style="font-family:Arial, sans-serif; font-size:13px; color:#0b0f17">
+          <p>Segue abaixo cálculo de reemissão conforme solicitado.</p>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="760" style="width:760px; max-width:760px; margin:0; mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border:1px solid #c7ced9">
+            <tr><th colspan="2" style="text-align:center; font-size:14px; background:#f3f4f6">CÁLCULO DE REEMISSÃO NACIONAL</th></tr>
+            <tr><td colspan="2" style="text-align:center"><b>ATENÇÃO:</b> CONFIRA TODOS OS DADOS ANTES DE APROVAR A REEMISSÃO.<br/>VALORES SUJEITOS A ALTERAÇÃO</td></tr>
+            <tr><td style="width:32%"><b>Cia Aérea</b></td><td>${escapeHtml(common.cia)}</td></tr>
+            <tr><td><b>Prazo</b></td><td>${escapeHtml(common.prazo)}</td></tr>
+            <tr><td><b>Localizador</b></td><td>${escapeHtml(common.loc)}</td></tr>
+            ${common.novo_loc ? `<tr><td><b>Novo LOC</b></td><td>${escapeHtml(common.novo_loc)}</td></tr>` : ""}
+            <tr><td><b>Passageiro(s) / Bilhete(s)</b></td><td>${buildPaxTicketPairsHtml(common)}</td></tr>${common.oac ? `<tr><td><b>OAC</b></td><td>${escapeHtml(common.oac)}</td></tr>` : ``}
+            <tr><td><b>Família Tarifária</b></td><td>${escapeHtml(common.familia)}</td></tr>
+            <tr><td><b>Bagagem</b></td><td>${escapeHtml(common.bag)}</td></tr>
+            <tr><td><b>Permite parcelamento?</b></td><td>${escapeHtml(common.parcelamento)}</td></tr>
+          </table>
+
+          <p style="margin:12px 0 6px"><b>Descritivo de valores (por pax)</b></p>
+          <table border="1" cellspacing="0" cellpadding="6" width="760" style="width:760px; max-width:760px; margin:0; mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border:1px solid #c7ced9">
+            <tr>
+              <th style="background:#f3f4f6">Tipo</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Tarifa antiga</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Tarifa nova</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Dif. tarifa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Dif. taxa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">DU/Rav</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Multa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Total por pax</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Total (tipo)</th>
+            </tr>
+            ${paxRows.join("") || `<tr><td colspan="9">Sem valores informados.</td></tr>`}
+            <tr>
+              <td colspan="8" class="right"><b>TOTAL A PAGAR (BRL)</b></td>
+              <td style="text-align:right"><b>${fmtBRL(calc.totalBRL)}</b></td>
+            </tr>
+          </table>
+
+          ${linkLine}
+          <p style="margin:6px 0 0"><i>*Após o preenchimento, responda o e-mail para darmos continuidade ao processo</i></p>
+          <p style="margin:6px 0 0">Em respeito a LGPD, não é permitido trafegar informações que envolvam dados de cartão de crédito.</p>
+
+          <p style="margin:12px 0 0"><b>✈️ Voos simulados:</b><br/>${voos ? brToHtml(voos) : `<span style="color:#999">-</span>`}</p>
+
+          <p style="margin:12px 0 0"><b>📌 Regras:</b></p>
+          ${regrasPadrao}
+          ${regrasExtra}
+          <p style="margin:6px 0 0; font-size:9px; color:#999">${crrEmailHtml}</p>
+        </div>
+      `.trim();
+    }
+
+    function buildEmailHtmlInter(){
+      const common = getCommon();
+      const calc = calcInter();
+      const crr = buildCRRCode();
+      const crrEmailHtml = escapeHtml(crr) + (common.rentab ? "<br/>@#" : "");
+      const incentivo = document.getElementById("inter_incentivo").value;
+      const tipo = document.getElementById("inter_tipo").value;
+      const fp = document.getElementById("inter_fp").value;
+      const link = document.getElementById("inter_link").value.trim();
+
+      const original = document.getElementById("inter_original").value.trim();
+      const voos = document.getElementById("inter_voos").value.trim();
+      const interno = document.getElementById("inter_interno").value.trim();
+
+      const paxRows = calc.rows.map(r => `
+        <tr>
+          <td><b>${r.t}</b> <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#EDE9FE;border:1px solid #C4B5FD;color:#111827;font-size:12px;font-weight:700;line-height:18px;">x${r.qty}</span></td>
+          <td style="text-align:right">${fmtCur(r.fare)}</td>
+          <td style="text-align:right">${fmtCur(r.tax)}</td>
+          <td style="text-align:right">${fmtCur(r.du)}</td>
+          <td style="text-align:right">${fmtCur(r.pen)}</td>
+          <td style="text-align:right">${fmtCur(r.fee)}</td>
+          <td style="text-align:right"><b>${fmtCur(r.perPax)}</b></td>
+          <td style="text-align:right"><b>${fmtCur(r.totalTipo)}</b></td>
+        </tr>
+      `);
+
+      const linkLine = (fp === "Link de pagamento" && link)
+        ? `<p style="margin:8px 0 0">Para pagamento via cartão, preencha os dados no link e nos responda com a quantidade de parcelas caso seja parcelado: <b>${escapeHtml(link)}</b></p>`
+        : `<p style="margin:8px 0 0">Forma de pagamento: <b>${escapeHtml(fp)}</b></p>`;
+
+      const fxLine = calc.fx > 0
+        ? `<p style="margin:6px 0 0"><b>Câmbio informado:</b> 1 ${escapeHtml(calc.cur)} = ${calc.fx.toFixed(4).replace(".",",")} BRL • <b>Total (BRL):</b> ${fmtBRL(calc.totalBRL)}</p>`
+        : `<p style="margin:6px 0 0; color:#6b4b00"><b>Atenção:</b> informe o câmbio (Moeda → BRL) para gerar o total em BRL.</p>`;
+
+      return `
+        <div style="font-family:Arial, sans-serif; font-size:13px; color:#0b0f17">
+          <p>Segue abaixo cálculo de reemissão conforme solicitado.</p>
+
+          <table border="1" cellspacing="0" cellpadding="6" width="760" style="width:760px; max-width:760px; margin:0; mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border:1px solid #c7ced9">
+            <tr><th colspan="2" style="text-align:center; font-size:14px; background:#f3f4f6">CÁLCULO DE REEMISSÃO INTERNACIONAL</th></tr>
+            <tr><td colspan="2" style="text-align:center"><b>ATENÇÃO:</b> CONFIRA TODOS OS DADOS ANTES DE APROVAR A REEMISSÃO.<br/>VALORES SUJEITOS A ALTERAÇÃO</td></tr>
+            <tr><td style="width:32%"><b>Cia Aérea</b></td><td>${escapeHtml(common.cia)}</td></tr>
+            <tr><td><b>Prazo</b></td><td>${escapeHtml(common.prazo)}</td></tr>
+            <tr><td><b>Localizador do Cálculo</b></td><td>${escapeHtml(common.loc)}</td></tr>
+            ${common.novo_loc ? `<tr><td><b>Novo LOC</b></td><td>${escapeHtml(common.novo_loc)}</td></tr>` : ""}
+            <tr><td><b>Passageiro(s) / Bilhete(s)</b></td><td>${buildPaxTicketPairsHtml(common)}</td></tr>
+            <tr><td><b>Família Tarifária</b></td><td>${escapeHtml(common.familia)}</td></tr>
+            <tr><td><b>Bagagem</b></td><td>${escapeHtml(common.bag)}</td></tr>
+            <tr><td><b>Permite parcelamento?</b></td><td>${escapeHtml(common.parcelamento)}</td></tr>
+            <tr><td><b>Moeda</b></td><td>${escapeHtml(calc.cur)}</td></tr>
+            <tr><td><b>Recuperação de incentivo?</b></td><td>${escapeHtml(incentivo)}</td></tr>
+          </table>
+
+          <p style="margin:12px 0 6px"><b>Descritivo de valores (por pax) — ${escapeHtml(calc.cur)}</b></p>
+          <table border="1" cellspacing="0" cellpadding="6" width="760" style="width:760px; max-width:760px; margin:0; mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border:1px solid #c7ced9">
+            <tr>
+              <th style="background:#f3f4f6">Tipo</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Dif. tarifa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Dif. taxa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">DU/Rav</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Multa</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">RC</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Total por pax</th>
+              <th class="right" style="background:#f3f4f6; text-align:right">Total (tipo)</th>
+            </tr>
+            ${paxRows.join("") || `<tr><td colspan="8">Sem valores informados.</td></tr>`}
+            <tr>
+              <td colspan="7" class="right"><b>TOTAL (${escapeHtml(calc.cur)})</b></td>
+              <td style="text-align:right"><b>${fmtCur(calc.totalCur)}</b></td>
+            </tr>
+          </table>
+
+          ${fxLine}
+          <p style="margin:6px 0 0"><b>Tipo de cálculo:</b> ${escapeHtml(tipo)}</p>
+
+          ${linkLine}
+          <p style="margin:6px 0 0"><i>*Após o preenchimento, responda o e-mail para darmos continuidade ao processo</i></p>
+          <p style="margin:6px 0 0">Em respeito a LGPD, não é permitido trafegar informações que envolvam dados de cartão de crédito.</p>
+
+          <p style="margin:12px 0 0"><b>✈︎ VOOS SIMULADOS:</b><br/>${voos ? brToHtml(voos) : `<span style="color:#999">-</span>`}</p>
+          <p style="margin:12px 0 0"><b>📌 CÁLCULO - USO INTERNO:</b><br/>${interno ? brToHtml(interno) : `<span style="color:#999">-</span>`}</p>
+          <p style="margin:12px 0 0"><b>✈ BILHETE ORIGINAL:</b><br/>${original ? brToHtml(original) : `<span style="color:#999">-</span>`}</p>
+          <p style="margin:6px 0 0; font-size:9px; color:#999">${crrEmailHtml}</p>
+        </div>
+      `.trim();
+    }
+
+    // ---------- RF OBS CODE (HTML simples) ----------
+    function rfHeader(mode){
+      const loc = document.getElementById("loc").value.trim();
+      const cia = document.getElementById("cia").value.trim();
+      const base = mode === "NAC" ? "OP (RF) — REEMISSÃO NAC" : "OP (RF) — REEMISSÃO INTER";
+      const extra = `${loc ? " • LOC: " + loc : ""}${cia ? " • CIA: " + cia : ""}`;
+      return `<font color="blue" size="2"><b><i>${escAttr(base)}${escAttr(extra)}</i></b></font><br>`;
+    }
+
+    function buildRfObsNac(){
+      const c = getCommon();
+      const calc = calcNac();
+
+      let rows = "";
+      for(const r of calc.rows){
+        rows += `<tr>
+          <td><b>${escAttr(r.t)}</b> (qtd ${r.qty})</td>
+          <td align="right">${escAttr(fmtBRL(r.oldFare))}</td>
+          <td align="right">${escAttr(fmtBRL(r.newFare))}</td>
+          <td align="right">${escAttr(fmtBRL(r.diffFare))}</td>
+          <td align="right">${escAttr(fmtBRL(r.diffTax))}</td>
+          <td align="right">${escAttr(fmtBRL(r.du))}</td>
+          <td align="right">${escAttr(fmtBRL(r.pen))}</td>
+          <td align="right"><b>${escAttr(fmtBRL(r.totalTipo))}</b></td>
+        </tr>`;
+      }
+      if(!rows) rows = `<tr><td colspan="8">Sem valores informados.</td></tr>`;
+
+      const fp = document.getElementById("nac_fp").value;
+      const link = document.getElementById("nac_link").value.trim();
+      const pay = (fp === "Link de pagamento") ? "Link de pagamento (enviado à agência)" : "Faturado";
+
+      const rd = getRentData();
+      const rentTipos = [rd.multa ? "Multa" : "", rd.diftar ? "Dif. tarifa" : "", rd.diftax ? "Dif. taxa" : ""].filter(Boolean).join("; ");
+      const autoRent = calcRentAutoTotals("NAC", calc);
+      const paidRaw = (cat, pax)=> (document.getElementById(`rent_pago_cia_${cat}_${pax}`)?.value || "").trim();
+      const paidNum = (cat, pax)=> parseBRNumber(paidRaw(cat, pax));
+
+      const qtyByType = (()=>{
+        const q = {ADT:0, CHD:0, INF:0};
+        const rows = (calc && Array.isArray(calc.rows)) ? calc.rows : [];
+        for(const r of rows){
+          const t = String(r.t||"").toUpperCase();
+          if(!(t in q)) continue;
+          q[t] += (Number(r.qty||0) || 0);
+        }
+        return q;
+      })();
+
+      const paidBy = (cat)=>{
+        const adt = paidNum(cat,"adt") * (qtyByType.ADT || 0);
+        const chd = paidNum(cat,"chd") * (qtyByType.CHD || 0);
+        const inf = paidNum(cat,"inf") * (qtyByType.INF || 0);
+        const any = !!(paidRaw(cat,"adt") || paidRaw(cat,"chd") || paidRaw(cat,"inf"));
+        return {adt, chd, inf, total:(adt+chd+inf), any};
+      };
+      const fmtPaid = (p)=>{
+        if(!p.any) return "-";
+        return `ADT ${fmtBRL(p.adt)} | CHD ${fmtBRL(p.chd)} | INF ${fmtBRL(p.inf)} | Total ${fmtBRL(p.total)}`;
+      };
+
+      const pM = paidBy("multa");  const mPaid = pM.total;  const mLuc = autoRent.multa  - mPaid;
+      const pT = paidBy("diftar"); const tPaid = pT.total;  const tLuc = autoRent.diftar - tPaid;
+      const pX = paidBy("diftax"); const xPaid = pX.total;  const xLuc = autoRent.diftax - xPaid;
+
+let lucroTotal = 0;
+      if(rd.multa) lucroTotal += mLuc;
+      if(rd.diftar) lucroTotal += tLuc;
+      if(rd.diftax) lucroTotal += xLuc;
+
+      const rentBlock = (rd.enabled && rd.anyType) ? (`
+          <tr><td colspan="8"><font color="red"><b>RENTABILIZAÇÃO</b></font></td></tr>
+          <tr><td colspan="8"><b>Tipo:</b> ${escAttr(rentTipos || "-")} &nbsp;&nbsp;•&nbsp;&nbsp; <b>Moeda:</b> BRL</td></tr>
+<tr><td colspan="8"><b>Lucro total (BRL):</b> ${escAttr(fmtBRL(lucroTotal))}</td></tr>
+                ${buildRentPaxTableRF("NAC", calc, 8)}
+`) : "";
+
+      
+      const includeTks = true;
+
+      const includeCode = false;
+return (
+        rfHeader("NAC") +
+        `<table border="1" cellspacing="0" cellpadding="3" width="100%">
+          <tr><td colspan="2"><b>LOC</b></td><td colspan="6">${escAttr(c.loc)}</td></tr>
+          ${c.novo_loc ? `<tr><td colspan="2"><b>Novo LOC</b></td><td colspan="6">${escAttr(c.novo_loc)}</td></tr>` : ""}
+          <tr><td colspan="2"><b>PAX</b></td><td colspan="6">${buildPaxTicketPairsHtml(c)}</td></tr>
+          ${includeTks ? `<tr><td colspan="2"><b>Bilhete/OAC</b></td><td colspan="6">${escAttr(maskRFText(ensureTicketHyphen(joinTicketOac(c.tks, c.oac))))}</td></tr>` : ""}
+          <tr><td colspan="2"><b>Família</b></td><td colspan="6">${escAttr(c.familia)}</td></tr>
+          <tr><td colspan="2"><b>Bagagem</b></td><td colspan="6">${escAttr(c.bag)}</td></tr>
+          <tr><td colspan="2"><b>Prazo</b></td><td colspan="6">${escAttr(c.prazo)}</td></tr>
+          <tr><td colspan="2"><b>Pagto</b></td><td colspan="6">${escAttr(pay)}</td></tr>
+          <tr><td colspan="8"><b>Valores (BRL)</b></td></tr>
+          <tr>
+            <td><b>Tipo</b></td>
+            <td align="right"><b>Tarifa antiga</b></td>
+            <td align="right"><b>Nova tarifa</b></td>
+            <td align="right"><b>Dif. Tarifa</b></td>
+            <td align="right"><b>Dif. Taxa</b></td>
+            <td align="right"><b>DU/Rav</b></td>
+            <td align="right"><b>Multa</b></td>
+            <td align="right"><b>Total (tipo)</b></td>
+          </tr>
+          ${rows}
+          <tr>
+            <td colspan="7" align="right"><b>TOTAL A COBRAR (BRL)</b></td>
+            <td align="right"><b>${escAttr(fmtBRL(calc.totalBRL))}</b></td>
+          </tr>
+          ${rentBlock}
+                  </table>`
+      );
+    }
+
+    function buildRfObsInter(){
+      const c = getCommon();
+      const calc = calcInter();
+      const incentivo = document.getElementById("inter_incentivo").value;
+      const tipo = document.getElementById("inter_tipo").value;
+
+
+      const internoRF = (document.getElementById("inter_interno") ? document.getElementById("inter_interno").value.trim() : "");
+      const internoHtml = internoRF ? escAttr(maskRFText(internoRF)).split("\n").join("<br>") : "";
+
+      const rd = getRentData();
+      const rentTipos = [rd.multa ? "Multa" : "", rd.diftar ? "Dif. tarifa" : "", rd.diftax ? "Dif. taxa" : ""].filter(Boolean).join("; ");
+      const autoRent = calcRentAutoTotals("INTER", calc);
+      const paidRaw = (cat, pax)=> (document.getElementById(`rent_pago_cia_${cat}_${pax}`)?.value || "").trim();
+      const paidNum = (cat, pax)=> parseBRNumber(paidRaw(cat, pax));
+
+      const qtyByType = (()=>{
+        const q = {ADT:0, CHD:0, INF:0};
+        const rows = (calc && Array.isArray(calc.rows)) ? calc.rows : [];
+        for(const r of rows){
+          const t = String(r.t||"").toUpperCase();
+          if(!(t in q)) continue;
+          q[t] += (Number(r.qty||0) || 0);
+        }
+        return q;
+      })();
+
+      const paidBy = (cat)=>{
+        const adt = paidNum(cat,"adt") * (qtyByType.ADT || 0);
+        const chd = paidNum(cat,"chd") * (qtyByType.CHD || 0);
+        const inf = paidNum(cat,"inf") * (qtyByType.INF || 0);
+        const any = !!(paidRaw(cat,"adt") || paidRaw(cat,"chd") || paidRaw(cat,"inf"));
+        return {adt, chd, inf, total:(adt+chd+inf), any};
+      };
+      const fmtPaid = (p)=>{
+        if(!p.any) return "-";
+        return `ADT ${fmtCur(p.adt)} | CHD ${fmtCur(p.chd)} | INF ${fmtCur(p.inf)} | Total ${fmtCur(p.total)}`;
+      };
+
+      const pM = paidBy("multa");  const mPaid = pM.total;  const mLuc = autoRent.multa  - mPaid;
+      const pT = paidBy("diftar"); const tPaid = pT.total;  const tLuc = autoRent.diftar - tPaid;
+      const pX = paidBy("diftax"); const xPaid = pX.total;  const xLuc = autoRent.diftax - xPaid;
+
+let lucroTotal = 0;
+      if(rd.multa) lucroTotal += mLuc;
+      if(rd.diftar) lucroTotal += tLuc;
+      if(rd.diftax) lucroTotal += xLuc;
+
+      const rentBlock = (rd.enabled && rd.anyType) ? (`
+          <tr><td colspan="7"><font color="red"><b>RENTABILIZAÇÃO</b></font></td></tr>
+          <tr><td colspan="7"><b>Tipo:</b> ${escAttr(rentTipos || "-")} &nbsp;&nbsp;•&nbsp;&nbsp; <b>Moeda:</b> ${escAttr(calc.cur)}</td></tr>
+          ${rd.multa ? `<tr><td colspan="7"><b>Multa:</b> Pago na cia: ${escAttr(fmtPaid(pM))} &nbsp;&nbsp; Cobrar agência (auto): ${escAttr(fmtCur(autoRent.multa))} &nbsp;&nbsp; Lucro: ${escAttr(fmtCur(mLuc))}</td></tr>` : ""}
+${rd.diftar ? `<tr><td colspan="7"><b>Dif. tarifa:</b> Pago na cia: ${escAttr(fmtPaid(pT))} &nbsp;&nbsp; Cobrar agência (auto): ${escAttr(fmtCur(autoRent.diftar))} &nbsp;&nbsp; Lucro: ${escAttr(fmtCur(tLuc))}</td></tr>` : ""}
+${rd.diftax ? `<tr><td colspan="7"><b>Dif. taxa:</b> Pago na cia: ${escAttr(fmtPaid(pX))} &nbsp;&nbsp; Cobrar agência (auto): ${escAttr(fmtCur(autoRent.diftax))} &nbsp;&nbsp; Lucro: ${escAttr(fmtCur(xLuc))}</td></tr>` : ""}
+          <tr><td colspan="7"><b>Lucro total (${escAttr(calc.cur)}):</b> ${escAttr(fmtCur(lucroTotal))}</td></tr>
+                ${buildRentPaxTableRF("INTER", calc, 7)}
+`) : "";
+
+      let rows = "";
+      for(const r of calc.rows){
+        rows += `<tr>
+          <td><b>${escAttr(r.t)}</b> (qtd ${r.qty})</td>
+          <td align="right">${escAttr(fmtCur(r.fare))}</td>
+          <td align="right">${escAttr(fmtCur(r.tax))}</td>
+          <td align="right">${escAttr(fmtCur(r.du))}</td>
+          <td align="right">${escAttr(fmtCur(r.pen))}</td>
+          <td align="right">${escAttr(fmtCur(r.fee))}</td>
+          <td align="right"><b>${escAttr(fmtCur(r.totalTipo))}</b></td>
+        </tr>`;
+      }
+      if(!rows) rows = `<tr><td colspan="7">Sem valores informados.</td></tr>`;
+
+      const fp = document.getElementById("inter_fp").value;
+      const link = document.getElementById("inter_link").value.trim();
+      const pay = (fp === "Link de pagamento") ? "Link de pagamento (enviado à agência)" : "Faturado";
+
+      
+      const includeTks = true;
+
+      const includeCode = false;
+const fxText = calc.fx > 0 ? `1 ${calc.cur} = ${calc.fx.toFixed(4).replace(".",",")} BRL` : `Câmbio não informado`;
+
+      return (
+        rfHeader("INTER") +
+        `<table border="1" cellspacing="0" cellpadding="3" width="100%">
+          <tr><td colspan="2"><b>LOC</b></td><td colspan="5">${escAttr(c.loc)}</td></tr>
+          ${c.novo_loc ? `<tr><td colspan="2"><b>Novo LOC</b></td><td colspan="5">${escAttr(c.novo_loc)}</td></tr>` : ""}
+          <tr><td colspan="2"><b>PAX</b></td><td colspan="5">${buildPaxTicketPairsHtml(c)}</td></tr>
+          ${includeTks ? `<tr><td colspan="2"><b>Bilhete/OAC</b></td><td colspan="5">${escAttr(maskRFText(ensureTicketHyphen(c.tks)))}</td></tr>` : ""}
+          <tr><td colspan="2"><b>Família</b></td><td colspan="5">${escAttr(c.familia)}</td></tr>
+          <tr><td colspan="2"><b>Bagagem</b></td><td colspan="5">${escAttr(c.bag)}</td></tr>
+          <tr><td colspan="2"><b>Prazo</b></td><td colspan="5">${escAttr(c.prazo)}</td></tr>
+          <tr><td colspan="2"><b>Moeda</b></td><td colspan="5">${escAttr(calc.cur)} • <b>Câmbio</b>: ${escAttr(fxText)}</td></tr>
+          <tr><td colspan="2"><b>Incentivo</b></td><td colspan="5">${escAttr(incentivo)} • <b>Tipo cálculo</b>: ${escAttr(tipo)}</td></tr>
+          <tr><td colspan="2"><b>Pagto</b></td><td colspan="5">${escAttr(pay)}</td></tr>
+
+          <tr><td colspan="7"><b>Valores (${escAttr(calc.cur)})</b></td></tr>
+          <tr>
+            <td><b>Tipo</b></td>
+            <td align="right"><b>Dif. Tarifa</b></td>
+            <td align="right"><b>Dif. Taxa</b></td>
+            <td align="right"><b>DU/Rav</b></td>
+            <td align="right"><b>Multa</b></td>
+            <td align="right"><b>RC</b></td>
+            <td align="right"><b>Total (tipo)</b></td>
+          </tr>
+          ${rows}
+
+          <tr>
+            <td colspan="6" align="right"><b>TOTAL (${escAttr(calc.cur)})</b></td>
+            <td align="right"><b>${escAttr(fmtCur(calc.totalCur))}</b></td>
+          </tr>
+          <tr>
+            <td colspan="6" align="right"><b>TOTAL A COBRAR (BRL)</b></td>
+            <td align="right"><b>${escAttr(fmtBRL(calc.totalBRL))}</b></td>
+          </tr>
+          ${internoRF ? `<tr><td colspan="7"><b>Cálculo (uso interno)</b><br>${internoHtml}</td></tr>` : ""}
+          ${includeCode ? `<tr><td colspan="7"><b>CRR</b>: ${escAttr(raCode)}</td></tr>` : ""}
+          ${rentBlock}
+        </table>`
+      );
+    }
+
+    function buildRfObsCode(){
+      const mode = getActiveMode();
+      const raw = (mode === "NAC") ? buildRfObsNac() : buildRfObsInter();
+      return minifyRF(raw);
+    }
+
+    // ---------- formulário SICA (rentabilização) ----------
+    function buildSicaFormHtml(){
+      const rd = getRentData();
+      if(!rd.enabled){
+        return "";
+      }
+      if(!rd.anyType){
+        return '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#444;">Selecione <b>Multa</b>, <b>Dif. tarifa</b> e/ou <b>Dif. taxa</b> para gerar o formulário.</div>';
+      }
+
+      const mode = getActiveMode();
+      const calc = (mode === "NAC") ? calcNac() : calcInter();
+      const auto = calcRentAutoTotals(mode, calc);
+
+      const fmt = (n)=> (mode === "INTER") ? fmtCur(n) : fmtBRL(n);
+      const cur = (mode === "INTER") ? getInterCurrency() : "BRL";
+
+      const paidNum = (cat, pax)=> parseBRNumber((document.getElementById(`rent_pago_cia_${cat}_${pax}`)?.value || "").trim());
+
+      // Pago na CIA é informado POR PAX (ADT/CHD/INF). Total = valor_por_pax * quantidade_do_tipo.
+      const qtyByType = (()=>{
+        const q = {ADT:0, CHD:0, INF:0};
+        const rows = (calc && Array.isArray(calc.rows)) ? calc.rows : [];
+        for(const r of rows){
+          const t = String(r.t||"").toUpperCase();
+          if(!(t in q)) continue;
+          q[t] += (Number(r.qty||0) || 0);
+        }
+        return q;
+      })();
+
+      const paidTotal = (cat)=> (
+        paidNum(cat,"adt") * (qtyByType.ADT || 0) +
+        paidNum(cat,"chd") * (qtyByType.CHD || 0) +
+        paidNum(cat,"inf") * (qtyByType.INF || 0)
+      );
+
+      const cob = {
+        multa: auto.multa,
+        diftar: auto.diftar,
+        diftax: auto.diftax,
+      };
+      const pago = {
+        multa: paidTotal("multa"),
+        diftar: paidTotal("diftar"),
+        diftax: paidTotal("diftax"),
+      };
+
+      let sumCob = 0, sumPago = 0;
+      if(rd.multa){ sumCob += cob.multa; sumPago += pago.multa; }
+      if(rd.diftar){ sumCob += cob.diftar; sumPago += pago.diftar; }
+      if(rd.diftax){ sumCob += cob.diftax; sumPago += pago.diftax; }
+
+      const lucro = sumCob - sumPago;
+
+      const today = new Date().toLocaleDateString("pt-BR");
+      const op = (document.getElementById("op_rf")?.value || "").trim();
+      const loc = (document.getElementById("loc")?.value || "").trim();
+      const cia = (document.getElementById("cia")?.value || "").trim();
+      const agencia = (document.getElementById("agencia")?.value || "").trim();
+      const filial = (document.getElementById("filial")?.value || "LOT").trim();
+
+      const row = (label, v1, v2, bold=false)=>{
+        const td = (txt, alignRight=false)=>{
+          return `<td style="padding:7px 8px;border:1px solid #d9d9e6;${alignRight?'text-align:right;white-space:nowrap;':''}">${txt}</td>`;
+        };
+        return `<tr>${td(bold?`<b>${label}</b>`:label)}${td(v1, true)}${td(v2, true)}</tr>`;
+      };
+
+      const vOrDash = (on, v)=> on ? fmt(v) : "—";
+
+      const html =
+`<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111;background:#fff;border:1px solid #e6e6ef;border-radius:12px;padding:12px;">
+  <div style="text-align:center;font-weight:800;letter-spacing:.3px;margin:0 0 10px 0;">FORMULÁRIO DE RENTABILIDADE</div>
+
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;"><b>Data</b></td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;">${escapeHtml(today)}</td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;"><b>OP</b></td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;">${escapeHtml(op || "-")}</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;"><b>Localizador/Cia</b></td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;">${escapeHtml((loc||"-") + (cia?(" / "+cia):""))}</td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;"><b>Filial</b></td>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;">${escapeHtml(filial || "-")}</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 8px;border:1px solid #d9d9e6;"><b>Agência</b></td>
+      <td colspan="3" style="padding:7px 8px;border:1px solid #d9d9e6;">${escapeHtml(agencia || "-")}</td>
+    </tr>
+  </table>
+
+  <div style="height:10px;"></div>
+
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
+      <td style="padding:8px;border:1px solid #d9d9e6;background:#eef2ff;font-weight:700;">Itens</td>
+      <td style="padding:8px;border:1px solid #d9d9e6;background:#eef2ff;font-weight:700;text-align:right;">Valor Cliente (cobrado no SICA) • ${escapeHtml(cur)}</td>
+      <td style="padding:8px;border:1px solid #d9d9e6;background:#eef2ff;font-weight:700;text-align:right;">Nosso Valor (pago na CIA) • ${escapeHtml(cur)}</td>
+    </tr>
+    ${row("Dif. tarifa", vOrDash(rd.diftar, cob.diftar), vOrDash(rd.diftar, pago.diftar))}
+    ${row("Multa", vOrDash(rd.multa, cob.multa), vOrDash(rd.multa, pago.multa))}
+    ${row("Dif. taxa", vOrDash(rd.diftax, cob.diftax), vOrDash(rd.diftax, pago.diftax))}
+    ${row("RC/FEE", fmt(0), fmt(0))}
+    ${row("Total", fmt(sumCob), fmt(sumPago), true)}
+    ${mode === "INTER" && calc.fx > 0 ? row("Total (BRL)", `<b>${fmtBRL(sumCob * calc.fx)}</b>`, `<b>${fmtBRL(sumPago * calc.fx)}</b>`, true) : ""}
+    ${row("Lucro", `<b style="color:${lucro>=0?'#0a7a33':'#b42318'}">${fmt(lucro)}</b>`, "", true)}
+    ${mode === "INTER" && calc.fx > 0 ? row("Lucro (BRL)", `<b style="color:${(lucro*calc.fx)>=0?'#0a7a33':'#b42318'}">${fmtBRL(lucro * calc.fx)}</b>`, "", true) : ""}
+  </table>
+
+  <div style="margin-top:10px;">
+    <b>Observações:</b> ${escapeHtml(`RENTABILIZADO ${stripHtml(fmt(lucro))}${(mode==="INTER" && calc.fx>0)?(" ("+stripHtml(fmtBRL(lucro*calc.fx))+" )"):""} / reemissão feita direto na cia`)}
+  </div>
+
+  ${buildRentPaxTableSica(mode, calc)}
+</div>`;
+      return html;
+    }
+
+
+    // ---------- subject ----------
+    function suggestedSubject(){
+      const mode = getActiveMode();
+      const loc = (document.getElementById("loc").value || "").trim();
+      const cia = (document.getElementById("cia").value || "").trim();
+      if(mode === "NAC") return `Cálculo de reemissão NAC${loc ? " — " + loc : ""}${cia ? " — " + cia : ""}`.trim();
+      const cur = getInterCurrency();
+      return `Cálculo de reemissão INTER (${cur})${loc ? " — " + loc : ""}${cia ? " — " + cia : ""}`.trim();
+    }
+
+    // ---------- copy ----------
+    async function copyHtmlToClipboard(html){
+      // 1) Melhor opção (quando permitido): ClipboardItem com text/html
+      try{
+        if(navigator.clipboard && window.ClipboardItem){
+          const item = new ClipboardItem({
+            "text/html": new Blob([html], {type:"text/html"}),
+            "text/plain": new Blob([stripHtml(html)], {type:"text/plain"})
+          });
+          await navigator.clipboard.write([item]);
+          showToast("Copiado (HTML)!");
+          return true;
+        }
+      }catch(e){}
+
+      // 2) Fallback que funciona bem em arquivo local (file://): seleciona e copia HTML renderizado
+      try{
+        const tmp = document.createElement("div");
+        tmp.style.position = "fixed";
+        tmp.style.left = "-9999px";
+        tmp.style.top = "0";
+        tmp.style.width = "900px";
+        tmp.style.height = "auto";
+        tmp.style.overflow = "hidden";
+        tmp.setAttribute("contenteditable","true");
+        tmp.style.background = "#fff";
+        tmp.style.padding = "8px";
+        tmp.innerHTML = html;
+        document.body.appendChild(tmp);
+        tmp.focus();
+
+        const range = document.createRange();
+        range.selectNodeContents(tmp);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        const ok = document.execCommand("copy");
+        sel.removeAllRanges();
+        document.body.removeChild(tmp);
+
+        if(ok){
+          showToast("Copiado (HTML)!");
+          return true;
+        }
+      }catch(e){}
+
+      // 3) Último fallback: copia texto simples
+      try{
+        await navigator.clipboard.writeText(stripHtml(html));
+        showToast("Copiado (texto)!");
+        return true;
+      }catch(e){}
+
+      return false;
+    }
+    function stripHtml(html){
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      return (tmp.innerText || tmp.textContent || "").trim();
+    }
+
+    // ---------- UI ----------
+    function switchTab(which){
+      const nacOn = (which === "tabNac");
+      document.getElementById("tabNac").setAttribute("aria-selected", nacOn ? "true" : "false");
+      document.getElementById("tabInter").setAttribute("aria-selected", nacOn ? "false" : "true");
+      document.getElementById("panelNac").classList.toggle("hidden", !nacOn);
+      document.getElementById("panelInter").classList.toggle("hidden", nacOn);
+      const oacW = document.getElementById("oacWrap");
+      if(oacW) oacW.classList.toggle("hidden", !nacOn);
+      placeRentPanel();
+      updateAll();
+      renderPaxFields();
+    }
+
+    function rentCurrencyCode(){ return (getActiveMode()==="INTER") ? getInterCurrency() : "BRL"; }
+    function setRentCurrencyLabels(){
+      const cur = rentCurrencyCode();
+      for(const s of document.querySelectorAll(".rentCur")){ s.textContent = cur; }
+    }
+
+    function updateAll(){
+      toggleRentUI();
+      setRentCurrencyLabels();
+      const mode = getActiveMode();
+      if(mode === "NAC"){
+        const c = calcNac();
+        setPill(true, `NAC • Total: ${fmtBRL(c.totalBRL)}`);
+        updateRentComputed("NAC", c);
+      }else{
+        const c = calcInter();
+        const ok = c.fx > 0;
+        setPill(ok, ok ? `INTER • Total: ${fmtBRL(c.totalBRL)} (${c.cur})` : "INTER • Informe o câmbio");
+        updateRentComputed("INTER", c);
+      }
+      const sel = document.getElementById("inter_cur").value;
+      document.getElementById("inter_cur_other_wrap").classList.toggle("hidden", sel !== "OTHER");
+
+      // keep OBS code updated live
+      document.getElementById("obsCode").value = buildRfObsCode();
+
+      // formulário SICA (rentabilização)
+      const rd = getRentData();
+      const rfp = document.getElementById("rentFormPreview");
+      const rfc = document.getElementById("rentFormCode");
+      if(!rd.enabled){
+        if(rfc) rfc.value = "";
+        if(rfp && document.activeElement !== rfp) rfp.innerHTML = "";
+      }else{
+        const sicaHtml = buildSicaFormHtml();
+        if(rfc) rfc.value = sicaHtml;
+        if(rfp && document.activeElement !== rfp) rfp.innerHTML = sicaHtml;
+      }
+
+      const rc = document.getElementById("raCode");
+      if(rc && rc.dataset.manual !== "1" && document.activeElement !== rc) rc.value = buildCRRCode();
+    }
+
+
+    function generateEmail(){
+      const errs = validateBeforeGenerate();
+      if(errs.length){ setPill(false, "Atenção: revisar dados"); showToast(errs[0]); return ""; }
+      const mode = getActiveMode();
+      const html = (mode === "NAC") ? buildEmailHtmlNac() : buildEmailHtmlInter();
+      document.getElementById("preview").innerHTML = html;
+
+      const subj = suggestedSubject();
+      document.getElementById("subjectPill").textContent = "Assunto: " + (subj || "—");
+
+      // refresh OBS too
+      document.getElementById("obsCode").value = buildRfObsCode();
+
+      // formulário SICA (rentabilização)
+      const rd = getRentData();
+      const rfp = document.getElementById("rentFormPreview");
+      const rfc = document.getElementById("rentFormCode");
+      if(!rd.enabled){
+        if(rfc) rfc.value = "";
+        if(rfp && document.activeElement !== rfp) rfp.innerHTML = "";
+      }else{
+        const sicaHtml = buildSicaFormHtml();
+        if(rfc) rfc.value = sicaHtml;
+        if(rfp && document.activeElement !== rfp) rfp.innerHTML = sicaHtml;
+      }
+
+      showToast("Preview atualizado!");
+      return html;
+    }
+
+    function clearAll(silent){
+      const ids = Array.from(document.querySelectorAll("input, textarea")).map(e=>e.id);
+      for(const id of ids){
+        const el = document.getElementById(id);
+        if(!el) continue;
+        if(id.includes("_qty_")) continue;
+        if(id === "obsCode") continue;
+        el.value = "";
+      }
+      document.getElementById("nac_qty_ADT").value = "1";
+      document.getElementById("inter_qty_ADT").value = "1";
+      document.getElementById("nac_qty_CHD").value = "0";
+      document.getElementById("nac_qty_INF").value = "0";
+      document.getElementById("inter_qty_CHD").value = "0";
+      document.getElementById("inter_qty_INF").value = "0";
+      document.getElementById("inter_cur").value = "USD";
+      document.getElementById("inter_cur_other").value = "";
+      document.getElementById("preview").innerHTML = "";
+      document.getElementById("paxq_adt").value = "1";
+      document.getElementById("paxq_chd").value = "0";
+      document.getElementById("paxq_inf").value = "0";
+      document.getElementById("pax_json").value = "";
+      updateAll();
+      renderPaxFields();
+      if(!silent) showToast("Limpo!");
+    }
+
+    function saveLocal(){
+      const data = {};
+      for(const el of document.querySelectorAll("input, select, textarea")){
+        if(!el.id) continue;
+        if(el.id === "obsCode" || el.id === "raCode") continue;
+        if(el.type === "checkbox"){
+          data[el.id] = !!el.checked;
+        }else{
+          data[el.id] = el.value;
+        }
+      }
+      localStorage.setItem("ra_reemissao_v3", JSON.stringify(data));
+      showToast("Salvo no navegador!");
+    }
+
+    function loadLocal(){
+      const raw = localStorage.getItem("ra_reemissao_v3");
+      if(!raw){ showToast("Nada salvo ainda."); return; }
+      try{
+        const data = JSON.parse(raw);
+        for(const [k,v] of Object.entries(data)){
+          const el = document.getElementById(k);
+          if(!el) continue;
+          if(el.type === "checkbox") el.checked = !!v;
+          else el.value = v;
+        }
+        updateAll();
+        renderPaxFields();
+        showToast("Carregado!");
+      }catch(e){
+        showToast("Erro ao carregar.");
+      }
+    }
+
+    // wire tabs
+    document.getElementById("tabNac").addEventListener("click", ()=>switchTab("tabNac"));
+    document.getElementById("tabInter").addEventListener("click", ()=>switchTab("tabInter"));
+
+    // buttons
+    let lastEmailHtml = "";
+    document.getElementById("btnGerar").addEventListener("click", ()=>{ lastEmailHtml = generateEmail(); });
+
+    document.getElementById("btnCopiarHtml").addEventListener("click", async ()=>{
+      if(!lastEmailHtml) lastEmailHtml = generateEmail();
+      if(!lastEmailHtml){ return; }
+      const ok = await copyHtmlToClipboard(lastEmailHtml);
+      if(!ok) showToast("Não deu pra copiar automático. Copie pelo preview.");
+    });
+
+    document.getElementById("btnCopiarObs").addEventListener("click", async ()=>{
+      const errs = validateBeforeGenerate();
+      if(errs.length){ setPill(false, "Atenção: revisar dados"); showToast(errs[0]); return; }
+      const code = buildRfObsCode();
+      document.getElementById("obsCode").value = code;
+      try{
+        await navigator.clipboard.writeText(code);
+        showToast("Código OBS copiado!");
+      }catch(e){
+        showToast("Não deu pra copiar. Copie do campo de código.");
+      }
+    });
+    document.getElementById("btnCopiarRentForm").addEventListener("click", async ()=>{
+      const rd = getRentData();
+      if(!rd.enabled || !rd.anyType){
+        showToast("Ative a rentabilização e selecione o tipo.");
+        return;
+      }
+      const htmlForm = buildSicaFormHtml();
+      const ok = await copyHtmlToClipboard(htmlForm);
+      if(!ok) showToast("Não deu pra copiar automático. Copie pelo preview.");
+    });
+
+
+
+    // CRR
+    document.getElementById("btnCopiarRACode").addEventListener("click", async ()=>{
+      const code = (document.getElementById("raCode").value || buildCRRCode()).trim();
+      try{
+        await navigator.clipboard.writeText(code);
+        showToast("CRR copiado!");
+      }catch(e){
+        showToast("Não deu pra copiar. Copie do campo.");
+      }
+    });
+
+    document.getElementById("btnCarregarRACode").addEventListener("click", ()=>{
+      const code = (document.getElementById("raCode").value || "").trim();
+      try{
+        loadCRRCode(code);
+        const rc = document.getElementById("raCode");
+        if(rc){ rc.dataset.manual = "0"; rc.value = buildCRRCode(); }
+        // refresh preview as well
+        lastEmailHtml = generateEmail();
+      }catch(e){
+        showToast((e && e.message) ? e.message : "Código inválido.");
+      }
+    });
+
+    document.getElementById("btnCopiarLinkRACode").addEventListener("click", async ()=>{
+      const code = buildCRRCode();
+      const base = window.location.href.split("#")[0];
+      const url = base + "#" + code;
+      try{
+        await navigator.clipboard.writeText(url);
+        showToast("Link copiado!");
+      }catch(e){
+        showToast("Não deu pra copiar link.");
+      }
+    });
+
+    document.getElementById("btnLimpar").addEventListener("click", clearAll);
+    document.getElementById("btnSalvar").addEventListener("click", saveLocal);
+    document.getElementById("btnCarregar").addEventListener("click", loadLocal);
+
+
+    function forceUpperKeepCursor(el){
+      if(!el || typeof el.value !== "string") return;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const up = el.value.toUpperCase();
+      if(up !== el.value){
+        el.value = up;
+        try{ el.setSelectionRange(start, end); }catch(e){}
+      }
+    }
+// reactive calc
+    for(const el of document.querySelectorAll("input, select, textarea")){
+      if(el.id === "obsCode" || el.id === "raCode") continue;
+      el.addEventListener("input", updateAll);
+      el.addEventListener("change", updateAll);
+    }
+
+    // uppercase automático em campos-chave
+    for(const id of ["cia","loc","novo_loc","oac","familia"]){
+      const el = document.getElementById(id);
+      if(!el) continue;
+      el.addEventListener("input", ()=>forceUpperKeepCursor(el));
+      el.addEventListener("blur", ()=>{ el.value = (el.value||"").trim().toUpperCase(); });
+    }
+
+    // init
+
+    // dica aleatória (a cada abertura)
+    const tipEl = document.getElementById("tipBox");
+    if(tipEl){
+      const tips = [
+        '<b>Dica:</b> o RF costuma aceitar melhor HTML simples (sem CSS). O botão <b>Copiar código OBS (RF)</b> já monta tudo em <code>&lt;table border="1"&gt;</code>.',
+        '<b>Dica:</b> Se o RF acusar “cartão”, use bilhete no formato <b>957-1234567890</b> (hífen após 3 dígitos).',
+        '<b>Dica:</b> Use o <b>CRR</b> para reabrir o cálculo no outro PC/colaborador sem redigitar tudo.',
+        '<b>Dica:</b> Para CCO, prefira colar o <b>código OBS (RF)</b> direto na OP — fica claro e padronizado.'
+      ];
+      tipEl.innerHTML = tips[Math.floor(Math.random()*tips.length)];
+    }
+
+    placeRentPanel();
+
+    const rentabEl = document.getElementById("rentab");
+    if(rentabEl) rentabEl.addEventListener("change", ()=>{ toggleRentUI(); updateAll(); });
+    for(const id of ["rent_tipo_multa","rent_tipo_diftar","rent_tipo_diftax","rent_pago_cia","rent_cobrar_ag"]){
+      const el = document.getElementById(id);
+      if(!el) continue;
+      el.addEventListener("input", updateAll);
+      el.addEventListener("change", updateAll);
+    }
+
+    updateAll();
+    renderPaxFields();
+
+    // PAX listeners
+    for(const id of ["paxq_adt","paxq_chd","paxq_inf"]){
+      const el = document.getElementById(id);
+      if(el){
+        el.addEventListener("input", renderPaxFields);
+        el.addEventListener("change", renderPaxFields);
+      }
+    }
+    const box = document.getElementById("paxBox");
+    if(box){
+      box.addEventListener("input", (e)=> updatePaxStoreFromInput(e.target));
+      box.addEventListener("change", (e)=> updatePaxStoreFromInput(e.target));
+      box.addEventListener("blur", (e)=> updatePaxStoreFromInput(e.target), true);
+    }
+
+
+    // evita sobrescrever quando você está colando um CRR
+    const raTA = document.getElementById("raCode");
+    if(raTA){
+      raTA.addEventListener("focus", ()=>{ raTA.dataset.manual = "1"; });
+      raTA.addEventListener("paste", ()=>{ raTA.dataset.manual = "1"; });
+      raTA.addEventListener("blur", ()=>{ raTA.dataset.manual = "0"; if(!raTA.value.trim()) raTA.value = buildCRRCode(); });
+    }
+  
+    try{
+      const hsh = (window.location.hash || "").replace(/^#/, "").trim();
+      if(hsh && /^(?:CRR1|RA1)-/i.test(hsh)){
+        loadCRRCode(hsh);
+      }
+    }catch(e){}
+
+
+    // ----- Tema (Claro / Escuro) -----
+    (function initTheme(){
+      const key = "ra_calc_theme";
+      const sel = document.getElementById("themeSel");
+      const saved = localStorage.getItem(key) || "dark";
+      document.documentElement.dataset.theme = saved;
+      if(sel){ sel.value = saved; sel.addEventListener("change", () => {
+        const v = sel.value || "dark";
+        document.documentElement.dataset.theme = v;
+        localStorage.setItem(key, v);
+      });}
+    })();
+    </script>
+</body>
+</html>
