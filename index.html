@@ -1085,49 +1085,71 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RULES ENGINE — FASE 2 (modular)
+// RULES ENGINE — FASE 3 (pipeline declarativo)
 //
-// Orquestrador:  applyRules(quote)  →  finalQuote
-// Módulos internos (cada um recebe q, retorna q, sem efeitos externos):
+// Arquitetura:
+//   cloneQuote        → deep clone + inicialização de meta._engine
+//   applyCurrency     → RC USD→BRL (escreve em meta._engine.rcBRL)
+//   applyTotalsByPax  → totais por tipo e grupo (lê meta._engine.rcBRL)
+//   applyEnrichments  → enriquecimentos opcionais (stub, pronto para crescer)
+//   applyValidations  → warnings de negócio
+//   applyConfidence   → meta.confidence
 //
-//   cloneQuote        — deep clone, nunca muta o original
-//   applyCurrency     — RC USD → BRL, valida câmbio
-//   applyTotalsByPax  — totais por tipo e grupo
-//   applyValidations  — warnings de negócio
-//   applyConfidence   — meta.confidence
-//
-// Contrato geral:
-//   • Cada módulo é função pura: (q) → q
-//   • Nenhum módulo conhece UI nem parser
+// Contratos:
+//   • Cada etapa é (q) → q, sem efeitos externos
+//   • Dados internos do engine ficam EXCLUSIVAMENTE em q.meta._engine
+//   • q.commercial e q.pricing são lidos, nunca escritos pelo engine
 //   • Aliases de compat (equivBRL, taxesBRL, totalBRL, fareDisplay)
-//     são preservados para buildEmail e KPIs
+//     são mantidos em q.totals para buildEmail e KPIs
+//   • A ORDEM de RULE_PIPELINE é obrigatória (ver dependências abaixo)
+//
+// Dependências de ordem:
+//   applyCurrency     → deve rodar antes de applyTotalsByPax (produz _engine.rcBRL)
+//   applyTotalsByPax  → deve rodar antes de applyConfidence  (preenche q.totals)
+//   applyValidations  → deve rodar antes de applyConfidence  (conta warnings)
+//   applyEnrichments  → roda após totais, antes de validações (pode ler totais)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── cloneQuote ────────────────────────────────────────────────────────────────
-// Isolamento garantido: applyRules nunca muta o QuoteModel original.
+// Deep clone do QuoteModel original + inicialização defensiva de meta._engine.
+// meta._engine é o namespace exclusivo para dados temporários do engine.
+// Nunca aparece na saída de negócio (buildEmail não o lê).
 
 function cloneQuote(q) {
-  return JSON.parse(JSON.stringify(q));
+  const clone = JSON.parse(JSON.stringify(q));
+
+  // Garante que meta existe (fail-safe: etapas nunca quebram por campo ausente)
+  clone.meta = clone.meta || {};
+  clone.meta.warnings = [];
+
+  // Namespace interno: dados entre etapas ficam aqui, nunca em commercial
+  clone.meta._engine = {
+    rcBRL: 0   // preenchido por applyCurrency, consumido por applyTotalsByPax
+  };
+
+  return clone;
 }
 
 // ── applyCurrency ─────────────────────────────────────────────────────────────
-// Resolve RC USD → BRL e persiste em q.commercial._rcBRL
-// para uso exclusivo de applyTotalsByPax (campo prefixado com _ = interno).
-// Gera warning se câmbio ausente com RC informado.
+// Responsabilidade única: resolver RC USD → BRL.
+// Resultado persiste em q.meta._engine.rcBRL (namespace interno do engine).
+// Não toca em q.commercial nem q.pricing.
 
 function applyCurrency(q) {
-  q.commercial._rcBRL = 0;
+  // Fail-safe: garante namespace mesmo se chamada fora de ordem
+  if (!q.meta._engine) q.meta._engine = { rcBRL: 0 };
 
   const rcUSDnum = parseAmountAny(q.commercial.rcUSD);
   const fxRate   = q.iataRate ? q.iataRate.rate : null;
 
   if (rcUSDnum != null && rcUSDnum > 0) {
     if (!fxRate || fxRate <= 0) {
+      // Warning gerado aqui; rcBRL permanece 0 (totais não incluem RC)
       q.meta.warnings.push(
         `RC de USD ${rcUSDnum.toFixed(2)}/pax informado mas câmbio não encontrado — total do grupo pode estar incorreto`
       );
     } else {
-      q.commercial._rcBRL = +(rcUSDnum * fxRate).toFixed(2);
+      q.meta._engine.rcBRL = +(rcUSDnum * fxRate).toFixed(2);
     }
   }
 
@@ -1135,13 +1157,14 @@ function applyCurrency(q) {
 }
 
 // ── applyTotalsByPax ──────────────────────────────────────────────────────────
-// Calcula totais por tipo de pax (ADT / CHD / INF) e totais de grupo.
-// Lê q.commercial._rcBRL (setado por applyCurrency).
+// Responsabilidade única: calcular totais por tipo de pax e totais de grupo.
+// Lê q.meta._engine.rcBRL (produzido por applyCurrency).
 // Preserva q.totals.fareDisplay gerado por createQuoteModel.
 
 function applyTotalsByPax(q) {
-  const rcBRL       = q.commercial._rcBRL || 0;
-  const fareDisplay = q.totals ? q.totals.fareDisplay : '—';
+  // Fail-safe: rcBRL = 0 se applyCurrency não rodou antes
+  const rcBRL       = (q.meta._engine && q.meta._engine.rcBRL) || 0;
+  const fareDisplay = (q.totals && q.totals.fareDisplay) ? q.totals.fareDisplay : '—';
 
   const byType = {};
   let groupFareTotal  = 0;
@@ -1160,8 +1183,8 @@ function applyTotalsByPax(q) {
 
     const pr = q.pricing[type];
 
-    // Tipo presente mas sem pricing (máscara não colada)
     if (!pr) {
+      // Máscara não colada: preenche estrutura com nulls para applyValidations detectar
       byType[type] = {
         quantity: qty,
         farePerPax: null, fareCurrency: null,
@@ -1210,7 +1233,7 @@ function applyTotalsByPax(q) {
       grandTotal: +groupGrandTotal.toFixed(2),
       currency:   'BRL'
     },
-    // Aliases de compat — consumidos por buildEmail e KPIs (não alterar nomes)
+    // Aliases de compat — buildEmail e KPIs leem esses nomes diretamente
     equivBRL:    +groupFareTotal.toFixed(2),
     taxesBRL:    +groupTaxesTotal.toFixed(2),
     totalBRL:    +groupGrandTotal.toFixed(2),
@@ -1220,10 +1243,30 @@ function applyTotalsByPax(q) {
   return q;
 }
 
+// ── applyEnrichments ──────────────────────────────────────────────────────────
+// Estágio para enriquecimentos opcionais que dependem de totais calculados.
+// Posição no pipeline: após applyTotalsByPax, antes de applyValidations.
+//
+// Exemplos futuros (não implementados):
+//   • applyRouteLabel(q)    — constrói rota legível para o e-mail
+//   • applyFareSummary(q)   — agrega fare basis por tipo de pax
+//   • applySeasonFlags(q)   — marca high season / low season
+//
+// Para adicionar: criar função (q) => q e incluir no RULE_PIPELINE abaixo.
+// Dados temporários → sempre em q.meta._engine.
+
+function applyEnrichments(q) {
+  // Estágio vazio — pronto para receber funções sem alterar o pipeline
+  return q;
+}
+
 // ── applyValidations ──────────────────────────────────────────────────────────
-// Todas as validações de negócio em um único lugar.
-// Lê q.pricing e q.passengers diretamente — não depende de q.totals.
-// Adiciona mensagens a q.meta.warnings[].
+// Responsabilidade única: todas as validações de negócio.
+// Lê q.pricing e q.passengers. Escreve apenas em q.meta.warnings[].
+// Não depende de q.totals (pode rodar antes ou depois sem diferença).
+//
+// Para adicionar uma nova validação: criar função interna e chamar aqui.
+// Cada validação deve ser independente das demais.
 
 function applyValidations(q) {
   const paxOrder = [
@@ -1237,23 +1280,20 @@ function applyValidations(q) {
 
     const pr = q.pricing[type];
 
-    // Máscara não informada
     if (!pr) {
       q.meta.warnings.push(`Máscara ${type} não informada ou não reconhecida — valores ausentes`);
       continue;
     }
 
-    // Tarifa não identificada
     if (pr.fareAmt == null && pr.equivBRL == null) {
       q.meta.warnings.push(`${type}: tarifa não identificada — verifique a máscara colada`);
     }
 
-    // Bagagem ausente
     if (!pr.bag) {
       q.meta.warnings.push(`${type}: franquia de bagagem não detectada — preencha manualmente se necessário`);
     }
 
-    // Inconsistência: equiv + taxas ≠ total (tolerância R$ 1,00)
+    // Consistência: equiv + taxas deve bater com total (tolerância R$ 1,00)
     if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
       const expected = +(pr.equivBRL + pr.taxesBRL).toFixed(2);
       const diff     = Math.abs(expected - pr.totalBRL);
@@ -1265,7 +1305,7 @@ function applyValidations(q) {
     }
   }
 
-  // INF sem ADT ou mais INF que ADT
+  // INF sem ADT ou mais INF do que ADT
   const cntINF = q.passengers.counts.inf;
   const cntADT = q.passengers.counts.adt;
   if (cntINF > 0 && cntADT === 0) {
@@ -1278,10 +1318,8 @@ function applyValidations(q) {
 }
 
 // ── applyConfidence ───────────────────────────────────────────────────────────
-// Define q.meta.confidence com base em:
-//   fillRatio  — proporção de campos de pricing preenchidos
-//   warnCount  — número de warnings gerados por applyValidations
-// Deve rodar DEPOIS de applyValidations para contar warnings corretamente.
+// Responsabilidade única: definir q.meta.confidence.
+// DEVE rodar após applyValidations (conta warnings) e applyTotalsByPax (lê pricing).
 
 function applyConfidence(q) {
   let filledFields = 0;
@@ -1305,8 +1343,8 @@ function applyConfidence(q) {
   }
 
   const activePaxTypes = paxOrder.filter(p => p.qty > 0).length;
-  const fillRatio = (activePaxTypes > 0 && totalFields > 0) ? filledFields / totalFields : 0;
-  const warnCount = q.meta.warnings.length;
+  const fillRatio      = (activePaxTypes > 0 && totalFields > 0) ? filledFields / totalFields : 0;
+  const warnCount      = q.meta.warnings.length;
 
   if      (fillRatio >= 0.85 && warnCount === 0) q.meta.confidence = 'HIGH';
   else if (fillRatio >= 0.50 && warnCount <= 2)  q.meta.confidence = 'MEDIUM';
@@ -1315,27 +1353,41 @@ function applyConfidence(q) {
   return q;
 }
 
+// ── RULE_PIPELINE ─────────────────────────────────────────────────────────────
+// Ordem obrigatória — ver dependências no cabeçalho do bloco acima.
+// Para adicionar etapa: criar função (q) => q e inserir na posição correta.
+// Para remover etapa: retirar da lista (não precisa alterar as outras funções).
+
+const RULE_PIPELINE = [
+  applyCurrency,      // produz meta._engine.rcBRL
+  applyTotalsByPax,   // consome meta._engine.rcBRL → preenche q.totals
+  applyEnrichments,   // lê q.totals → enriquecimentos opcionais (stub)
+  applyValidations,   // lê q.pricing + q.passengers → preenche meta.warnings
+  applyConfidence     // lê meta.warnings + q.pricing → define meta.confidence
+];
+
 // ── applyRules (orquestrador) ─────────────────────────────────────────────────
-// Pipeline declarativo: cada passo recebe e devolve q.
-// Para adicionar uma regra nova → criar função e encadear aqui.
+// Executa RULE_PIPELINE sequencialmente sobre o clone do QuoteModel.
+// Não conhece o que cada etapa faz — só garante a ordem e o isolamento.
 
 function applyRules(quote) {
-  let q = cloneQuote(quote);
-  q.meta.warnings = [];
+  let q = cloneQuote(quote); // clone + inicializa meta._engine
 
-  q = applyCurrency(q);
-  q = applyTotalsByPax(q);
-  q = applyValidations(q);
-  q = applyConfidence(q);
+  for (const step of RULE_PIPELINE) {
+    q = step(q);
+  }
 
-  // Log estruturado no console (sem alterar UI)
-  const icon = { HIGH: '✅', MEDIUM: '⚠️', LOW: '🔴' }[q.meta.confidence];
-  console.groupCollapsed(`[QuoteEngine] ${icon} ${q.meta.confidence} | ${q.meta.gds || '—'} | warnings: ${q.meta.warnings.length}`);
+  // Log consolidado — não altera UI nem q
+  const icon = { HIGH: '✅', MEDIUM: '⚠️', LOW: '🔴' }[q.meta.confidence] || '❓';
+  console.groupCollapsed(
+    `[QuoteEngine] ${icon} ${q.meta.confidence} | ${q.meta.gds || '—'} | warnings: ${q.meta.warnings.length}`
+  );
   if (q.meta.warnings.length > 0) {
     console.warn('[QuoteEngine] Warnings:\n' + q.meta.warnings.map((w, i) => `  ${i+1}. ${w}`).join('\n'));
   }
   console.log('[QuoteEngine] totals.group  →', q.totals.group);
   console.log('[QuoteEngine] totals.byType →', q.totals.byType);
+  console.log('[QuoteEngine] meta._engine  →', q.meta._engine);
   console.groupEnd();
 
   return q;
