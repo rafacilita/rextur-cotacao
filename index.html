@@ -1085,33 +1085,41 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RULES ENGINE — FASE 2
+// RULES ENGINE — FASE 2 (modular)
 //
-// applyRules(quote) → finalQuote
+// Orquestrador:  applyRules(quote)  →  finalQuote
+// Módulos internos (cada um recebe q, retorna q, sem efeitos externos):
 //
-// Responsabilidades:
-//   • Calcular totais por tipo de pax e total geral
-//   • Converter RC de USD → BRL via iataRate
-//   • Gerar warnings sobre dados ausentes ou inconsistentes
-//   • Definir meta.confidence com base nos campos preenchidos
+//   cloneQuote        — deep clone, nunca muta o original
+//   applyCurrency     — RC USD → BRL, valida câmbio
+//   applyTotalsByPax  — totais por tipo e grupo
+//   applyValidations  — warnings de negócio
+//   applyConfidence   — meta.confidence
 //
-// Contrato:
-//   • Nunca muta o objeto recebido (deep clone via JSON)
-//   • Não conhece a UI nem o parser — só opera sobre QuoteModel
-//   • Preserva os aliases de compat (equivBRL, taxesBRL, totalBRL, fareDisplay)
-//     que o buildEmail e os KPIs consomem
+// Contrato geral:
+//   • Cada módulo é função pura: (q) → q
+//   • Nenhum módulo conhece UI nem parser
+//   • Aliases de compat (equivBRL, taxesBRL, totalBRL, fareDisplay)
+//     são preservados para buildEmail e KPIs
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function applyRules(quote) {
+// ── cloneQuote ────────────────────────────────────────────────────────────────
+// Isolamento garantido: applyRules nunca muta o QuoteModel original.
 
-  // 0. Clone profundo — nunca muta o original
-  const q = JSON.parse(JSON.stringify(quote));
-  q.meta.warnings = [];
+function cloneQuote(q) {
+  return JSON.parse(JSON.stringify(q));
+}
 
-  // ── 1. RC: converte USD → BRL ─────────────────────────────────────────────
+// ── applyCurrency ─────────────────────────────────────────────────────────────
+// Resolve RC USD → BRL e persiste em q.commercial._rcBRL
+// para uso exclusivo de applyTotalsByPax (campo prefixado com _ = interno).
+// Gera warning se câmbio ausente com RC informado.
+
+function applyCurrency(q) {
+  q.commercial._rcBRL = 0;
+
   const rcUSDnum = parseAmountAny(q.commercial.rcUSD);
   const fxRate   = q.iataRate ? q.iataRate.rate : null;
-  let   rcBRL    = 0;
 
   if (rcUSDnum != null && rcUSDnum > 0) {
     if (!fxRate || fxRate <= 0) {
@@ -1119,20 +1127,27 @@ function applyRules(quote) {
         `RC de USD ${rcUSDnum.toFixed(2)}/pax informado mas câmbio não encontrado — total do grupo pode estar incorreto`
       );
     } else {
-      rcBRL = +(rcUSDnum * fxRate).toFixed(2);
+      q.commercial._rcBRL = +(rcUSDnum * fxRate).toFixed(2);
     }
   }
 
-  // ── 2. Totais por tipo de pax ─────────────────────────────────────────────
+  return q;
+}
+
+// ── applyTotalsByPax ──────────────────────────────────────────────────────────
+// Calcula totais por tipo de pax (ADT / CHD / INF) e totais de grupo.
+// Lê q.commercial._rcBRL (setado por applyCurrency).
+// Preserva q.totals.fareDisplay gerado por createQuoteModel.
+
+function applyTotalsByPax(q) {
+  const rcBRL       = q.commercial._rcBRL || 0;
+  const fareDisplay = q.totals ? q.totals.fareDisplay : '—';
+
   const byType = {};
   let groupFareTotal  = 0;
   let groupTaxesTotal = 0;
   let groupRCTotal    = 0;
   let groupGrandTotal = 0;
-
-  // Para cálculo de confiança
-  let filledFields = 0;
-  let totalFields  = 0;
 
   const paxOrder = [
     { type: 'ADT', qty: q.passengers.counts.adt },
@@ -1144,17 +1159,14 @@ function applyRules(quote) {
     if (qty <= 0) continue;
 
     const pr = q.pricing[type];
-    totalFields += 3; // fareAmt + equivBRL + totalBRL
 
-    // Tipo presente mas sem máscara parseada
+    // Tipo presente mas sem pricing (máscara não colada)
     if (!pr) {
-      q.meta.warnings.push(`Máscara ${type} não informada ou não reconhecida — valores ausentes`);
       byType[type] = {
         quantity: qty,
         farePerPax: null, fareCurrency: null,
         equivPerPax: null, taxesPerPax: null,
-        rcPerPax: rcBRL,
-        totalPerPax: null,
+        rcPerPax: rcBRL, totalPerPax: null,
         fareTotal: null, taxesTotal: null,
         rcTotal: +(rcBRL * qty).toFixed(2),
         grandTotal: null,
@@ -1163,37 +1175,10 @@ function applyRules(quote) {
       continue;
     }
 
-    // Campos preenchidos (para confidence)
-    if (pr.fareAmt  != null) filledFields++;
-    if (pr.equivBRL != null) filledFields++;
-    if (pr.totalBRL != null) filledFields++;
-
-    // Validação: tarifa ausente
-    if (pr.fareAmt == null && pr.equivBRL == null) {
-      q.meta.warnings.push(`${type}: tarifa não identificada — verifique a máscara colada`);
-    }
-
-    // Validação: bagagem ausente
-    if (!pr.bag) {
-      q.meta.warnings.push(`${type}: franquia de bagagem não detectada — preencha manualmente se necessário`);
-    }
-
-    // Validação: consistência entre equiv + taxas = total
-    if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
-      const expectedTotal = +(pr.equivBRL + pr.taxesBRL).toFixed(2);
-      const diff = Math.abs(expectedTotal - pr.totalBRL);
-      if (diff > 1.00) {
-        q.meta.warnings.push(
-          `${type}: total informado (BRL ${pr.totalBRL.toFixed(2)}) difere de equiv+taxas (BRL ${expectedTotal.toFixed(2)}) em ${diff.toFixed(2)} BRL`
-        );
-      }
-    }
-
-    // Totais por tipo
-    const fareTotal  = pr.equivBRL  != null ? +(pr.equivBRL  * qty).toFixed(2) : null;
-    const taxesTotal = pr.taxesBRL  != null ? +(pr.taxesBRL  * qty).toFixed(2) : null;
+    const fareTotal  = pr.equivBRL != null ? +(pr.equivBRL * qty).toFixed(2) : null;
+    const taxesTotal = pr.taxesBRL != null ? +(pr.taxesBRL * qty).toFixed(2) : null;
     const rcTotal    = +(rcBRL * qty).toFixed(2);
-    const grandTotal = pr.totalBRL  != null ? +((pr.totalBRL + rcBRL) * qty).toFixed(2) : null;
+    const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + rcBRL) * qty).toFixed(2) : null;
 
     byType[type] = {
       quantity:     qty,
@@ -1216,23 +1201,7 @@ function applyRules(quote) {
     if (grandTotal != null) groupGrandTotal += grandTotal;
   }
 
-  // ── 3. Validação INF vs ADT ───────────────────────────────────────────────
-  const cntINF = q.passengers.counts.inf;
-  const cntADT = q.passengers.counts.adt;
-  if (cntINF > 0 && cntADT === 0) {
-    q.meta.warnings.push('INF informado sem ADT correspondente — cada INF deve estar vinculado a um ADT');
-  } else if (cntINF > cntADT) {
-    q.meta.warnings.push(
-      `${cntINF} INF para ${cntADT} ADT — cada INF deve estar vinculado a um ADT`
-    );
-  }
-
-  // ── 4. Atualiza totals ────────────────────────────────────────────────────
-  // Preserva fareDisplay gerado por createQuoteModel
-  const fareDisplay = q.totals.fareDisplay;
-
   q.totals = {
-    // Estrutura nova com detalhamento por tipo
     byType,
     group: {
       fareTotal:  +groupFareTotal.toFixed(2),
@@ -1241,31 +1210,131 @@ function applyRules(quote) {
       grandTotal: +groupGrandTotal.toFixed(2),
       currency:   'BRL'
     },
-    // Aliases de compat — consumidos por buildEmail e KPIs (não alterar)
+    // Aliases de compat — consumidos por buildEmail e KPIs (não alterar nomes)
     equivBRL:    +groupFareTotal.toFixed(2),
     taxesBRL:    +groupTaxesTotal.toFixed(2),
     totalBRL:    +groupGrandTotal.toFixed(2),
     fareDisplay
   };
 
-  // ── 5. Confidence ─────────────────────────────────────────────────────────
+  return q;
+}
+
+// ── applyValidations ──────────────────────────────────────────────────────────
+// Todas as validações de negócio em um único lugar.
+// Lê q.pricing e q.passengers diretamente — não depende de q.totals.
+// Adiciona mensagens a q.meta.warnings[].
+
+function applyValidations(q) {
+  const paxOrder = [
+    { type: 'ADT', qty: q.passengers.counts.adt },
+    { type: 'CHD', qty: q.passengers.counts.chd },
+    { type: 'INF', qty: q.passengers.counts.inf }
+  ];
+
+  for (const { type, qty } of paxOrder) {
+    if (qty <= 0) continue;
+
+    const pr = q.pricing[type];
+
+    // Máscara não informada
+    if (!pr) {
+      q.meta.warnings.push(`Máscara ${type} não informada ou não reconhecida — valores ausentes`);
+      continue;
+    }
+
+    // Tarifa não identificada
+    if (pr.fareAmt == null && pr.equivBRL == null) {
+      q.meta.warnings.push(`${type}: tarifa não identificada — verifique a máscara colada`);
+    }
+
+    // Bagagem ausente
+    if (!pr.bag) {
+      q.meta.warnings.push(`${type}: franquia de bagagem não detectada — preencha manualmente se necessário`);
+    }
+
+    // Inconsistência: equiv + taxas ≠ total (tolerância R$ 1,00)
+    if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
+      const expected = +(pr.equivBRL + pr.taxesBRL).toFixed(2);
+      const diff     = Math.abs(expected - pr.totalBRL);
+      if (diff > 1.00) {
+        q.meta.warnings.push(
+          `${type}: total informado (BRL ${pr.totalBRL.toFixed(2)}) difere de equiv+taxas (BRL ${expected.toFixed(2)}) em ${diff.toFixed(2)} BRL`
+        );
+      }
+    }
+  }
+
+  // INF sem ADT ou mais INF que ADT
+  const cntINF = q.passengers.counts.inf;
+  const cntADT = q.passengers.counts.adt;
+  if (cntINF > 0 && cntADT === 0) {
+    q.meta.warnings.push('INF informado sem ADT correspondente — cada INF deve estar vinculado a um ADT');
+  } else if (cntINF > cntADT) {
+    q.meta.warnings.push(`${cntINF} INF para ${cntADT} ADT — cada INF deve estar vinculado a um ADT`);
+  }
+
+  return q;
+}
+
+// ── applyConfidence ───────────────────────────────────────────────────────────
+// Define q.meta.confidence com base em:
+//   fillRatio  — proporção de campos de pricing preenchidos
+//   warnCount  — número de warnings gerados por applyValidations
+// Deve rodar DEPOIS de applyValidations para contar warnings corretamente.
+
+function applyConfidence(q) {
+  let filledFields = 0;
+  let totalFields  = 0;
+
+  const paxOrder = [
+    { type: 'ADT', qty: q.passengers.counts.adt },
+    { type: 'CHD', qty: q.passengers.counts.chd },
+    { type: 'INF', qty: q.passengers.counts.inf }
+  ];
+
+  for (const { type, qty } of paxOrder) {
+    if (qty <= 0) continue;
+    totalFields += 3; // fareAmt + equivBRL + totalBRL
+
+    const pr = q.pricing[type];
+    if (!pr) continue;
+    if (pr.fareAmt  != null) filledFields++;
+    if (pr.equivBRL != null) filledFields++;
+    if (pr.totalBRL != null) filledFields++;
+  }
+
   const activePaxTypes = paxOrder.filter(p => p.qty > 0).length;
   const fillRatio = (activePaxTypes > 0 && totalFields > 0) ? filledFields / totalFields : 0;
   const warnCount = q.meta.warnings.length;
 
-  if (fillRatio >= 0.85 && warnCount === 0) {
-    q.meta.confidence = 'HIGH';
-  } else if (fillRatio >= 0.50 && warnCount <= 2) {
-    q.meta.confidence = 'MEDIUM';
-  } else {
-    q.meta.confidence = 'LOW';
-  }
+  if      (fillRatio >= 0.85 && warnCount === 0) q.meta.confidence = 'HIGH';
+  else if (fillRatio >= 0.50 && warnCount <= 2)  q.meta.confidence = 'MEDIUM';
+  else                                            q.meta.confidence = 'LOW';
+
+  return q;
+}
+
+// ── applyRules (orquestrador) ─────────────────────────────────────────────────
+// Pipeline declarativo: cada passo recebe e devolve q.
+// Para adicionar uma regra nova → criar função e encadear aqui.
+
+function applyRules(quote) {
+  let q = cloneQuote(quote);
+  q.meta.warnings = [];
+
+  q = applyCurrency(q);
+  q = applyTotalsByPax(q);
+  q = applyValidations(q);
+  q = applyConfidence(q);
 
   // Log estruturado no console (sem alterar UI)
   const icon = { HIGH: '✅', MEDIUM: '⚠️', LOW: '🔴' }[q.meta.confidence];
-  console.groupCollapsed(`[QuoteEngine] ${icon} Confidence: ${q.meta.confidence} | ${q.meta.gds || '—'} | warnings: ${warnCount}`);
-  if (warnCount > 0) console.warn('[QuoteEngine] Warnings:\n' + q.meta.warnings.map((w, i) => `  ${i+1}. ${w}`).join('\n'));
-  console.log('[QuoteEngine] totals.group →', q.totals.group);
+  console.groupCollapsed(`[QuoteEngine] ${icon} ${q.meta.confidence} | ${q.meta.gds || '—'} | warnings: ${q.meta.warnings.length}`);
+  if (q.meta.warnings.length > 0) {
+    console.warn('[QuoteEngine] Warnings:\n' + q.meta.warnings.map((w, i) => `  ${i+1}. ${w}`).join('\n'));
+  }
+  console.log('[QuoteEngine] totals.group  →', q.totals.group);
   console.log('[QuoteEngine] totals.byType →', q.totals.byType);
   console.groupEnd();
 
