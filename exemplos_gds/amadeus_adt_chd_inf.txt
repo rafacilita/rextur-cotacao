@@ -1,0 +1,112 @@
+# Exemplo: Amadeus ADT + CNN + INF sem nomes
+
+## BLOCO GDS
+
+```text
+1ADT/1CNN/1INF
+
+ 1  LA8190 Q 20SEP 7 GRUMIA DK2  2300 0625  21SEP  E  0 789 DB
+  2  LA8191 S 30SEP 3 MIAGRU DK2  1940 0505  01OCT  E  0 773 DB
+
+LAST TKT DTE 02JUN26/22:22 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+SAO
+MIA LA  8190 Q *Q 20SEP 2300  QLTSL58E        20SEP20SEP 0P
+SAO LA  8191 S *S 30SEP 1940  SLXSLH8E        30SEP30SEP 0P
+
+USD   792.00      20SEP26SAO LA MIA Q11.05 340.00LA SAO Q
+BRL  3983.99      11.05 430.00NUC792.10END ROE1.00
+BRL   278.87-DU   XT BRL 28.16-AY BRL 117.70-US BRL 117.70
+BRL    64.56-BR   -US BRL 19.31-XA BRL 35.21-XY BRL 37.17-YC
+BRL   377.88-XT   BRL 22.63-XF MIA4.50
+BRL  4705.30
+RATE USED 1USD=5.0303BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+FARE FAMILIES:    (ENTER FQFn FOR DETAILS, FXY FOR UPSELL)
+FARE FAMILY:FC1:1:SL
+
+LAST TKT DTE 02JUN26/22:22 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+SAO
+MIA LA  8190 Q  Q 20SEP 2300  QLTSL58E/CH00   20SEP20SEP 0P
+SAO LA  8191 S  S 30SEP 1940  SLXSLH8E/CH00   30SEP30SEP 0P
+
+USD   792.00      20SEP26SAO LA MIA Q11.05 340.00LA SAO Q
+BRL  3983.99      11.05 430.00NUC792.10END ROE1.00
+BRL   278.87-DU   XT BRL 28.16-AY BRL 117.70-US BRL 117.70
+BRL    64.56-BR   -US BRL 19.31-XA BRL 35.21-XY BRL 37.17-YC
+BRL   377.88-XT   BRL 22.63-XF MIA4.50
+BRL  4705.30
+RATE USED 1USD=5.0303BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+FARE FAMILIES:    (ENTER FQFn FOR DETAILS, FXY FOR UPSELL)
+FARE FAMILY:FC1:1:SL
+
+LAST TKT DTE 02JUN26/22:22 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+SAO
+MIA LA  8190 Q  Q 20SEP 2300  QLTSL58E/IN90   20SEP20SEP 0P
+SAO LA  8191 S  S 30SEP 1940  SLXSLH8E/IN90   30SEP30SEP 0P
+USD    77.00      20SEP26SAO LA MIA34.00LA SAO43.00NUC77.00
+BRL   387.33      END ROE1.00
+BRL    40.00-DU   XT BRL 117.70-US BRL 117.70-US BRL 19.31
+BRL    28.16-AY   -XA BRL 35.21-XY BRL 37.17-YC
+BRL   327.09-XT
+BRL   782.58
+RATE USED 1USD=5.0303BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+FARE FAMILIES:    (ENTER FQFn FOR DETAILS, FXY FOR UPSELL)
+FARE FAMILY:FC1:1:SL
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Tipo de bloco:
+Disponibilidade/itinerario com tarifamento por tipo de passageiro
+
+Passageiros:
+- ADT: 1
+- CNN: 1
+- INF: 1
+
+Segmentos:
+- LA 8190, classe Q, GRU-MIA, 20SEP, 23:00-06:25 +1, status DK2, equipamento 789
+- LA 8191, classe S, MIA-GRU, 30SEP, 19:40-05:05 +1, status DK2, equipamento 773
+
+Prazo de emissao:
+02JUN26 22:22 LT
+
+Tarifas por passageiro:
+- ADT: tarifa USD 792.00, equivalente BRL 3983.99, DU BRL 278.87, BR BRL 64.56, XT BRL 377.88, total BRL 4705.30
+- CNN/CHD: tarifa USD 792.00, equivalente BRL 3983.99, DU BRL 278.87, BR BRL 64.56, XT BRL 377.88, total BRL 4705.30
+- INF: tarifa USD 77.00, equivalente BRL 387.33, DU BRL 40.00, AY BRL 28.16, XT BRL 327.09, total BRL 782.58
+
+Total geral esperado:
+BRL 10193.18
+
+Cambio:
+1USD = 5.0303BRL
+
+Fare basis:
+- ADT: QLTSL58E / SLXSLH8E
+- CNN/CHD: QLTSL58E/CH00 / SLXSLH8E/CH00
+- INF: QLTSL58E/IN90 / SLXSLH8E/IN90
+
+Bagagem:
+0P em todos os trechos/tipos de passageiro
+
+Warnings esperados:
+- Bagagem nao incluida em pelo menos um voo
+- Status DK2 deve ser identificado como nao HK/confirmado convencional
+
+## OBSERVACOES
+
+Exemplo sem nomes de passageiros. O tipo informado no resumo e `CNN`, mas o fare basis aparece com sufixo `CH00`; o parser deve tratar como crianca.
+
+O texto contem tres blocos de tarifa com o mesmo prazo de emissao: adulto, crianca e infantil. Adulto e crianca possuem mesmo total; infantil possui tarifa reduzida e total proprio.
