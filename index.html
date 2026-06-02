@@ -1498,6 +1498,45 @@ function buildRouteString(segs){
 
 // ─── PRICING PARSERS (inalterados) ────────────────────────────────────────────
 
+function normalizeBagAllowance(v){
+  if(v == null) return null;
+  const s = String(v).replace(/\[CTRL\]/gi, " ").replace(/Â¥|¥|¤|Â¤/g, " ").trim().toUpperCase();
+  if(!s || s === "—" || s === "-") return null;
+  if(s === "NIL" || /^0+\s*(P|PC)$/.test(s)) return "Sem Bag";
+  const m = s.match(/^0*(\d{1,2})\s*(P|PC)$/);
+  if(m){
+    const n = parseInt(m[1], 10);
+    return n === 0 ? "Sem Bag" : `${n}PC`;
+  }
+  if(/SEM\s+BAG|NO\s+BAG/i.test(s)) return "Sem Bag";
+  return s;
+}
+
+function extractFareFamilies(pricingRaw){
+  const lines = trimLines(pricingRaw);
+  const found = [];
+  const add = (v) => {
+    const s = String(v || "").replace(/\[CTRL\]/gi, " ").replace(/Â¥|¥|¤|Â¤/g, " ").trim();
+    if(s && !found.includes(s)) found.push(s);
+  };
+
+  for(const l0 of lines){
+    const l = String(l0);
+    const branded = l.match(/\bBRANDED\s+FARE\b\s*\/(.+)$/i);
+    if(branded){
+      branded[1].split("/").map(x => x.trim()).filter(Boolean).forEach(add);
+    }
+
+    const family = l.match(/\bFARE\s+FAMILY\s*:\s*(.+)$/i);
+    if(family){
+      const parts = family[1].split(":").map(x => x.trim()).filter(Boolean);
+      if(parts.length) add(parts[parts.length - 1]);
+    }
+  }
+
+  return found;
+}
+
 function parsePricingAmadeus(pricingRaw){
   const lines = trimLines(pricingRaw);
   const flat = flatten(pricingRaw);
@@ -1509,17 +1548,17 @@ function parsePricingAmadeus(pricingRaw){
     const l = String(l0).trim();
     // NIL = sem bagagem (evita capturar "NIL" dentro de códigos de voo longos)
     if (/\bNIL\b/i.test(l) && !/^\d{3,}/.test(l.split(/\s+/)[0] || '')) {
-      bagSegs.push('Sem Bag'); continue;
+      bagSegs.push(normalizeBagAllowance('NIL')); continue;
     }
     // Piece concept: 0PC/0P = sem bag; 1PC/2PC etc.
     const mPC = l.match(/\b(\d{1,2})\s*(PC|P)\b/i);
     if (mPC) {
-      const n = parseInt(mPC[1], 10);
-      bagSegs.push(n === 0 ? 'Sem Bag' : `${n}PC`);
+      bagSegs.push(normalizeBagAllowance(`${mPC[1]}${mPC[2]}`));
     }
   }
   const bagUniq = [...new Set(bagSegs)];
   const bag = bagUniq.length===0 ? null : (bagUniq.length===1 ? bagUniq[0] : "VAR");
+  const fareFamilies = extractFareFamilies(pricingRaw);
   const mFare = flat.match(/\bFARE\b.*?\b(USD|EUR|GBP|BRL)\s*([0-9][0-9.,]*)/i) || flat.match(/\b(USD|EUR|GBP|BRL)\s*([0-9][0-9.,]*)\b/i);
   if(mFare){ fareCur=mFare[1].toUpperCase(); fareAmt=parseAmountAny(mFare[2]); }
   const mEq = flat.match(/\bEQUIV\b\s*BRL\s*([0-9][0-9.,]*)/i);
@@ -1531,27 +1570,20 @@ function parsePricingAmadeus(pricingRaw){
   if(total==null){ const brls=[]; for(const l of lines){ const mm=l.match(/^BRL\s*([0-9][0-9.,]*)\s*$/i); if(mm) brls.push(parseAmountAny(mm[1])); } if(brls.length) total=brls[brls.length-1]; }
   if(total==null){ const cand=[]; for(const l of lines){ const all=[...String(l).matchAll(/\bBRL\s*([0-9][0-9.,]*)\b(?!\s*-\w)/ig)]; for(const mm of all){ const v=parseAmountAny(mm[1]); if(v!=null && !isNaN(v)) cand.push(v); } } if(cand.length) total = Math.max(...cand); }
   if(total!=null && equiv!=null){ taxes=Math.max(0, +(total-equiv).toFixed(2)); }
-  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs};
+  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
 }
 
 function parsePricingSabre(pricingRaw){
   const lines = trimLines(pricingRaw);
   const flat = flatten(pricingRaw).toUpperCase();
-  const normBag = (v)=>{
-    if(!v) return null;
-    const s = String(v).toUpperCase();
-    if(s==="NIL") return "Sem Bag";
-    const mm = s.match(/^(\d{2})P$/);
-    if(mm) return String(parseInt(mm[1],10))+"PC";
-    return s;
-  };
+  const fareFamilies = extractFareFamilies(pricingRaw);
   const bagSegs = [];
   for(const l0 of lines){
     const l = String(l0).replace(/¥/g," ").trim();
     if(!/^\d{2}\b/.test(l)) continue;
     if(/\bVOID\b/i.test(l)) continue;
     const all = [...l.matchAll(/\b(\d{2}P|NIL)\b/gi)];
-    if(all.length){ const last = all[all.length-1][1].toUpperCase(); bagSegs.push(normBag(last)); }
+    if(all.length){ const last = all[all.length-1][1].toUpperCase(); bagSegs.push(normalizeBagAllowance(last)); }
   }
   const uniq = [...new Set(bagSegs)];
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
@@ -1561,9 +1593,9 @@ function parsePricingSabre(pricingRaw){
   ];
   for(const re of patterns){
     const m = flat.match(re);
-    if(m){ return { fareCur:"USD", fareAmt:parseAmountAny(m[1]), equivBRL:parseAmountAny(m[2]), taxesBRL:parseAmountAny(m[3]), totalBRL:parseAmountAny(m[4]), bag, bagSegs }; }
+    if(m){ return { fareCur:"USD", fareAmt:parseAmountAny(m[1]), equivBRL:parseAmountAny(m[2]), taxesBRL:parseAmountAny(m[3]), totalBRL:parseAmountAny(m[4]), bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies }; }
   }
-  return {fareCur:"USD", fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs};
+  return {fareCur:"USD", fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
 }
 
 // ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
@@ -1900,6 +1932,20 @@ function applyValidations(q) {
     }
 
     // Consistência: equiv + taxas deve bater com total (tolerância R$ 1,00)
+    if (pr.bag === 'VAR') {
+      q.meta.warnings.push(`${type}: bagagem diferente durante o itinerario - confira a franquia por trecho`);
+    }
+
+    if (Array.isArray(pr.bagSegs) && pr.bagSegs.some(b => normalizeBagAllowance(b) === 'Sem Bag')) {
+      const noBagRoutes = [];
+      pr.bagSegs.forEach((b, idx) => {
+        if (normalizeBagAllowance(b) !== 'Sem Bag') return;
+        const seg = q.itinerary && q.itinerary[idx] ? q.itinerary[idx] : null;
+        noBagRoutes.push(seg && seg.org && seg.dst ? `${seg.org}-${seg.dst}` : `trecho ${idx + 1}`);
+      });
+      q.meta.warnings.push(`${type}: pelo menos um trecho sem bagagem (${noBagRoutes.join(', ')})`);
+    }
+
     if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
       const expected = +(pr.equivBRL + pr.taxesBRL).toFixed(2);
       const diff     = Math.abs(expected - pr.totalBRL);
@@ -2116,7 +2162,19 @@ function buildEmail(quote) {
       + (s.arrDayOffset ? `<span style="font-size:10px;color:#f59e0b;font-weight:700;"> (+${s.arrDayOffset})</span>` : '');
 
     let bagCells = "";
+    const renderBagTd = (v) => {
+      const txt = v || "-";
+      const noBag = normalizeBagAllowance(txt) === "Sem Bag";
+      const extra = noBag ? "font-weight:700;color:#991b1b;background:#fef2f2;" : "";
+      return `<td style="border:1px solid #b8b7d6; padding:8px; ${extra}">${escapeHtml(txt)}</td>`;
+    };
     if (typesPresent.length) {
+      const bagTd = (v) => {
+        const txt = v || "â€”";
+        const noBag = normalizeBagAllowance(txt) === "Sem Bag";
+        const extra = noBag ? "font-weight:700;color:#991b1b;background:#fef2f2;" : "";
+        return `<td style="border:1px solid #b8b7d6; padding:8px; ${extra}">${escapeHtml(txt)}</td>`;
+      };
       if (bagSameAcrossTypes) {
         let b = null;
         for (const t of typesPresent) { const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : null; if(v!=null){ b=v; break; } }
@@ -2126,6 +2184,22 @@ function buildEmail(quote) {
       }
     }
     // ── Célula do trecho: nome IATA quando disponível ────────────────────────
+    if (typesPresent.length) {
+      if (bagSameAcrossTypes) {
+        let b2 = null;
+        for (const t of typesPresent) {
+          const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : null;
+          if(v != null){ b2 = v; break; }
+        }
+        bagCells = renderBagTd(b2);
+      } else {
+        bagCells = typesPresent.map(t => {
+          const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : "-";
+          return renderBagTd(v);
+        }).join("");
+      }
+    }
+
     const orgName = iataToName(s.org);
     const dstName = iataToName(s.dst);
     // Linha principal: nome completo (ou código se não houver nome)
@@ -2171,6 +2245,16 @@ function buildEmail(quote) {
   if(pax.inf) noteParts.push(`INF ${pax.inf}`);
 
   const optItems = [];
+  const fareFamilies = [];
+  for(const t of typesPresent){
+    const pr = prices ? prices[t] : null;
+    const arr = pr && Array.isArray(pr.fareFamilies) && pr.fareFamilies.length ? pr.fareFamilies : (pr && pr.fareFamily ? [pr.fareFamily] : []);
+    arr.forEach(f => {
+      const label = `${t}: ${f}`;
+      if(f && !fareFamilies.includes(label)) fareFamilies.push(label);
+    });
+  }
+  if(fareFamilies.length) optItems.push(`<li><b>Familia tarifaria:</b> ${escapeHtml(fareFamilies.join(" | "))}</li>`);
   if(cabine) optItems.push(`<li><b>Cabine:</b> ${escapeHtml(cabine)}</li>`);
   if(pay.methods.length) optItems.push(`<li><b>Forma de pagamento:</b> ${escapeHtml(pay.methods.join(" • "))}${pay.link ? ` — <b>Link:</b> ${escapeHtml(pay.link)}` : ""}</li>`);
   if(condicao) optItems.push(`<li><b>Condição:</b> ${escapeHtml(condicao)}</li>`);
