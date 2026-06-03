@@ -59,6 +59,7 @@
     }
 
     *{box-sizing:border-box}
+    html{overflow-x:hidden}
     body{
       margin:0; font-family:var(--sans);
       background:
@@ -66,11 +67,13 @@
         radial-gradient(900px 700px at 85% 20%, rgba(168,85,247,.22), transparent 60%),
         var(--bg);
       color:var(--text);
+      overflow-x:hidden;
     }
     header{
       padding:18px 22px;
       display:flex; align-items:center; justify-content:space-between;
       gap:14px;
+      flex-wrap:wrap;
     }
     .title{display:flex; flex-direction:column; gap:4px;}
     .topbar{
@@ -112,6 +115,8 @@
 
     select, input, textarea, button{font-family:inherit}
     select, input{
+      width:100%;
+      min-width:0;
       background:rgba(0,0,0,.25);
       border:1px solid var(--line);
       color:var(--text);
@@ -121,13 +126,14 @@
     }
     select:focus, input:focus, textarea:focus{border-color: rgba(124,58,237,.65); box-shadow:0 0 0 3px rgba(124,58,237,.18)}
     main{padding:0 22px 22px;}
-    .grid{display:grid; grid-template-columns: 1.08fr .92fr; gap:16px; align-items:start;}
+    .grid{display:grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); gap:16px; align-items:start;}
     .card{
       background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
       border:1px solid var(--line);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
+      min-width:0;
     }
     .card .hd{
       padding:14px 16px;
@@ -141,7 +147,9 @@
     .row2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
     .row1{display:grid; grid-template-columns: 1fr; gap:10px}
     .field label{display:block; font-size:12px; color:var(--muted); margin:2px 0 6px}
+    .field{min-width:0}
     .help{font-size:12px; color:var(--muted); margin-top:6px}
+    .hint{font-size:12px; color:var(--muted); overflow-wrap:anywhere}
     textarea{
       width:100%;
       min-height: 250px;
@@ -198,6 +206,14 @@
       border-radius: 14px;
       border:1px solid rgba(0,0,0,.12);
     }
+    #preview:empty::before{
+      content:"A preview aparece aqui depois de gerar a cotacao.";
+      display:block;
+      padding:28px 18px;
+      color:#64748b;
+      font-size:13px;
+      text-align:center;
+    }
     .status{
       font-size:12px; color:var(--muted);
       padding:6px 10px; border-radius:999px;
@@ -236,6 +252,85 @@
       .kpis{grid-template-columns: 1fr 1fr}
       .textareas{grid-template-columns: 1fr}
       .row4{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 760px){
+      header{
+        padding:16px;
+        align-items:flex-start;
+      }
+      .brand{
+        width:100%;
+        align-items:center;
+      }
+      .logoBox{
+        width:48px;
+        height:48px;
+        border-radius:14px;
+      }
+      .logoBox img{width:40px; height:40px}
+      .title{min-width:0; flex:1}
+      .title h1{font-size:20px; line-height:1.15}
+      .title p{font-size:12px; line-height:1.35}
+      .title p,.help,.hint{
+        overflow-wrap:anywhere;
+      }
+      .pillrow{
+        width:100%;
+        display:grid;
+        grid-template-columns:1fr;
+        justify-content:stretch;
+      }
+      .pill{
+        width:100%;
+        flex:1 1 auto;
+        min-width:0;
+        justify-content:flex-start;
+      }
+      .pill select{
+        min-width:0;
+        width:auto;
+        flex:1;
+      }
+      main{padding:0 12px 16px}
+      .card{border-radius:14px}
+      .card .hd{
+        padding:12px;
+        align-items:flex-start;
+        flex-wrap:wrap;
+      }
+      .card .hd > div{
+        width:100%;
+        flex-wrap:wrap;
+      }
+      .card .bd{padding:12px}
+      .row4,.row3,.row2{grid-template-columns:1fr}
+      .subcard{
+        padding:10px;
+        border-radius:14px;
+      }
+      .switches{gap:8px}
+      .chip{
+        min-height:38px;
+        max-width:100%;
+      }
+      .btnrow{
+        display:grid;
+        grid-template-columns:1fr;
+      }
+      button{width:100%}
+      textarea{min-height:220px; border-radius:14px}
+      #maskADT,#maskCHD,#maskINF{min-height:150px !important}
+      .kpis{grid-template-columns:1fr}
+      .previewWrap{
+        min-height:360px;
+        max-height:70vh;
+      }
+      .status{
+        white-space:normal;
+        line-height:1.25;
+        max-width:100%;
+      }
+      #hintOptional{width:100%}
     }
   </style>
 </head>
