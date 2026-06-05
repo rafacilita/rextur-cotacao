@@ -564,6 +564,10 @@
     .sourceBlock{
       margin-bottom:14px;
     }
+    .paxBlock{
+      margin-top:0;
+      margin-bottom:14px;
+    }
     .sourceBlock .textareas{
       align-items:start;
     }
@@ -720,6 +724,73 @@
       </div>
 
       <div class="bd">
+        <div class="subcard paxBlock">
+          <h3>PAXS</h3>
+          <div class="row3">
+            <div class="field">
+              <label>Qtd ADT</label>
+              <input id="qADT" type="number" min="0" value="1" />
+            </div>
+            <div class="field">
+              <label>Qtd CHD</label>
+              <input id="qCHD" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label>Qtd INF</label>
+              <input id="qINF" type="number" min="0" value="0" />
+            </div>
+          </div>
+
+
+          <div class="row1" style="margin-top:10px;">
+            <label class="chip" style="width:max-content;">
+              <input type="checkbox" id="chkNomes">Informar nomes (opcional)
+            </label>
+          </div>
+
+          <div id="autoPaxSuggest" class="status warn" style="display:none; margin-top:10px;">
+            Detectei nomes no itinerário. <button id="btnAutoPax" type="button" class="secondary" style="padding:6px 10px; border-radius:12px; margin-left:8px;">Preencher automaticamente</button>
+          </div>
+
+          <div id="paxCard" class="subcard" style="display:none; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <h3 style="margin:0;">PAX &amp; Nomes</h3>
+              <div class="status" id="paxTotalPill">Total: 0</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div id="paxAdultosWrap">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Adultos</div>
+                <div class="status">ADT</div>
+              </div>
+              <div id="paxAdultosList" class="row2" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="divider" id="divChdSep" style="display:none;"></div>
+
+            <div id="paxCriancasWrap" style="display:none;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Crianças</div>
+                <div class="status">CHD</div>
+              </div>
+              <div id="paxCriancasList" class="row2" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="divider" id="divInfSep" style="display:none;"></div>
+
+            <div id="paxInfantsWrap" style="display:none;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Infants</div>
+                <div class="status">INF</div>
+              </div>
+              <div id="paxInfantsList" class="row2" style="margin-top:10px;"></div>
+            </div>
+          </div>
+
+        </div>
+
         <div class="sourceBlock">
           <div class="textareas">
             <div class="field">
@@ -886,74 +957,6 @@
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="subcard">
-          <h3>PAX</h3>
-          <div class="row3">
-            <div class="field">
-              <label>Qtd ADT</label>
-              <input id="qADT" type="number" min="0" value="1" />
-            </div>
-            <div class="field">
-              <label>Qtd CHD</label>
-              <input id="qCHD" type="number" min="0" value="0" />
-            </div>
-            <div class="field">
-              <label>Qtd INF</label>
-              <input id="qINF" type="number" min="0" value="0" />
-            </div>
-          </div>
-
-
-          <div class="row1" style="margin-top:10px;">
-            <label class="chip" style="width:max-content;">
-              <input type="checkbox" id="chkNomes">Informar nomes (opcional)
-            </label>
-          </div>
-
-          <div id="autoPaxSuggest" class="status warn" style="display:none; margin-top:10px;">
-            Detectei nomes no itinerário. <button id="btnAutoPax" type="button" class="secondary" style="padding:6px 10px; border-radius:12px; margin-left:8px;">Preencher automaticamente</button>
-          </div>
-
-          <div id="paxCard" class="subcard" style="display:none; margin-top:10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <h3 style="margin:0;">PAX &amp; Nomes</h3>
-              <div class="status" id="paxTotalPill">Total: 0</div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div id="paxAdultosWrap">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800;">Adultos</div>
-                <div class="status">ADT</div>
-              </div>
-              <div id="paxAdultosList" class="row2" style="margin-top:10px;"></div>
-            </div>
-
-            <div class="divider" id="divChdSep" style="display:none;"></div>
-
-            <div id="paxCriancasWrap" style="display:none;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800;">Crianças</div>
-                <div class="status">CHD</div>
-              </div>
-              <div id="paxCriancasList" class="row2" style="margin-top:10px;"></div>
-            </div>
-
-            <div class="divider" id="divInfSep" style="display:none;"></div>
-
-            <div id="paxInfantsWrap" style="display:none;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800;">Infants</div>
-                <div class="status">INF</div>
-              </div>
-              <div id="paxInfantsList" class="row2" style="margin-top:10px;"></div>
-            </div>
-          </div>
-
-        </div>
       </div>
     </section>
 
