@@ -561,6 +561,15 @@
       grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
       gap:14px;
     }
+    .sourceBlock{
+      margin-bottom:14px;
+    }
+    .sourceBlock .textareas{
+      align-items:start;
+    }
+    .sourceBlock textarea{
+      min-height:220px;
+    }
     #itin{min-height:310px}
     #maskADT,#maskCHD,#maskINF{min-height:170px !important}
     .btnrow{
@@ -597,7 +606,12 @@
       background:transparent;
       box-shadow:none;
     }
-    body[data-theme="light"] button.ghost{color:#647085}
+    body[data-theme="light"] button.ghost{
+      background:transparent;
+      color:#647085;
+      border-color:rgba(71,85,105,.18);
+      box-shadow:none;
+    }
     button:hover{filter:none; transform:translateY(-1px)}
     .kpis{
       gap:8px;
@@ -653,6 +667,7 @@
       .pillrow{gap:8px}
       .card .bd{padding:14px 12px}
       .textareas{grid-template-columns:1fr}
+      .sourceBlock textarea{min-height:220px}
       #itin{min-height:260px}
       .btnrow{
         position:sticky;
@@ -700,11 +715,72 @@
   <div class="grid">
     <section class="card">
       <div class="hd">
-        <h2>Dados da cotação</h2>
+        <h2>Fonte e revisão da cotação</h2>
         <div style="display:flex; gap:10px; align-items:center;"><div class="status" id="modePill">Cotação</div><div class="status" id="statusPill">Pronto</div></div>
       </div>
 
       <div class="bd">
+        <div class="sourceBlock">
+          <div class="textareas">
+            <div class="field">
+              <label>Itinerário (Sabre ou Amadeus)</label>
+              <textarea id="itin" placeholder="Cole o itinerário aqui..."></textarea>
+              <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
+            </div>
+            <div class="field">
+              <label>Máscaras de tarifa (por tipo)</label>
+
+              <div class="subcard" style="margin-top:0;" id="maskADTWrap">
+                <h3>ADT (máscara)</h3>
+                <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
+                <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
+                  <label>Bagagem ADT (manual, se não detectar)</label>
+                  <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
+                </div>
+              </div>
+
+              <div class="subcard" id="maskCHDWrap" style="display:none;">
+                <h3>CHD (máscara)</h3>
+                <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores CHD/CNN..."></textarea>
+                <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
+                  <label>Bagagem CHD (manual, se não detectar)</label>
+                  <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
+                </div>
+              </div>
+
+              <div class="subcard" id="maskINFWrap" style="display:none;">
+                <h3>INF (máscara)</h3>
+                <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores INF..."></textarea>
+                <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
+                  <label>Bagagem INF (manual, se não detectar)</label>
+                  <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
+                </div>
+              </div>
+
+              <div class="help">Dica: Sabre WP/WPP/PQ precisa das linhas com ADT/CNN/INF. Amadeus pode ser TQT/TST ou construção NUC/END/ROE.</div>
+            </div>
+          </div>
+
+          <div class="btnrow">
+            <button id="btnBuild" type="button">Gerar prévia</button>
+            <button id="btnCopy" class="secondary" type="button">Copiar HTML (Outlook)</button>
+            <button id="btnClear" class="ghost" type="button">Limpar</button>
+          </div>
+          <details id="errDetails" style="display:none; margin-top:10px; padding:10px; border:1px solid rgba(148,163,184,.6); border-radius:12px; background:rgba(255,255,255,.6);">
+            <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
+            <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
+          </details>
+
+          <div class="kpis">
+            <div class="kpi"><div class="k">Tarifa (moeda) — pax principal</div><div class="v" id="kFare">—</div></div>
+            <div class="kpi"><div class="k">Equiv. BRL — grupo</div><div class="v" id="kEquiv">—</div></div>
+            <div class="kpi"><div class="k">Taxas BRL — grupo</div><div class="v" id="kTaxes">—</div></div>
+            <div class="kpi"><div class="k">Total BRL — grupo</div><div class="v" id="kTotal">—</div></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
         <div class="row4">
           <div class="field">
             <label>Cabine</label>
@@ -878,67 +954,6 @@
           </div>
 
         </div>
-
-        <div class="divider"></div>
-
-        <div class="textareas">
-          <div class="field">
-            <label>Itinerário (Sabre ou Amadeus)</label>
-            <textarea id="itin" placeholder="Cole o itinerário aqui..."></textarea>
-            <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
-          </div>
-          <div class="field">
-            <label>Máscaras de tarifa (por tipo)</label>
-
-            <div class="subcard" style="margin-top:0;" id="maskADTWrap">
-              <h3>ADT (máscara)</h3>
-              <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
-              <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
-                <label>Bagagem ADT (manual, se não detectar)</label>
-                <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
-              </div>
-            </div>
-
-            <div class="subcard" id="maskCHDWrap" style="display:none;">
-              <h3>CHD (máscara)</h3>
-              <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores CHD/CNN..."></textarea>
-              <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
-                <label>Bagagem CHD (manual, se não detectar)</label>
-                <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
-              </div>
-            </div>
-
-            <div class="subcard" id="maskINFWrap" style="display:none;">
-              <h3>INF (máscara)</h3>
-              <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores INF..."></textarea>
-              <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
-                <label>Bagagem INF (manual, se não detectar)</label>
-                <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
-              </div>
-            </div>
-
-            <div class="help">Dica: Sabre WP/WPP/PQ precisa das linhas com ADT/CNN/INF. Amadeus pode ser TQT/TST ou construção NUC/END/ROE.</div>
-          </div>
-        </div>
-
-        <div class="btnrow">
-          <button id="btnBuild" type="button">Gerar prévia</button>
-          <button id="btnCopy" class="secondary" type="button">Copiar HTML (Outlook)</button>
-          <button id="btnClear" class="ghost" type="button">Limpar</button>
-        </div>
-        <details id="errDetails" style="display:none; margin-top:10px; padding:10px; border:1px solid rgba(148,163,184,.6); border-radius:12px; background:rgba(255,255,255,.6);">
-          <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
-          <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
-        </details>
-
-
-        <div class="kpis">
-          <div class="kpi"><div class="k">Tarifa (moeda) — pax principal</div><div class="v" id="kFare">—</div></div>
-          <div class="kpi"><div class="k">Equiv. BRL — grupo</div><div class="v" id="kEquiv">—</div></div>
-          <div class="kpi"><div class="k">Taxas BRL — grupo</div><div class="v" id="kTaxes">—</div></div>
-          <div class="kpi"><div class="k">Total BRL — grupo</div><div class="v" id="kTotal">—</div></div>
-        </div>
-
       </div>
     </section>
 
