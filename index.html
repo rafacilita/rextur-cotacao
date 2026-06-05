@@ -284,7 +284,7 @@
       .pillrow{
         width:100%;
         display:grid;
-        grid-template-columns:1fr;
+        grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
         justify-content:stretch;
       }
       .pill{
@@ -292,6 +292,7 @@
         flex:1 1 auto;
         min-width:0;
         justify-content:flex-start;
+        min-height:40px;
       }
       .pill select{
         min-width:0;
@@ -339,6 +340,9 @@
       }
       #hintOptional{width:100%}
     }
+    @media (max-width: 360px){
+      .pillrow{grid-template-columns:1fr}
+    }
 
     /* UX refinement layer: quieter operational interface, same field IDs/logic. */
     :root{
@@ -360,45 +364,53 @@
       color:var(--text);
     }
     body[data-theme="light"]{
-      --bg:#f5f7fb;
-      --text:#142033;
-      --muted:#66758a;
-      --line:rgba(71,85,105,.18);
+      --bg:#f7f8fb;
+      --text:#172033;
+      --muted:#647085;
+      --line:rgba(71,85,105,.16);
       --control:#ffffff;
       --surface:#ffffff;
       --surface2:#f8fafc;
-      --shadow:0 18px 42px rgba(15,23,42,.10);
-      background:linear-gradient(180deg, #eef3ff 0, #f8fafc 210px);
+      --shadow:0 8px 24px rgba(15,23,42,.06);
+      background:#f7f8fb;
     }
     .topbar{
       background:rgba(17,22,29,.86);
       backdrop-filter: blur(14px);
       border-bottom:1px solid var(--line);
     }
-    body[data-theme="light"] .topbar{background:rgba(255,255,255,.88)}
-    header{padding:16px 22px}
-    .logoBox{
-      width:52px;
-      height:52px;
-      border-radius:12px;
-      background:#fff;
-      box-shadow:0 12px 28px rgba(0,0,0,.18);
+    body[data-theme="light"] .topbar{
+      background:rgba(255,255,255,.96);
+      box-shadow:0 1px 0 rgba(15,23,42,.05);
     }
-    .logoBox img{width:40px; height:40px}
+    header{
+      padding:14px 22px;
+      max-width:1680px;
+      margin:0 auto;
+    }
+    .logoBox{
+      width:48px;
+      height:48px;
+      border-radius:11px;
+      background:#fff;
+      box-shadow:0 8px 20px rgba(0,0,0,.14);
+    }
+    .logoBox img{width:38px; height:38px}
     .title h1{
-      font-size:22px;
+      font-size:21px;
       line-height:1.12;
       letter-spacing:0;
       font-weight:820;
     }
     .title p{font-size:12.5px; color:var(--muted)}
     .pill{
-      background:rgba(255,255,255,.045);
+      background:rgba(255,255,255,.04);
       border-color:var(--line);
       box-shadow:none;
-      min-height:38px;
+      min-height:36px;
+      border-radius:10px;
     }
-    body[data-theme="light"] .pill{background:rgba(15,23,42,.04)}
+    body[data-theme="light"] .pill{background:#f8fafc}
     .pill .dot{
       background:var(--accent2);
       box-shadow:0 0 0 3px rgba(34,184,167,.16);
@@ -406,7 +418,7 @@
     main{
       max-width:1680px;
       margin:0 auto;
-      padding:18px 22px 28px;
+      padding:18px 22px 30px;
     }
     .grid{
       grid-template-columns:minmax(0, 1.12fr) minmax(440px, .88fr);
@@ -417,21 +429,22 @@
       top:14px;
     }
     .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.025));
+      background:var(--surface);
       border-color:var(--line);
-      border-radius:12px;
+      border-radius:10px;
       box-shadow:var(--shadow);
     }
     body[data-theme="light"] .card{
       background:var(--surface);
       border-color:var(--line);
+      box-shadow:0 8px 24px rgba(15,23,42,.06);
     }
     .card .hd{
       padding:13px 16px;
-      background:rgba(255,255,255,.025);
+      background:rgba(255,255,255,.018);
       border-bottom:1px solid var(--line);
     }
-    body[data-theme="light"] .card .hd{background:#fbfdff}
+    body[data-theme="light"] .card .hd{background:#fbfcfe}
     .card .hd h2{
       font-size:14px;
       letter-spacing:.01em;
@@ -442,18 +455,33 @@
       font-size:11.5px;
       color:#b8c4d4;
       margin-bottom:6px;
+      font-weight:620;
     }
     body[data-theme="light"] .field label{color:#5f6f84}
     select,input,textarea{
       background:var(--control);
       border-color:rgba(148,163,184,.18);
-      border-radius:10px;
+      border-radius:8px;
       color:var(--text);
       transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
     }
     select,input{
       min-height:40px;
       padding:9px 11px;
+    }
+    input[type="checkbox"]{
+      width:14px;
+      height:14px;
+      min-height:0;
+      padding:0;
+      border-radius:3px;
+      box-shadow:none;
+      background:transparent;
+      flex:0 0 auto;
+    }
+    body[data-theme="light"] input[type="checkbox"]{
+      background:transparent;
+      box-shadow:none;
     }
     textarea{
       background:#0f141b;
@@ -463,9 +491,16 @@
       line-height:1.42;
     }
     body[data-theme="light"] textarea{background:#ffffff}
+    body[data-theme="light"] select,
+    body[data-theme="light"] input,
+    body[data-theme="light"] textarea{
+      background:#ffffff;
+      border-color:rgba(100,116,139,.22);
+      box-shadow:0 1px 0 rgba(15,23,42,.02);
+    }
     select:focus,input:focus,textarea:focus{
-      border-color:rgba(91,110,225,.88);
-      box-shadow:0 0 0 3px rgba(91,110,225,.18);
+      border-color:rgba(34,184,167,.78);
+      box-shadow:0 0 0 3px rgba(34,184,167,.14);
     }
     .row4,.row3,.row2{gap:12px}
     .hint,.help,.inlineNote{color:var(--muted)}
@@ -474,12 +509,15 @@
       font-size:12px;
     }
     .subcard{
-      background:rgba(255,255,255,.025);
-      border-color:rgba(148,163,184,.16);
-      border-radius:10px;
+      background:var(--surface2);
+      border-color:rgba(148,163,184,.14);
+      border-radius:9px;
       padding:12px;
     }
-    body[data-theme="light"] .subcard{background:#f8fafc}
+    body[data-theme="light"] .subcard{
+      background:#f8fafc;
+      border-color:rgba(71,85,105,.12);
+    }
     .subcard h3{
       font-size:12px;
       text-transform:uppercase;
@@ -488,14 +526,17 @@
     }
     body[data-theme="light"] .subcard h3{color:#334155}
     .chip{
-      border-radius:10px;
-      background:rgba(255,255,255,.035);
+      border-radius:8px;
+      background:rgba(255,255,255,.025);
       border-color:rgba(148,163,184,.18);
       min-height:34px;
       padding:7px 10px;
       font-weight:620;
     }
-    body[data-theme="light"] .chip{background:#fff}
+    body[data-theme="light"] .chip{
+      background:#ffffff;
+      border-color:rgba(71,85,105,.16);
+    }
     .chip input{accent-color:var(--accent2)}
     .switches .chip{min-width:0}
     .switches{
@@ -503,10 +544,15 @@
       gap:8px;
     }
     .switches .chip{
-      min-height:32px;
-      padding:6px 10px;
-      border-radius:9px;
+      min-height:30px;
+      padding:4px 6px;
+      border-radius:8px;
+      background:transparent;
+      border-color:transparent;
     }
+    .switches .chip:hover{background:rgba(148,163,184,.08)}
+    body[data-theme="light"] .switches .chip{background:transparent}
+    body[data-theme="light"] .switches .chip:hover{background:#eef2f7}
     .divider{
       margin:14px 0;
       background:rgba(148,163,184,.16);
@@ -523,24 +569,35 @@
       padding-top:2px;
     }
     button{
-      border-radius:10px;
+      border-radius:8px;
       min-height:40px;
       padding:10px 14px;
-      background:linear-gradient(180deg, #6677f0, #4f5fcf);
-      border:1px solid rgba(141,153,255,.45);
-      box-shadow:0 10px 24px rgba(79,95,207,.22);
+      background:#3646a8;
+      border:1px solid rgba(141,153,255,.35);
+      box-shadow:0 8px 18px rgba(54,70,168,.22);
       font-weight:760;
+    }
+    body[data-theme="light"] button{
+      background:#263a8f;
+      color:#ffffff;
+      box-shadow:0 8px 18px rgba(38,58,143,.16);
     }
     button.secondary{
       background:rgba(255,255,255,.045);
       border-color:var(--line);
       box-shadow:none;
     }
+    body[data-theme="light"] button.secondary{
+      background:#ffffff;
+      color:#172033;
+      border-color:rgba(71,85,105,.18);
+    }
     button.ghost{
       border-style:solid;
       background:transparent;
       box-shadow:none;
     }
+    body[data-theme="light"] button.ghost{color:#647085}
     button:hover{filter:none; transform:translateY(-1px)}
     .kpis{
       gap:8px;
@@ -553,14 +610,17 @@
       min-height:62px;
       padding:10px;
     }
-    body[data-theme="light"] .kpi{background:#f8fafc}
+    body[data-theme="light"] .kpi{
+      background:#fbfcfe;
+      border-color:rgba(71,85,105,.14);
+    }
     .kpi .k{font-size:11px; line-height:1.25}
     .kpi .v{font-size:15px; letter-spacing:0}
     .previewWrap{
-      border-radius:10px;
+      border-radius:8px;
       background:var(--paper);
       border:1px solid rgba(15,23,42,.10);
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.65);
+      box-shadow:none;
     }
     #preview{min-height:100%}
     #preview:empty::before{
@@ -569,12 +629,15 @@
       color:#64748b;
     }
     .status{
-      background:rgba(255,255,255,.035);
+      background:rgba(255,255,255,.025);
       border-color:rgba(148,163,184,.18);
-      border-radius:10px;
+      border-radius:8px;
       padding:6px 9px;
     }
-    body[data-theme="light"] .status{background:#f8fafc}
+    body[data-theme="light"] .status{
+      background:#f8fafc;
+      border-color:rgba(71,85,105,.16);
+    }
     .inlineNote{
       padding-top:21px;
       font-size:11.5px;
@@ -611,7 +674,7 @@
     </div>
     <div class="title">
       <h1>Calculadora de Cotação INTER</h1>
-      <p>Gere o e-mail para agência e copie o HTML no Outlook. Campos vazios não entram no e-mail.</p>
+      <p>Monte, revise e copie a cotação para envio à agência.</p>
     </div>
   </div>
 
@@ -625,8 +688,8 @@
     <div class="pill">
       <label for="themeSel">Tema</label>
       <select id="themeSel">
-        <option value="dark">Escuro</option>
         <option value="light">Claro</option>
+        <option value="dark">Escuro</option>
       </select>
     </div>
     
@@ -637,7 +700,7 @@
   <div class="grid">
     <section class="card">
       <div class="hd">
-        <h2>Entradas</h2>
+        <h2>Dados da cotação</h2>
         <div style="display:flex; gap:10px; align-items:center;"><div class="status" id="modePill">Cotação</div><div class="status" id="statusPill">Pronto</div></div>
       </div>
 
@@ -881,7 +944,7 @@
 
     <section class="card">
       <div class="hd">
-        <h2>Preview do e-mail (Agência)</h2>
+        <h2>E-mail para agência</h2>
         <div class="status" id="subjectPill">Assunto: —</div>
       </div>
       <div class="bd">
@@ -900,15 +963,15 @@ const $ = (id) => document.getElementById(id);
 
 (function initTheme(){
   const sel = document.getElementById("themeSel");
-  const saved = localStorage.getItem("cotacao_theme");
-  const theme = (saved === "light" || saved === "dark") ? saved : "dark";
+  const saved = localStorage.getItem("cotacao_theme_v2");
+  const theme = (saved === "light" || saved === "dark") ? saved : "light";
   document.body.setAttribute("data-theme", theme);
   if(sel){
     sel.value = theme;
     sel.addEventListener("change", () => {
       const v = sel.value === "light" ? "light" : "dark";
       document.body.setAttribute("data-theme", v);
-      localStorage.setItem("cotacao_theme", v);
+      localStorage.setItem("cotacao_theme_v2", v);
       setStatus("Tema: " + (v==="light" ? "Claro" : "Escuro"));
       setTimeout(()=>{ try{ setStatus("Pronto"); }catch(e){} }, 1500);
     });
