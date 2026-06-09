@@ -29,6 +29,21 @@ Nao precisa preencher tudo de uma vez. Comece com 1 exemplo Sabre e 1 exemplo Am
 
 Quanto mais real o formato do texto colado, melhor sera o teste.
 
+## Executar os smoke tests
+
+Abra `parser-tests.html` usando o Live Server do VS Code.
+
+A pagina executa verificacoes automaticas usando as funcoes reais da calculadora, incluindo:
+
+- deteccao de Sabre e Amadeus;
+- leitura de segmentos;
+- passageiros ADT/CHD/INF;
+- valores e bagagem;
+- validacoes obrigatorias;
+- salvamento e restauracao do rascunho local.
+
+O resultado esperado e `9/9 testes` e `Tudo certo`.
+
 ## Referencias operacionais
 
 Algumas informacoes do GDS dependem de regra comercial atualizada da companhia. Quando o exemplo envolver familia tarifaria/brand, registre tambem a fonte operacional usada para validar os atributos.

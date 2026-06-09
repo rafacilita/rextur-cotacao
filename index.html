@@ -233,6 +233,32 @@
       border-color: rgba(245,158,11,.75);
       background: rgba(245,158,11,.22);
     }
+    .validationSummary{
+      display:none;
+      margin-top:10px;
+      padding:9px 11px;
+      border:1px solid rgba(217,119,6,.28);
+      border-radius:7px;
+      background:rgba(245,158,11,.08);
+      color:var(--text);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .validationSummary.show{display:block}
+    .validationSummary.error{
+      border-color:rgba(220,38,38,.28);
+      background:rgba(220,38,38,.07);
+    }
+    .validationSummary strong{display:block; margin-bottom:3px}
+    .validationSummary ul{margin:0; padding-left:18px}
+    select.is-invalid,input.is-invalid,textarea.is-invalid{
+      border-color:rgba(220,38,38,.72) !important;
+      box-shadow:0 0 0 3px rgba(220,38,38,.10) !important;
+    }
+    select.is-warning,input.is-warning,textarea.is-warning{
+      border-color:rgba(217,119,6,.66) !important;
+      box-shadow:0 0 0 3px rgba(245,158,11,.09) !important;
+    }
     .switches{display:flex; gap:10px; flex-wrap:wrap}
     .chip{
       display:flex; align-items:center; gap:8px;
@@ -790,7 +816,11 @@
     <section class="card">
       <div class="hd">
         <h2>Fonte e revisão da cotação</h2>
-        <div style="display:flex; gap:10px; align-items:center;"><div class="status" id="modePill">Cotação</div><div class="status" id="statusPill">Pronto</div></div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="status" id="modePill">Cotação</div>
+          <div class="status" id="draftPill">Rascunho local</div>
+          <div class="status" id="statusPill" role="status" aria-live="polite">Pronto</div>
+        </div>
       </div>
 
       <div class="bd">
@@ -911,6 +941,7 @@
             <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
             <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
           </details>
+          <div id="validationSummary" class="validationSummary" role="alert" aria-live="polite"></div>
 
           <div class="kpis">
             <div class="kpi"><div class="k">Tarifa (moeda) — pax principal</div><div class="v" id="kFare">—</div></div>
@@ -1126,6 +1157,178 @@ function showError(e){
   if(det){ det.style.display = ""; det.open = true; }
 }
 
+const DRAFT_STORAGE_KEY = "cotacao_inter_draft_v1";
+let draftSaveTimer = null;
+let validationActivated = false;
+let previewDirty = false;
+
+function updateDraftPill(text){
+  const el = $("draftPill");
+  if(el) el.textContent = text;
+}
+
+function collectDraftControls(){
+  const controls = {};
+  document.querySelectorAll("main input[id], main select[id], main textarea[id]").forEach(el => {
+    controls[el.id] = (el.type === "checkbox" || el.type === "radio")
+      ? { checked: !!el.checked }
+      : { value: el.value };
+  });
+  return controls;
+}
+
+function saveDraft(){
+  try{
+    const payload = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      controls: collectDraftControls()
+    };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    updateDraftPill("Salvo " + new Date(payload.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}));
+  }catch(e){
+    console.warn("Não foi possível salvar o rascunho.", e);
+    updateDraftPill("Falha ao salvar");
+  }
+}
+
+function scheduleDraftSave(){
+  clearTimeout(draftSaveTimer);
+  updateDraftPill("Salvando...");
+  draftSaveTimer = setTimeout(saveDraft, 450);
+}
+
+function markPreviewDirty(){
+  const preview = $("preview");
+  if(!preview || !(preview.dataset.html || "").trim()) return;
+  previewDirty = true;
+  setStatus("Alterações pendentes", true);
+}
+
+function restoreDraft(){
+  let payload = null;
+  try{
+    payload = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "null");
+  }catch(e){
+    console.warn("Rascunho local inválido.", e);
+  }
+  if(!payload || !payload.controls){
+    updateDraftPill("Não salvo");
+    return false;
+  }
+
+  const entries = Object.entries(payload.controls);
+  entries.filter(([id]) => !id.startsWith("name_")).forEach(([id, state]) => {
+    const el = $(id);
+    if(!el) return;
+    if(el.type === "checkbox" || el.type === "radio") el.checked = !!state.checked;
+    else if(state.value != null) el.value = state.value;
+  });
+
+  refreshOptionalUI();
+  refreshPaxUI();
+
+  entries.filter(([id]) => id.startsWith("name_")).forEach(([id, state]) => {
+    const el = $(id);
+    if(el && state.value != null) el.value = state.value;
+  });
+
+  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
+  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
+    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
+    : "Rascunho restaurado");
+  setStatus("Rascunho restaurado — gere a prévia");
+  return true;
+}
+
+function clearValidationMarks(){
+  document.querySelectorAll(".is-invalid,.is-warning").forEach(el => {
+    el.classList.remove("is-invalid", "is-warning");
+    el.removeAttribute("aria-invalid");
+  });
+}
+
+function validateQuoteInput(){
+  const issues = [];
+  const add = (id, message, level="warning") => issues.push({id, message, level});
+  const qADT = +$("qADT").value || 0;
+  const qCHD = +$("qCHD").value || 0;
+  const qINF = +$("qINF").value || 0;
+  const itin = $("itin").value.trim();
+
+  if(qADT + qCHD + qINF <= 0) add("qADT", "Informe pelo menos um passageiro.", "error");
+  if(!itin) add("itin", "Cole o itinerário antes de gerar a prévia.", "error");
+  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato do itinerário não permitiu identificar Sabre ou Amadeus.", "error");
+
+  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara ADT está vazia.");
+  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara CHD está vazia.");
+  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara INF está vazia.");
+
+  if($("fldCondicao").value === "Outro" && !$("fldCondOutro").value.trim()){
+    add("fldCondOutro", "Preencha a condição personalizada ou altere a seleção.");
+  }
+  if($("fldAssentosMode").value === "custom" && !$("fldAssentosCustom").value.trim()){
+    add("fldAssentosCustom", "Preencha o texto personalizado de assentos.");
+  }
+
+  const rcRaw = $("fldRC").value.trim();
+  if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
+    add("fldRC", "Informe um valor válido para RC.", "error");
+  }
+  const fxRaw = $("fldFX").value.trim();
+  if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
+    add("fldFX", "Informe uma taxa de câmbio válida.", "error");
+  }
+
+  if($("chkNomes").checked){
+    const names = collectPaxNames();
+    if(names.ADT.length < qADT) add("chkNomes", "Ha nomes ADT ainda nao preenchidos.");
+    if(names.CHD.length < qCHD) add("chkNomes", "Ha nomes CHD ainda nao preenchidos.");
+    if(names.INF.length < qINF) add("chkNomes", "Ha nomes INF ainda nao preenchidos.");
+  }
+  return issues;
+}
+
+function renderValidation(issues){
+  clearValidationMarks();
+  const summary = $("validationSummary");
+  if(!summary) return;
+  summary.innerHTML = "";
+  summary.classList.remove("show", "error");
+  if(!issues.length) return;
+
+  const hasError = issues.some(issue => issue.level === "error");
+  summary.classList.add("show");
+  if(hasError) summary.classList.add("error");
+
+  const title = document.createElement("strong");
+  title.textContent = hasError ? "Revise os campos destacados" : "Confira antes de enviar";
+  const list = document.createElement("ul");
+  issues.forEach(issue => {
+    const item = document.createElement("li");
+    item.textContent = issue.message;
+    list.appendChild(item);
+    const control = $(issue.id);
+    if(control){
+      control.classList.add(issue.level === "error" ? "is-invalid" : "is-warning");
+      if(issue.level === "error") control.setAttribute("aria-invalid", "true");
+    }
+  });
+  summary.append(title, list);
+}
+
+function enhanceAccessibility(){
+  document.querySelectorAll(".field").forEach(field => {
+    const label = field.querySelector(":scope > label:not([for])");
+    const control = field.querySelector(":scope > input[id], :scope > select[id], :scope > textarea[id]");
+    if(label && control && label.textContent.trim()) label.htmlFor = control.id;
+  });
+  ["itin","maskADT","maskCHD","maskINF"].forEach(id => {
+    const el = $(id);
+    if(el) el.setAttribute("spellcheck", "false");
+  });
+}
+
 // ─── UI (inalterada) ──────────────────────────────────────────────────────────
 
 function refreshOptionalUI(){
@@ -1170,6 +1373,7 @@ function renderPaxInputs(type, qty, containerId){
     const inp = document.createElement("input");
     inp.setAttribute("data-pax","1");
     inp.id = `name_${type}_${i}`;
+    lab.htmlFor = inp.id;
     inp.placeholder = (type==="INF") ? "Ex.: SILVA/JOAO INF" : (type==="CHD" ? "Ex.: SILVA/JOAO MSTR" : "Ex.: SILVA/JOAO MR");
     inp.value = current[i-1] || "";
     wrap.appendChild(lab);
@@ -1353,6 +1557,7 @@ function applyAutoPax(paxList){
   for(let i=0;i<inf.length;i++){ const el = document.getElementById(`name_INF_${i+1}`); if(el) el.value = inf[i]; }
   $("autoPaxSuggest").style.display = "none";
   setStatus("PAX preenchidos pelo itinerário");
+  scheduleDraftSave();
 }
 
 function collectPaxNames(){
@@ -1498,13 +1703,19 @@ function parseItinerary(itinRaw, gds, year){
     if (t.length < 6) return null;
     if (!/^\d+$/.test(t[0])) return null;
 
-    let airline='', flightClass='', date='', cityTok='', dep='', arr='', arrDate='';
+    let airline='', flightClass='', date='', cityTok='', dep='', arr='', arrDate='', statusTok='';
     let idxAfterCity = 0;
 
     if (/^[A-Z0-9]{2}$/.test(t[1])) {
-      airline=t[1]; flightClass=t[2]||''; date=t[3]||''; cityTok=t[5]||''; idxAfterCity=6;
+      airline=t[1]; flightClass=t[2]||''; date=t[3]||'';
+      const cityIndex = [4,5].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
+      if(cityIndex == null) return null;
+      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
     } else if (/^[A-Z0-9]{2}\d{1,4}[A-Z]?$/.test(t[1])) {
-      airline=t[1].slice(0,2); flightClass=t[1].slice(2); date=t[2]||''; cityTok=t[4]||''; idxAfterCity=5;
+      airline=t[1].slice(0,2); flightClass=t[1].slice(2); date=t[2]||'';
+      const cityIndex = [3,4].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
+      if(cityIndex == null) return null;
+      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
     } else return null;
 
     const mfc    = String(flightClass).match(/^(\d{1,4})([A-Z])?$/);
@@ -1522,6 +1733,7 @@ function parseItinerary(itinRaw, gds, year){
       const maybeStatus=t[idxAfterCity]||'';
       const isStatus=/^[A-Z]{2}\d+$/.test(maybeStatus);
       if (isStatus) {
+        statusTok=maybeStatus;
         dep=t[idxAfterCity+1]||''; arr=t[idxAfterCity+2]||'';
         const mAD=t[idxAfterCity+3]||'';
         arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
@@ -1540,7 +1752,7 @@ function parseItinerary(itinRaw, gds, year){
     const org=cityPair.slice(0,3), dst=cityPair.slice(3,6);
 
     // Status embutido no city tok (ex: GRUJFKHK1) ou token separado
-    const smatch     = String(cityTok).match(/([A-Z]{2})(\d+)$/i);
+    const smatch     = String(cityTok + " " + statusTok).match(/([A-Z]{2})(\d+)\s*$/i);
     const scode      = smatch ? smatch[1].toUpperCase() : '';
     const sclass     = statusClass(scode);
     const { time: arrTimeClean, dayOffset: arrDayOffset } = parseTimeToken(arr);
@@ -3063,11 +3275,33 @@ $("itin").addEventListener("input", ()=>{
 });
 
 $("btnBuild").addEventListener("click", ()=>{
-  try{ clearError(); setStatus("Processando…"); build(); setStatus("Prévia gerada"); }
+  validationActivated = true;
+  const issues = validateQuoteInput();
+  renderValidation(issues);
+  const errors = issues.filter(issue => issue.level === "error");
+  if(errors.length){
+    setStatus("Revise os campos obrigatórios", true);
+    const first = $(errors[0].id);
+    if(first) first.focus();
+    return;
+  }
+  try{
+    clearError();
+    setStatus("Processando…");
+    build();
+    previewDirty = false;
+    saveDraft();
+    const warnings = issues.filter(issue => issue.level !== "error");
+    setStatus(warnings.length ? `Prévia gerada com ${warnings.length} aviso(s)` : "Prévia gerada", warnings.length > 0);
+  }
   catch(e){ console.error(e); setStatus("Erro ao gerar", true); showError(e); }
 });
 
 $("btnCopy").addEventListener("click", async ()=>{
+  if(previewDirty){
+    setStatus("Gere a prévia novamente antes de copiar", true);
+    return;
+  }
   const html = $("preview").dataset.html || $("preview").innerHTML || "";
   if(!html.trim()){ setStatus("Nada pra copiar (gere a prévia)", true); return; }
   try{
@@ -3092,6 +3326,8 @@ $("btnCopy").addEventListener("click", async ()=>{
 });
 
 $("btnClear").addEventListener("click", ()=>{
+  clearTimeout(draftSaveTimer);
+  localStorage.removeItem(DRAFT_STORAGE_KEY);
   ["fldRC","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
    "itin","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
   $("fldCabine").value="Econômica";
@@ -3111,11 +3347,37 @@ $("btnClear").addEventListener("click", ()=>{
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
   window._lastQuote = null;
+  previewDirty = false;
+  validationActivated = false;
+  clearValidationMarks();
+  const summary = $("validationSummary");
+  if(summary){ summary.innerHTML=""; summary.classList.remove("show","error"); }
+  updateDraftPill("Não salvo");
   setStatus("Limpo");
 });
 
 refreshOptionalUI();
 refreshPaxUI();
+enhanceAccessibility();
+
+document.querySelector("main").addEventListener("input", (event)=>{
+  if(!event.target.matches("input,select,textarea")) return;
+  scheduleDraftSave();
+  markPreviewDirty();
+  if(validationActivated) renderValidation(validateQuoteInput());
+});
+document.querySelector("main").addEventListener("change", (event)=>{
+  if(!event.target.matches("input,select,textarea")) return;
+  scheduleDraftSave();
+  markPreviewDirty();
+  if(validationActivated) renderValidation(validateQuoteInput());
+});
+
+const restoredDraft = restoreDraft();
+if(restoredDraft){
+  const restoredGds = detectGDSFromItin($("itin").value || "");
+  $("gdsDetected").textContent = restoredGds === "AMA" ? "Amadeus" : (restoredGds === "SAB" ? "Sabre" : "—");
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Testes do parser GDS</title>
+  <style>
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:32px;
+      font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+      color:#182235;
+      background:#f4f6f9;
+    }
+    main{max-width:920px;margin:0 auto}
+    h1{margin:0 0 4px;font-size:22px}
+    p{margin:0 0 20px;color:#667285}
+    .summary{
+      display:flex;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .badge{
+      padding:6px 9px;
+      border:1px solid #d8dee8;
+      border-radius:7px;
+      background:#fff;
+      font-weight:700;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      background:#fff;
+      border:1px solid #d8dee8;
+    }
+    th,td{padding:10px 12px;border-bottom:1px solid #e4e8ef;text-align:left}
+    th{font-size:12px;color:#667285;background:#f8fafc}
+    tr:last-child td{border-bottom:0}
+    .pass{color:#087f5b;font-weight:800}
+    .fail{color:#c92a2a;font-weight:800}
+    iframe{position:fixed;width:1px;height:1px;left:-9999px;border:0}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Testes do parser GDS</h1>
+    <p>Smoke tests executados contra as funções reais de <code>index.html</code>.</p>
+    <div class="summary">
+      <div class="badge" id="total">Executando...</div>
+      <div class="badge" id="result">Aguarde</div>
+    </div>
+    <table>
+      <thead><tr><th>Teste</th><th>Resultado</th><th>Detalhe</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+  <iframe id="appFrame" src="index.html?parser-tests=1" title="Calculadora em teste"></iframe>
+
+  <script>
+    const amadeusItin = `RTABC123
+1.TESTE/JOAO MR
+2  LA 8113 Y 15JUN 6 GRUMEX HK1  0830 1430 15JUN  E  LA/ABC123`;
+
+    const sabreItin = `ABC123
+1.1TESTE/JOAO MR
+1 LA8113Y 15JUN GRUMEX HK1 0830 1430
+2 LA8114Y 25JUN MEXGRU HK1 2300 1020+1`;
+
+    const amadeusPricing = `FXP
+FARE     USD     500.00
+EQUIV    BRL    2750.00
+TAX      BRL     450.00
+TOTAL    BRL    3200.00
+RATE USED 1USD = 5.5000BRL
+BAG 1PC`;
+
+    const sabrePricing = `WP
+ADT
+USD 500.00 BRL 2750.00 BRL 450.00 XT BRL 3200.00
+RATE USED 1USD = 5.5000BRL
+01 GRUMEX LA 8113 Y 15JUN 02P`;
+
+    const frame = document.getElementById("appFrame");
+    const rows = document.getElementById("rows");
+    const results = [];
+
+    function addResult(name, ok, detail=""){
+      results.push({name,ok,detail});
+      const tr = document.createElement("tr");
+      const state = ok ? "PASSOU" : "FALHOU";
+      tr.innerHTML = `<td>${name}</td><td class="${ok ? "pass" : "fail"}">${state}</td><td></td>`;
+      tr.lastElementChild.textContent = detail;
+      rows.appendChild(tr);
+    }
+
+    function test(name, fn){
+      try{
+        const detail = fn();
+        addResult(name, true, detail || "");
+      }catch(error){
+        addResult(name, false, error.message || String(error));
+      }
+    }
+
+    function assert(condition, message){
+      if(!condition) throw new Error(message);
+    }
+
+    frame.addEventListener("load", () => {
+      const app = frame.contentWindow;
+      const draftKey = "cotacao_inter_draft_v1";
+      const originalDraft = app.localStorage.getItem(draftKey);
+      try{
+        test("Detecta Amadeus", () => {
+          assert(app.detectGDSFromItin(amadeusItin) === "AMA", "GDS esperado: AMA");
+          return "Baseado em amadeus_pnr_simples.txt";
+        });
+
+        test("Detecta Sabre", () => {
+          assert(app.detectGDSFromItin(sabreItin) === "SAB", "GDS esperado: SAB");
+          return "Baseado em sabre_pnr_simples.txt";
+        });
+
+        test("Interpreta itinerário Amadeus", () => {
+          const segments = app.parseItinerary(amadeusItin, "AMA", 2026);
+          assert(segments.length === 1, `Segmentos encontrados: ${segments.length}`);
+          assert(segments[0].org === "GRU" && segments[0].dst === "MEX", "Trecho GRU-MEX não identificado");
+          return "1 segmento GRU-MEX";
+        });
+
+        test("Interpreta itinerário Sabre", () => {
+          const segments = app.parseItinerary(sabreItin, "SAB", 2026);
+          assert(segments.length === 2, `Segmentos encontrados: ${segments.length}`);
+          assert(segments[1].org === "MEX" && segments[1].dst === "GRU", "Trecho MEX-GRU não identificado");
+          return "2 segmentos, incluindo chegada +1";
+        });
+
+        test("Extrai passageiros", () => {
+          const pax = app.parsePaxFromItin("1. TESTE/JOAO MR(INF/TESTE/PEDRO/10JAN25)");
+          assert(pax.some(item => item.type === "ADT"), "ADT não encontrado");
+          assert(pax.some(item => item.type === "INF"), "INF não encontrado");
+          return "ADT e INF identificados";
+        });
+
+        test("Lê tarifa Amadeus", () => {
+          const price = app.parsePricingAmadeus(amadeusPricing);
+          assert(price && price.totalBRL === 3200, `Total encontrado: ${price && price.totalBRL}`);
+          assert(price.bag === "1PC", `Bagagem encontrada: ${price && price.bag}`);
+          return "BRL 3.200,00 e 1PC";
+        });
+
+        test("Lê tarifa Sabre", () => {
+          const price = app.parsePricingSabre(sabrePricing);
+          assert(price && price.totalBRL === 3200, `Total encontrado: ${price && price.totalBRL}`);
+          assert(price.bag === "2PC", `Bagagem encontrada: ${price && price.bag}`);
+          return "BRL 3.200,00 e 2PC";
+        });
+
+        test("Valida campos obrigatórios", () => {
+          app.document.getElementById("itin").value = "";
+          app.document.getElementById("qADT").value = "0";
+          app.document.getElementById("qCHD").value = "0";
+          app.document.getElementById("qINF").value = "0";
+          const issues = app.validateQuoteInput();
+          assert(issues.filter(issue => issue.level === "error").length >= 2, "Erros obrigatórios não retornados");
+          return "Itinerário e PAX bloqueiam geração";
+        });
+
+        test("Salva rascunho local", () => {
+          app.document.getElementById("fldLOC").value = "ABC123";
+          app.saveDraft();
+          const saved = JSON.parse(app.localStorage.getItem(draftKey));
+          assert(saved.controls.fldLOC.value === "ABC123", "LOC não persistido");
+          app.document.getElementById("fldLOC").value = "";
+          app.restoreDraft();
+          assert(app.document.getElementById("fldLOC").value === "ABC123", "LOC não restaurado");
+          return "Campos serializados e restaurados";
+        });
+      }finally{
+        if(originalDraft == null) app.localStorage.removeItem(draftKey);
+        else app.localStorage.setItem(draftKey, originalDraft);
+      }
+
+      const passed = results.filter(item => item.ok).length;
+      document.getElementById("total").textContent = `${passed}/${results.length} testes`;
+      const result = document.getElementById("result");
+      result.textContent = passed === results.length ? "Tudo certo" : "Há falhas";
+      result.className = `badge ${passed === results.length ? "pass" : "fail"}`;
+      document.title = `${passed === results.length ? "PASS" : "FAIL"} - Testes do parser GDS`;
+    }, {once:true});
+  </script>
+</body>
+</html>
