@@ -142,7 +142,11 @@
     }
     .card .hd h2{margin:0; font-size:15px; letter-spacing:.2px}
     .card .bd{padding:14px 16px}
-    .row4{display:grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap:10px}
+    .row4{
+      display:grid;
+      grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(120px,.78fr) minmax(250px,1.45fr);
+      gap:10px;
+    }
     .row3{display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px}
     .row2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
     .row1{display:grid; grid-template-columns: 1fr; gap:10px}
@@ -195,6 +199,15 @@
       font-weight:600;
     }
     button:hover{filter:brightness(1.08)}
+    button:disabled{cursor:wait; opacity:.65; filter:none}
+    .fxControl{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px}
+    .fxControl button{
+      min-width:100px;
+      padding:10px 11px;
+      border-radius:10px;
+      font-size:12px;
+      white-space:nowrap;
+    }
     .kpis{display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; margin-top:12px}
     .kpi{
       background: rgba(0,0,0,.22);
@@ -981,10 +994,15 @@
           </div>
 
           <div class="field">
-            <label id="lblFX">Câmbio IATA (BRL/USD)</label>
-            <input id="fldFX" inputmode="decimal" placeholder="Auto" />
+            <label id="lblFX">Câmbio do RC (USD → BRL)</label>
+            <div class="fxControl">
+              <input id="fldFX" inputmode="decimal" placeholder="Ex.: 5,1695" />
+              <button id="btnFetchFX" class="secondary" type="button">Consultar BCB</button>
+            </div>
           </div>
-<div class="hint" id="fxHint" style="grid-column:1/-1; margin-top:-6px;">Use a taxa IATA do GDS (BSR / RATE USED). Se não vier, preencha manualmente.</div>
+          <div class="hint" id="fxHint" style="grid-column:1/-1; margin-top:-6px;">
+            Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.
+          </div>
 
 
         </div>
@@ -1168,6 +1186,92 @@ let draftSaveTimer = null;
 let validationActivated = false;
 let previewDirty = false;
 
+function getSaoPauloUsageDate(now = new Date()){
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return new Date(Date.UTC(+values.year, +values.month - 1, +values.day));
+}
+
+function formatDateForBcb(date){
+  return [
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+    date.getUTCFullYear()
+  ].join("-");
+}
+
+function formatDateBR(date){
+  return [
+    String(date.getUTCDate()).padStart(2, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    date.getUTCFullYear()
+  ].join("/");
+}
+
+async function fetchBcbUsdRateForUsageDate(usageDate = getSaoPauloUsageDate(), fetchFn = window.fetch.bind(window)){
+  const endpoint = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)";
+  for(let daysBack = 1; daysBack <= 10; daysBack++){
+    const baseDate = new Date(usageDate.getTime());
+    baseDate.setUTCDate(baseDate.getUTCDate() - daysBack);
+    const queryDate = formatDateForBcb(baseDate);
+    const url = `${endpoint}?@dataCotacao='${queryDate}'&$format=json`;
+    const response = await fetchFn(url, { headers: { Accept: "application/json" } });
+    if(!response.ok) throw new Error(`BCB respondeu com status ${response.status}`);
+    const data = await response.json();
+    const quote = Array.isArray(data.value) ? data.value[data.value.length - 1] : null;
+    const rate = quote ? Number(quote.cotacaoVenda) : NaN;
+    if(Number.isFinite(rate) && rate > 0){
+      return { rate, source: "BCB", baseDate, usageDate };
+    }
+  }
+  throw new Error("Nenhuma cotação de fechamento foi encontrada nos 10 dias anteriores.");
+}
+
+function readFxMeta(){
+  const input = $("fldFX");
+  return {
+    source: input.dataset.source || "",
+    baseDate: input.dataset.baseDate || "",
+    usageDate: input.dataset.usageDate || ""
+  };
+}
+
+function renderFxHint(){
+  const input = $("fldFX");
+  const hint = $("fxHint");
+  if(!input || !hint) return;
+  const rate = parseAmountAny(input.value);
+  const meta = readFxMeta();
+
+  if(rate != null && meta.source === "BCB" && meta.baseDate && meta.usageDate){
+    hint.textContent = `Somente RC: BCB venda ${rate.toFixed(4).replace(".", ",")} · fechamento ${meta.baseDate} · uso em ${meta.usageDate}. A tarifa em BRL não é recalculada.`;
+  } else if(rate != null && meta.source === "GDS"){
+    hint.textContent = "Somente RC: taxa obtida da máscara GDS (RATE USED/BSR). A tarifa em BRL não é recalculada.";
+  } else if(rate != null){
+    hint.textContent = "Somente RC: câmbio preenchido manualmente. A tarifa permanece conforme o equivalente em BRL do GDS.";
+  } else {
+    hint.textContent = "Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.";
+  }
+}
+
+function setFxRate(rate, meta = {}, trackChange = true){
+  const input = $("fldFX");
+  input.value = Number(rate).toFixed(4);
+  input.dataset.source = meta.source || "";
+  input.dataset.baseDate = meta.baseDate || "";
+  input.dataset.usageDate = meta.usageDate || "";
+  renderFxHint();
+  if(trackChange){
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+}
+
 function updateDraftPill(text){
   const el = $("draftPill");
   if(el) el.textContent = text;
@@ -1188,7 +1292,8 @@ function saveDraft(){
     const payload = {
       version: 1,
       savedAt: new Date().toISOString(),
-      controls: collectDraftControls()
+      controls: collectDraftControls(),
+      fxMeta: readFxMeta()
     };
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
     updateDraftPill("Salvo " + new Date(payload.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}));
@@ -1238,6 +1343,15 @@ function restoreDraft(){
     const el = $(id);
     if(el && state.value != null) el.value = state.value;
   });
+
+  if(payload.fxMeta && $("fldFX")){
+    $("fldFX").dataset.source = payload.fxMeta.source || "";
+    $("fldFX").dataset.baseDate = payload.fxMeta.baseDate || "";
+    $("fldFX").dataset.usageDate = payload.fxMeta.usageDate || "";
+  } else if($("fldFX").value.trim()){
+    $("fldFX").dataset.source = "MANUAL";
+  }
+  renderFxHint();
 
   const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
   updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
@@ -2394,7 +2508,7 @@ function collectPayment(){
  *   itinerary   — array de segmentos (mesmo formato do parser)
  *   pricing     — ADT / CHD / INF (mesmo formato dos parsers, sem alteração)
  *   commercial  — campos de configuração da UI
- *   iataRate    — câmbio com origem (GDS ou MANUAL)
+ *   iataRate    — câmbio do RC com origem (BCB, GDS ou MANUAL)
  *   totals      — totais calculados do grupo
  */
 function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, iataRate }) {
@@ -2465,7 +2579,7 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
   // 4. Warnings (preparação para próximas fases)
   const warnings = [];
   if (!iataRate && rcUSDnum && rcUSDnum > 0) {
-    warnings.push('RC informado mas câmbio não encontrado — preencha manualmente');
+    warnings.push('RC informado mas câmbio não encontrado — consulte o BCB ou preencha manualmente');
   }
   for (const { type, qty } of paxOrder) {
     if (qty <= 0) continue;
@@ -3242,7 +3356,7 @@ function build() {
   }
   const fxMaskSrc = [$("maskADT").value, $("maskCHD").value, $("maskINF").value].join("\n\n");
   const fxIata = extractIataFx(fxMaskSrc);
-  if (!fxInput && fxIata != null) $("fldFX").value = String((+fxIata).toFixed(4));
+  if (!fxInput && fxIata != null) setFxRate(fxIata, { source: "GDS" }, false);
   const fxRate = parseAmountAny($("fldFX").value);
 
   // ── nomes de passageiros (inalterado) ────────────────────────────────────
@@ -3264,7 +3378,14 @@ function build() {
   };
 
   const iataRate = (fxRate != null)
-    ? { from: 'USD', to: 'BRL', rate: fxRate, source: fxInput ? 'MANUAL' : 'GDS' }
+    ? {
+        from: 'USD',
+        to: 'BRL',
+        rate: fxRate,
+        source: $("fldFX").dataset.source || (fxInput ? 'MANUAL' : 'GDS'),
+        baseDate: $("fldFX").dataset.baseDate || null,
+        usageDate: $("fldFX").dataset.usageDate || null
+      }
     : null;
 
   const quote = createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, iataRate });
@@ -3365,11 +3486,36 @@ $("btnCopy").addEventListener("click", async ()=>{
   catch(e){ console.error(e); setStatus("Falha ao copiar", true); showError(e); }
 });
 
+$("btnFetchFX").addEventListener("click", async ()=>{
+  const button = $("btnFetchFX");
+  button.disabled = true;
+  button.textContent = "Consultando...";
+  setStatus("Consultando fechamento BCB...");
+  try{
+    const quote = await fetchBcbUsdRateForUsageDate();
+    setFxRate(quote.rate, {
+      source: quote.source,
+      baseDate: formatDateBR(quote.baseDate),
+      usageDate: formatDateBR(quote.usageDate)
+    });
+    setStatus(`Câmbio BCB carregado: ${quote.rate.toFixed(4).replace(".", ",")}`);
+  }catch(e){
+    console.error(e);
+    setStatus("Não foi possível consultar o BCB", true);
+    showError(e);
+  }finally{
+    button.disabled = false;
+    button.textContent = "Consultar BCB";
+  }
+});
+
 $("btnClear").addEventListener("click", ()=>{
   clearTimeout(draftSaveTimer);
   localStorage.removeItem(DRAFT_STORAGE_KEY);
   ["fldRC","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
    "itin","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
+  ["source","baseDate","usageDate"].forEach(key => { delete $("fldFX").dataset[key]; });
+  renderFxHint();
   $("fldCabine").value="Econômica";
   $("fldCondicao").value="Incluir a RAV";
   $("fldAssentosMode").value="";
@@ -3402,6 +3548,12 @@ enhanceAccessibility();
 
 document.querySelector("main").addEventListener("input", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.id === "fldFX"){
+    event.target.dataset.source = event.target.value.trim() ? "MANUAL" : "";
+    delete event.target.dataset.baseDate;
+    delete event.target.dataset.usageDate;
+    renderFxHint();
+  }
   scheduleDraftSave();
   markPreviewDirty();
   if(validationActivated) renderValidation(validateQuoteInput());

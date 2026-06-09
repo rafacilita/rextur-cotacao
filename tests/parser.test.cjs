@@ -213,3 +213,48 @@ test("salva e restaura rascunho", () => {
   assert.equal(loc.value, "ABC123");
   app.close();
 });
+
+test("consulta a venda BCB anterior a data de uso", async () => {
+  const app = createApp();
+  const requestedUrls = [];
+  const fakeFetch = async url => {
+    requestedUrls.push(url);
+    return {
+      ok: true,
+      json: async () => ({
+        value: url.includes("06-08-2026")
+          ? [{ cotacaoCompra: 5.1689, cotacaoVenda: 5.1695 }]
+          : []
+      })
+    };
+  };
+
+  const usageDate = new Date(Date.UTC(2026, 5, 9));
+  const quote = await app.fetchBcbUsdRateForUsageDate(usageDate, fakeFetch);
+
+  assert.equal(quote.rate, 5.1695);
+  assert.equal(app.formatDateBR(quote.baseDate), "08/06/2026");
+  assert.equal(app.formatDateBR(quote.usageDate), "09/06/2026");
+  assert.equal(requestedUrls.length, 1);
+  app.close();
+});
+
+test("cambio USD BRL altera somente o RC", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("qADT").value = "0";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "0";
+  app.refreshPaxUI();
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskCHD").value = raw;
+  app.document.getElementById("fldRC").value = "10";
+  app.setFxRate(5.1695, { source: "BCB" }, false);
+  app.build();
+
+  assert.equal(app._lastQuote.pricing.CHD.equivBRL, 13673.45);
+  assert.equal(app._lastQuote.pricing.CHD.taxesBRL, 1217.05);
+  assert.equal(app._lastQuote.totals.group.rcTotal, 51.70);
+  assert.equal(app._lastQuote.totals.totalBRL, 14942.20);
+  app.close();
+});
