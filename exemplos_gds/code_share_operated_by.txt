@@ -1,0 +1,42 @@
+# Exemplo: Code-share / operated by
+
+## BLOCO GDS
+
+Cole aqui um exemplo real anonimo em que a companhia comercial seja diferente da companhia operadora.
+
+Modelo generico:
+
+```text
+1  LA 9000 Y 10AUG 1 GRUMAD HK1  1800 0830+1 11AUG  E
+   OPERATED BY IBERIA AS IB FLT 6824
+```
+
+ou:
+
+```text
+1 LA9000Y 10AUG GRUMAD HK1 1800 0830+1
+OPERATED BY / IBERIA
+AS IB FLT 6824
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Informar Sabre ou Amadeus conforme o exemplo real
+
+Tipo de bloco:
+PNR ativo
+
+Segmentos:
+- Companhia comercial: LA 9000
+- Companhia operadora: IB 6824
+- Nome operadora: IBERIA
+- Trecho: GRU-MAD
+
+Warnings esperados:
+- Nenhum, se operadora for identificada
+- Aviso se houver sinal de code-share sem operadora clara
+
+## OBSERVACOES
+
+Este arquivo e importante porque code-share e um ponto critico para a confiabilidade do e-mail.

@@ -1,0 +1,47 @@
+# Exemplo: Amadeus tarifa FXP/TST
+
+## BLOCO GDS
+
+Cole aqui o retorno de tarifamento Amadeus.
+
+Modelo anonimo:
+
+```text
+FXP
+01 TESTE/JOAO MR
+FARE     USD     500.00
+EQUIV    BRL    2750.00
+TAX      BRL     450.00
+TOTAL    BRL    3200.00
+GRAND TOTAL BRL 3200.00
+RATE USED 1USD = 5.5000BRL
+BAG 1PC
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Tipo de bloco:
+Tarifa final ou mascara/TST
+
+Passageiro/tipo:
+ADT
+
+Valores:
+- Tarifa moeda: USD 500.00
+- Equivalente BRL: 2750.00
+- Taxas BRL: 450.00
+- Total BRL: 3200.00
+- Cambio: 5.5000
+
+Bagagem:
+1PC
+
+Warnings esperados:
+- Nenhum, se todos os valores forem lidos
+
+## OBSERVACOES
+
+Se o texto for apenas FQD/fare display ou alternativa FXA/FXB, marque como tarifa candidata, nao tarifa final.

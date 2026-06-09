@@ -1,0 +1,47 @@
+# Exemplo: Sabre PNR simples ADT
+
+## BLOCO GDS
+
+Cole aqui a exibicao de PNR/itinerario Sabre.
+
+Modelo anonimo:
+
+```text
+ABC123
+1.1TESTE/JOAO MR
+1 LA8113Y 15JUN GRUMEX HK1 0830 1430
+2 LA8114Y 25JUN MEXGRU HK1 2300 1020+1
+TKT/TIME LIMIT 10JUN/1800
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Tipo de bloco:
+PNR ativo
+
+Localizador:
+ABC123
+
+Passageiros:
+- ADT: TESTE/JOAO MR
+
+Segmentos:
+- LA 8113, classe Y, GRU-MEX, 15JUN, 08:30-14:30, status HK1
+- LA 8114, classe Y, MEX-GRU, 25JUN, 23:00-10:20 +1, status HK1
+
+Tarifa:
+Nao incluida neste exemplo
+
+Bagagem:
+Nao incluida neste exemplo
+
+Warnings esperados:
+- Tarifa ausente
+- Bagagem ausente
+
+## OBSERVACOES
+
+Use este exemplo para validar formato compacto de segmento Sabre.

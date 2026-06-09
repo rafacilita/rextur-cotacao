@@ -1,0 +1,46 @@
+# Exemplo: Amadeus PNR simples ADT
+
+## BLOCO GDS
+
+Cole aqui a exibicao do PNR/itinerario Amadeus.
+
+Exemplo do tipo de conteudo esperado:
+
+```text
+RTABC123
+1.TESTE/JOAO MR
+2  LA 8113 Y 15JUN 6 GRUMEX HK1  0830 1430 15JUN  E  LA/ABC123
+3 AP SAO PAULO 11 99999-9999 - A
+4 TKTL 10JUN/1800
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Tipo de bloco:
+PNR ativo
+
+Localizador:
+ABC123
+
+Passageiros:
+- ADT: TESTE/JOAO MR
+
+Segmentos:
+- LA 8113, classe Y, GRU-MEX, 15JUN, 08:30-14:30, status HK1
+
+Tarifa:
+Nao incluida neste exemplo
+
+Bagagem:
+Nao incluida neste exemplo
+
+Warnings esperados:
+- Tarifa ausente
+- Bagagem ausente
+
+## OBSERVACOES
+
+Use este arquivo para testar leitura basica de passageiro, localizador, segmento e prazo.

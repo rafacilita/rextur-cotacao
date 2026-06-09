@@ -1,0 +1,243 @@
+# Exemplo: Sabre IB ADT + CHD + INF com stop em MAD e surface VLC // BIO
+
+## BLOCO GDS
+
+Origem do exemplo:
+Sabre
+
+Descricao operacional:
+GRU MAD VLC // BIO MAD GRU com stop na ida em MAD.
+
+Quantidade de passageiros:
+- 1 ADT
+- 1 CHD
+- 1 INF
+
+Itinerario:
+
+```text
+1 IB 268N 20OCT 2 GRUMAD SS2 1400 0525 21OCT 3 /DCIB /E
+2 IB1081N 25OCT 7 MADVLC SS2 1600 1705 /DCIB /E
+3 IB 430V 30OCT 5 BIOMAD*SS2 0915 1025 /DCIB /E
+4 IB 271V 30OCT 5 MADGRU*SS2 1150 1900 /DCIB
+```
+
+### WP consolidado
+
+```text
+Dados resumidos informados pelo solicitante a partir do WP:
+
+Franquia de bagagem 01P
+Familia tarifaria: OPTIMA
+
+Tarifa ADT: USD 1535.00 / EQUIVALENTE: BRL 7754,35
+Taxa de embarque ADT: BRL 352,39
+TOTAL BRL 8.106,74
+```
+
+Tarifamento WP consolidado:
+
+```text
+WPP1ADT/1CNN/1INF«
+
+20OCT DATA DE PARTIDA-----ULTIMO DIA PARA COMPRA 01JUN/23:59
+              TARIFA BASE    VALOR EQUIVALENTE    TAXAS/IMPOSTOS/ENCARGOS
+1-            USD1535.00     BRL7754.35            BRL352.39XT          BRL8106.74ADT
+      XT          64.56BR          210.29JD              65.72QV             11.82OG
+1-            USD1184.00     BRL5981.21            BRL352.39XT          BRL6333.60CNN
+      XT          64.56BR          210.29JD              65.72QV             11.82OG
+1-             USD245.00     BRL1237.66            BRL439.37XT          BRL1677.03INF
+      XT         151.54YQ          210.29JD              65.72QV             11.82OG
+              2964.00        14973.22              1144.15
+TOTAL:BRL16117.37
+
+ADT-1  [icone de mala acesa]  NDL0NQM7   VDL0NNM7
+SAO IB MAD Q225.00S105.00IB VLC Q SAOVLC14.00 405.00/-BIO IB X/MAD IB SAO Q225.00Q BIOSAO14.00 546.50NUC1534.50END ROE1.00
+RATE USED 1USD-5.0517BRL
+CHGS WITH REST AND NOREF
+VALIDATING CARRIER - IB
+BRANDED FARE /OPTIMA-OPTIMA/OPTIMA-OPTIMA
+```
+
+### PQ ADT
+
+```text
+Nao informado como bloco bruto completo neste exemplo.
+Valores ADT foram informados a partir do WP:
+
+USD1535.00 / BRL7754.35 / BRL352.39XT / BRL8106.74ADT
+```
+
+### PQ CHD/CNN
+
+```text
+MD«
+
+    04 O BIO IB 430V 30OCT  915  VDL0NNM7        30OCT2630OCT26 01P¥
+    05 X MAD IB 271V 30OCT 1150  VDL0NNM7        30OCT2630OCT26 01P
+         GRU
+    FARE SOURCE - ATPC
+    2DBH 2DBH *A1A 1445/29MAY26                        PRICE-SYSTEM
+    PQ 2  PCNN
+    BASE FARE       EQUIV AMT     TAXES/FEES/CHARGES          TOTAL
+    USD1184.00      BRL5981.21      352.39XT          BRL6333.60CNN
+    XT BREAKDOWN
+            64.56BR        210.29JD         65.72QV         11.82OG
+    CNN-01  NDL0NQM7/CH VDL0NNM7/CH
+    LAST DAY TO PURCHASE 01JUN/2359
+    SAO IB MAD Q168.75S105.00IB VLC Q SAOVLC14.00 303.75/-BIO IB X/
+    MAD IB SAO Q168.75Q BIOSAO14.00 409.87NUC1184.12END ROE1.00
+    EACH CNN REQUIRES ACCOMPANYING SAME CABIN ADT
+    VALIDATING CARRIER - IB
+    CHGS WITH REST AND NOREF
+```
+
+### PQ INF
+
+```text
+MD«
+
+    01 O GRU IB 268N 20OCT 1400  NDL0NQM7/CH     20OCT2620OCT26 01P¥
+    02 O MAD IB1081N 25OCT 1600  NDL0NQM7/CH     25OCT2625OCT26 01P
+    03   VLC                     VOID
+    04 O BIO IB 430V 30OCT  915  VDL0NNM7/CH     30OCT2630OCT26 01P
+    05 X MAD IB 271V 30OCT 1150  VDL0NNM7/CH     30OCT2630OCT26 01P
+         GRU
+    FARE SOURCE - ATPC
+    2DBH 2DBH *A1A 1445/29MAY26                        PRICE-SYSTEM
+    PQ 3  PINF
+    BASE FARE       EQUIV AMT     TAXES/FEES/CHARGES          TOTAL
+    USD245.00       BRL1237.66      439.37XT          BRL1677.03INF
+    XT BREAKDOWN
+           151.54YQ        210.29JD         65.72QV         11.82OG
+    INF-01  NDL0NQM7/IN VDL0NNM7/IN
+    LAST DAY TO PURCHASE 01JUN/2359
+    SAO IB MAD Q22.50S105.00IB VLC40.50/-BIO IB X/MAD IB SAO Q22.50
+     54.65NUC245.15END ROE1.00
+
+MD«
+
+    REQUIRES ACCOMPANYING ADT PASSENGER
+    EACH INF REQUIRES ACCOMPANYING ADT PASSENGER
+    VALIDATING CARRIER - IB
+    CHGS WITH REST AND NOREF
+    01 O GRU IB 268N 20OCT 1400  NDL0NQM7/IN     20OCT2620OCT26 01P
+    02 O MAD IB1081N 25OCT 1600  NDL0NQM7/IN     25OCT2625OCT26 01P
+    03   VLC                     VOID
+    04 O BIO IB 430V 30OCT  915  VDL0NNM7/IN     30OCT2630OCT26 01P
+    05 X MAD IB 271V 30OCT 1150  VDL0NNM7/IN     30OCT2630OCT26 01P
+         GRU
+    FARE SOURCE - ATPC
+    2DBH 2DBH *A1A 1445/29MAY26                        PRICE-SYSTEM
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Tipo de bloco:
+PNR/itinerario + tarifamento final por tipo de passageiro
+
+Companhia:
+IB
+
+Validating carrier:
+IB
+
+Familia tarifaria:
+OPTIMA
+
+Origem da familia tarifaria:
+- Identificada no retorno `WP`, linha `BRANDED FARE /OPTIMA-OPTIMA/OPTIMA-OPTIMA`.
+- Nao aparece no `PQ` deste exemplo.
+
+Quantidade de passageiros:
+- ADT: 1
+- CHD/CNN: 1
+- INF: 1
+
+Rota comercial:
+GRU-MAD-VLC // BIO-MAD-GRU
+
+Stop/conexao/surface:
+- Stop na ida em MAD entre 21OCT e 25OCT.
+- Surface/open jaw entre VLC e BIO.
+- A linha `03 VLC VOID` no tarifamento representa surface/void e nao deve ser tratada como voo.
+
+Segmentos aereos ativos:
+- IB 268, classe N, GRU-MAD, 20OCT, saida 14:00, chegada 05:25 em 21OCT, status SS2.
+- IB 1081, classe N, MAD-VLC, 25OCT, saida 16:00, chegada 17:05, status SS2.
+- IB 430, classe V, BIO-MAD, 30OCT, saida 09:15, chegada 10:25, status SS2.
+- IB 271, classe V, MAD-GRU, 30OCT, saida 11:50, chegada 19:00, status SS2.
+
+Status:
+- SS2 em todos os segmentos do itinerario informado.
+- O sistema deve avisar que `SS` nao e o mesmo que `HK`; pode ser segmento vendido/solicitado dependendo do contexto de exibicao.
+
+Bagagem:
+01P em todos os segmentos/tipos apresentados.
+Exibir como 1PC.
+
+No retorno `WP`, a bagagem aparece como icone de mala acesa ao lado do ADT-1, sem texto `01P`.
+O parser textual nao deve inferir quantidade de bagagem apenas pelo icone, a menos que exista OCR/estrutura confiavel para esse simbolo.
+Quando houver somente o icone visual, marcar bagagem como "sinalizada no WP, quantidade nao lida".
+
+Tarifa ADT:
+- Tarifa moeda: USD 1535.00
+- Equivalente BRL: 7754.35
+- Taxas BRL: 352.39
+- Total BRL: 8106.74
+
+Tarifa CHD/CNN:
+- Tarifa moeda: USD 1184.00
+- Equivalente BRL: 5981.21
+- Taxas BRL: 352.39
+- Total BRL: 6333.60
+
+Tarifa INF:
+- Tarifa moeda: USD 245.00
+- Equivalente BRL: 1237.66
+- Taxas BRL: 439.37
+- Total BRL: 1677.03
+
+Total do grupo sem RC:
+BRL 16117.37
+
+Prazo de emissao:
+01JUN/2359
+
+Regras/observacoes tarifarias:
+- `CHGS WITH REST AND NOREF`
+- CHD/CNN requer ADT acompanhante na mesma cabine.
+- INF requer ADT acompanhante.
+
+Code-share / operated by:
+- Nao identificado neste exemplo.
+- `/DCIB` sugere direct connect/companhia IB, mas nao deve ser tratado como operated by diferente.
+
+Warnings esperados:
+- Status `SS2` deve gerar aviso de revisao, pois nao e `HK`.
+- ADT foi informado de forma resumida, sem bloco bruto completo de tarifa; parser automatico pode precisar de bloco ADT real para validar 100%.
+- Familia tarifaria `OPTIMA` vem do `WP`, nao do `PQ`; o parser deve buscar branded fare em WP quando disponivel.
+- Se o sistema receber apenas `PQ`, nao deve exigir familia tarifaria.
+- Se o sistema receber apenas `WP` com icone de mala, nao deve transformar o icone em `1PC` sem confirmacao ou fonte textual.
+- Trecho `VLC // BIO` deve ser reconhecido como surface/open jaw.
+- Linha `VOID` nao deve entrar como segmento aereo.
+- Tarifamento INF aparece em mais de uma tela `MD`; parser deve consolidar sem duplicar valores.
+
+## OBSERVACOES
+
+Este exemplo e prioritario para testar:
+
+- Sabre com ADT + CHD/CNN + INF.
+- Tarifamento por tipo de passageiro.
+- Bagagem 01P.
+- Stopover em MAD.
+- Surface/open jaw VLC // BIO.
+- Linha VOID dentro do tarifamento.
+- Status SS.
+- Prazo `LAST DAY TO PURCHASE`.
+- Familia tarifaria OPTIMA.
+- Diferenca entre informacoes disponiveis em `PQ` e em `WP`.
+- Bagagem textual em `PQ` versus bagagem apenas sinalizada por icone no `WP`.

@@ -1,0 +1,53 @@
+# Exemplo: Sabre ADT + CHD + INF
+
+## BLOCO GDS
+
+Cole aqui um PNR Sabre com adulto, crianca e bebe.
+
+Modelo anonimo:
+
+```text
+XYZ789
+1.1TESTE/JOAO MR
+2.1TESTE/MARIA MRS
+3.1TESTE/ANA MISS
+4.I/2TESTE/BEBE INF
+1 QR780Y 20JUL GRUDOH HK3 2030 1710+1
+2 QR701Y 22JUL DOHJFK HK3 0800 1455
+TKT/TIME LIMIT 15JUL/1800
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Tipo de bloco:
+PNR ativo
+
+Localizador:
+XYZ789
+
+Passageiros:
+- ADT: TESTE/JOAO MR
+- ADT: TESTE/MARIA MRS
+- CHD: TESTE/ANA MISS
+- INF: TESTE/BEBE INF
+
+Segmentos:
+- QR 780, classe Y, GRU-DOH, 20JUL, 20:30-17:10 +1, status HK3
+- QR 701, classe Y, DOH-JFK, 22JUL, 08:00-14:55, status HK3
+
+Tarifa:
+Nao incluida neste exemplo
+
+Bagagem:
+Nao incluida neste exemplo
+
+Warnings esperados:
+- Tarifa ausente
+- Bagagem ausente
+
+## OBSERVACOES
+
+Este exemplo testa o marcador Sabre `I/` para infantil.

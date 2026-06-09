@@ -2244,7 +2244,11 @@ function extractFareFamilies(pricingRaw){
   const found = [];
   const add = (v) => {
     const s = String(v || "").replace(/\[CTRL\]/gi, " ").replace(/Â¥|¥|¤|Â¤/g, " ").trim();
-    if(s && !found.includes(s)) found.push(s);
+    const parts = s.split("-");
+    const normalized = parts.length === 2 && parts[0].toUpperCase() === parts[1].toUpperCase()
+      ? parts[0]
+      : s;
+    if(normalized && !found.includes(normalized)) found.push(normalized);
   };
 
   for(const l0 of lines){

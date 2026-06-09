@@ -1,0 +1,66 @@
+# Exemplo: Sabre tarifa com XT
+
+## BLOCO GDS
+
+Cole aqui retorno de tarifamento Sabre com tarifa, equivalente, taxas XT e total.
+
+Quando houver, separar `WP` e `PQ`.
+
+### WP
+
+```text
+WP
+ADT
+USD 500.00 BRL 2750.00 BRL 450.00 XT BRL 3200.00
+RATE USED 1USD = 5.5000BRL
+01 GRUMEX LA 8113 Y 15JUN 02P
+02 MEXGRU LA 8114 Y 25JUN 02P
+```
+
+### PQ ADT
+
+```text
+Cole aqui o PQ armazenado/detalhado do ADT, se houver.
+```
+
+### PQ CHD/CNN
+
+```text
+Cole aqui o PQ armazenado/detalhado do CHD/CNN, se houver.
+```
+
+### PQ INF
+
+```text
+Cole aqui o PQ armazenado/detalhado do INF, se houver.
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Tipo de bloco:
+Tarifa final
+
+Passageiro/tipo:
+ADT
+
+Valores:
+- Tarifa moeda: USD 500.00
+- Equivalente BRL: 2750.00
+- Taxas BRL: 450.00
+- Total BRL: 3200.00
+- Cambio: 5.5000
+
+Bagagem:
+2PC
+
+Warnings esperados:
+- Nenhum, se todos os valores forem lidos
+
+## OBSERVACOES
+
+Testar tambem variantes com `NIL`, `0P`, `01P` e mais de um tipo de passageiro.
+
+Para Sabre, o ideal e ter WP e PQ porque cada retorno pode trazer informacoes diferentes.

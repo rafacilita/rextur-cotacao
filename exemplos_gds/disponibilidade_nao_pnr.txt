@@ -1,0 +1,32 @@
+# Exemplo: disponibilidade que NAO deve virar cotacao
+
+## BLOCO GDS
+
+Cole aqui uma tela de disponibilidade Amadeus, Sabre ou outro GDS.
+
+Modelo Amadeus:
+
+```text
+AN 12JUN GRUMAD
+1 IB6824 Y9 B9 M9 GRUMAD 1450 0610+1
+2 LA8066 Y9 B9 M9 GRUMAD 2300 1400+1
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus, Sabre ou outro
+
+Tipo de bloco:
+Disponibilidade
+
+Acao esperada:
+Nao gerar cotacao final automaticamente.
+
+Warnings esperados:
+- Texto parece tela de disponibilidade, nao PNR ativo.
+- Necessario colar PNR/itinerario vendido ou tarifa final.
+
+## OBSERVACOES
+
+Este teste impede que o sistema confunda voo disponivel com voo confirmado.
