@@ -44,6 +44,23 @@ A pagina executa verificacoes automaticas usando as funcoes reais da calculadora
 
 O resultado esperado e `9/9 testes` e `Tudo certo`.
 
+## Executar os testes com Node
+
+Na pasta do projeto:
+
+```powershell
+npm.cmd install
+npm.cmd test
+```
+
+Use `npm.cmd` no PowerShell quando a politica de execucao do Windows bloquear o arquivo `npm.ps1`.
+
+Para acompanhar alteracoes no parser continuamente:
+
+```powershell
+npm.cmd run test:watch
+```
+
 ## Referencias operacionais
 
 Algumas informacoes do GDS dependem de regra comercial atualizada da companhia. Quando o exemplo envolver familia tarifaria/brand, registre tambem a fonte operacional usada para validar os atributos.

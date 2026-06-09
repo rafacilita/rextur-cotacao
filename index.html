@@ -1115,7 +1115,13 @@ function parseAmountAny(raw){
   return Number.isFinite(v) ? v : null;
 }
 function moneyBRL(v){ if(v==null||!Number.isFinite(v)) return "—"; return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v); }
-function moneyUSD(v){ if(v==null||!Number.isFinite(v)) return "—"; return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(v); }
+function moneyCurrency(v, currency){
+  if(v==null || !Number.isFinite(v)) return "—";
+  const cur = String(currency || "").toUpperCase();
+  if(!/^[A-Z]{3}$/.test(cur)) return `${cur} ${v}`.trim();
+  return new Intl.NumberFormat("en-US", {style:"currency", currency:cur, currencyDisplay:"code"}).format(v);
+}
+function moneyUSD(v){ return moneyCurrency(v, "USD"); }
 function fmtTime(hhmm){
   const s = String(hhmm||"");
   if(s.length===4) return s.slice(0,2)+":"+s.slice(2);
@@ -1613,6 +1619,37 @@ function parseItinerary(itinRaw, gds, year){
   const lines = trimLines(itinRaw);
   const segs  = [];
 
+  function normalizeSegmentYears(items){
+    let currentYear = year;
+    let previousMonth = null;
+    const parseFmt = (value) => {
+      const m = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? { day:+m[1], month:+m[2], year:+m[3] } : null;
+    };
+    const format = ({day,month,year: y}) =>
+      `${String(day).padStart(2,"0")}/${String(month).padStart(2,"0")}/${y}`;
+
+    for(const segment of items){
+      if(segment.surface) continue;
+      const dep = parseFmt(segment.depDateFmt);
+      const arr = parseFmt(segment.arrDateFmt);
+      if(!dep) continue;
+
+      if(previousMonth != null && previousMonth >= 10 && dep.month <= 3){
+        currentYear++;
+      }
+      dep.year = currentYear;
+      segment.depDateFmt = format(dep);
+
+      if(arr){
+        arr.year = currentYear + (dep.month === 12 && arr.month === 1 ? 1 : 0);
+        segment.arrDateFmt = format(arr);
+      }
+      previousMonth = dep.month;
+    }
+    return items;
+  }
+
   // ── STATUS_CLASS ────────────────────────────────────────────────────────────
   // Classifica o código de estado IATA em categoria semântica.
   // Fonte: Manual Amadeus p.23-24 (tabela de códigos)
@@ -1811,7 +1848,7 @@ function parseItinerary(itinRaw, gds, year){
       }
       segs.push(seg);
     }
-    return segs;
+    return normalizeSegmentYears(segs);
   }
 
   if (gds === 'SAB') {
@@ -1828,7 +1865,7 @@ function parseItinerary(itinRaw, gds, year){
       }
       segs.push(seg);
     }
-    return segs;
+    return normalizeSegmentYears(segs);
   }
 
   return segs;
@@ -2319,14 +2356,15 @@ function parsePricingSabre(pricingRaw){
   const uniq = [...new Set(bagSegs)];
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
   const patterns = [
-    /USD\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+XT\s+BRL\s*([0-9][0-9.,]*)/i,
-    /USD\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+([0-9][0-9.,]*)\s*XT\s+BRL\s*([0-9][0-9.,]*)/i
+    /\b([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+XT\s+BRL\s*([0-9][0-9.,]*)/i,
+    /\b([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+([0-9][0-9.,]*)\s*XT\s+BRL\s*([0-9][0-9.,]*)/i
   ];
   for(const re of patterns){
     const m = flat.match(re);
-    if(m){ return { fareCur:"USD", fareAmt:parseAmountAny(m[1]), equivBRL:parseAmountAny(m[2]), taxesBRL:parseAmountAny(m[3]), totalBRL:parseAmountAny(m[4]), bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies }; }
+    if(m){ return { fareCur:m[1].toUpperCase(), fareAmt:parseAmountAny(m[2]), equivBRL:parseAmountAny(m[3]), taxesBRL:parseAmountAny(m[4]), totalBRL:parseAmountAny(m[5]), bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies }; }
   }
-  return {fareCur:"USD", fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
+  const currencyMatch = flat.match(/\b([A-Z]{3})\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/);
+  return {fareCur:currencyMatch ? currencyMatch[1] : null, fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
 }
 
 // ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
@@ -2406,9 +2444,7 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
   let fareDisplay = '—';
   const adtPr = pricing.ADT;
   if (adtPr && adtPr.fareAmt != null) {
-    fareDisplay = adtPr.fareCur === 'USD'
-      ? moneyUSD(adtPr.fareAmt) + ' (ADT)'
-      : `${adtPr.fareCur || ''} ${adtPr.fareAmt} (ADT)`;
+    fareDisplay = moneyCurrency(adtPr.fareAmt, adtPr.fareCur) + ' (ADT)';
   }
 
   const totals = {
@@ -3022,7 +3058,7 @@ function buildEmail(quote) {
     return `
     <tr>
       <td style="border:1px solid #b8b7d6; padding:8px; font-weight:700;">${r.type} x${r.qty}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${(r.fareCur==="USD" && r.fareAmt!=null) ? moneyUSD(r.fareAmt) : (r.fareCur && r.fareAmt!=null ? `${escapeHtml(r.fareCur)} ${escapeHtml(r.fareAmt)}` : "—")}</td>
+      <td style="border:1px solid #b8b7d6; padding:8px;">${(r.fareCur && r.fareAmt!=null) ? escapeHtml(moneyCurrency(r.fareAmt, r.fareCur)) : "—"}</td>
       <td style="border:1px solid #b8b7d6; padding:8px;">${r.equivBRL!=null ? moneyBRL(r.equivBRL) : "—"}</td>
       <td style="border:1px solid #b8b7d6; padding:8px;">${r.taxesBRL!=null ? moneyBRL(r.taxesBRL) : "—"}</td>
       ${includeRC ? `<td style="border:1px solid #b8b7d6; padding:8px;">${moneyBRL((r.rcBRL||0))}</td>` : ``}

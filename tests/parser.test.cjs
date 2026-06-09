@@ -158,6 +158,51 @@ test("interpreta Amadeus com ADT CHD e INF", () => {
   app.close();
 });
 
+test("interpreta Sabre com origem exterior e virada de ano", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  const year = app.inferYearFromText(raw);
+  const segments = app.parseItinerary(raw, "SAB", year);
+  assert.equal(year, 2026);
+  assert.equal(segments.length, 4);
+  assert.equal(segments[0].depDateFmt, "20/12/2026");
+  assert.equal(segments[2].depDateFmt, "05/01/2027");
+  assert.equal(segments[3].arrDateFmt, "06/01/2027");
+  assert.equal(segments[3].arrDayOffset, 0);
+  app.close();
+});
+
+test("le tarifa Sabre em EUR com equivalente BRL", () => {
+  const app = createApp();
+  const price = app.parsePricingSabre(fixture("sabre_origem_exterior_eur_virada_ano.txt"));
+  assert.equal(price.fareCur, "EUR");
+  assert.equal(price.fareAmt, 2315);
+  assert.equal(price.equivBRL, 13673.45);
+  assert.equal(price.taxesBRL, 1217.05);
+  assert.equal(price.totalBRL, 14890.50);
+  assert.equal(price.bag, "1PC");
+  assert.match(app.moneyCurrency(price.fareAmt, price.fareCur), /^EUR\s/);
+  app.close();
+});
+
+test("gera cotacao CNN em EUR com totais em BRL", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("qADT").value = "0";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "0";
+  app.refreshPaxUI();
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskCHD").value = raw;
+  app.build();
+
+  assert.equal(app._lastQuote.pricing.CHD.fareCur, "EUR");
+  assert.equal(app._lastQuote.totals.totalBRL, 14890.50);
+  assert.match(app.document.getElementById("preview").textContent, /EUR\s*2,315\.00/);
+  assert.match(app.document.getElementById("preview").textContent, /R\$\s*14\.890,50/);
+  app.close();
+});
+
 test("salva e restaura rascunho", () => {
   const app = createApp();
   const loc = app.document.getElementById("fldLOC");
