@@ -668,6 +668,24 @@
     .sourceBlock #maskINFWrap{
       background:#ffffff;
     }
+    .maskCombinedActions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .maskReview{
+      margin-top:10px;
+      border-top:1px solid var(--line);
+      padding-top:10px;
+    }
+    .maskReview summary{
+      cursor:pointer;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:700;
+    }
     body[data-theme="dark"] .sourceBlock #maskADTWrap,
     body[data-theme="dark"] .sourceBlock #maskCHDWrap,
     body[data-theme="dark"] .sourceBlock #maskINFWrap{
@@ -912,36 +930,48 @@
               <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
             </div>
             <div class="field">
-              <label>Máscaras de tarifa (por tipo)</label>
+              <label>WP/PQ e máscaras de tarifa</label>
 
-              <div class="subcard" style="margin-top:0;" id="maskADTWrap">
-                <h3>ADT (máscara)</h3>
-                <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
-                <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
-                  <label>Bagagem ADT (manual, se não detectar)</label>
-                  <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
+              <div class="subcard" style="margin-top:0;">
+                <h3>Colar tudo de uma vez</h3>
+                <textarea id="maskAll" style="min-height:220px;" placeholder="Cole aqui o WP/WPP/PQ completo. O itinerário pode vir junto."></textarea>
+                <div class="maskCombinedActions">
+                  <button id="btnSplitMasks" class="secondary" type="button">Identificar máscaras</button>
+                  <div class="status" id="maskSplitStatus" role="status" aria-live="polite">Aguardando conteúdo</div>
                 </div>
               </div>
 
-              <div class="subcard" id="maskCHDWrap" style="display:none;">
-                <h3>CHD (máscara)</h3>
-                <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores CHD/CNN..."></textarea>
-                <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
-                  <label>Bagagem CHD (manual, se não detectar)</label>
-                  <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
+              <details class="maskReview" id="maskReview">
+                <summary>Revisar campos separados por passageiro</summary>
+                <div class="subcard" id="maskADTWrap">
+                  <h3>ADT (máscara)</h3>
+                  <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
+                  <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
+                    <label>Bagagem ADT (manual, se não detectar)</label>
+                    <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
                 </div>
-              </div>
 
-              <div class="subcard" id="maskINFWrap" style="display:none;">
-                <h3>INF (máscara)</h3>
-                <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores INF..."></textarea>
-                <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
-                  <label>Bagagem INF (manual, se não detectar)</label>
-                  <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
+                <div class="subcard" id="maskCHDWrap" style="display:none;">
+                  <h3>CHD (máscara)</h3>
+                  <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores CHD/CNN..."></textarea>
+                  <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
+                    <label>Bagagem CHD (manual, se não detectar)</label>
+                    <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
                 </div>
-              </div>
 
-              <div class="help">Dica: Sabre WP/WPP/PQ precisa das linhas com ADT/CNN/INF. Amadeus pode ser TQT/TST ou construção NUC/END/ROE.</div>
+                <div class="subcard" id="maskINFWrap" style="display:none;">
+                  <h3>INF (máscara)</h3>
+                  <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores INF..."></textarea>
+                  <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
+                    <label>Bagagem INF (manual, se não detectar)</label>
+                    <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
+                </div>
+              </details>
+
+              <div class="help">O sistema separa ADT, CNN/CHD e INF. Campos individuais permanecem disponíveis para revisão manual.</div>
             </div>
           </div>
 
@@ -1352,6 +1382,7 @@ function restoreDraft(){
     $("fldFX").dataset.source = "MANUAL";
   }
   renderFxHint();
+  if($("maskAll").value.trim()) applyCombinedPricingInput({ overwrite: false, announce: false });
 
   const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
   updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
@@ -1443,7 +1474,7 @@ function enhanceAccessibility(){
     const control = field.querySelector(":scope > input[id], :scope > select[id], :scope > textarea[id]");
     if(label && control && label.textContent.trim()) label.htmlFor = control.id;
   });
-  ["itin","maskADT","maskCHD","maskINF"].forEach(id => {
+  ["itin","maskAll","maskADT","maskCHD","maskINF"].forEach(id => {
     const el = $(id);
     if(el) el.setAttribute("spellcheck", "false");
   });
@@ -1694,6 +1725,110 @@ function collectPaxNames(){
   }
   grab("ADT", qADT); grab("CHD", qCHD); grab("INF", qINF);
   return out;
+}
+
+function detectPaxCountsFromPricing(raw){
+  const counts = { ADT: 0, CHD: 0, INF: 0 };
+  const lines = String(raw || "").split(/\r?\n/);
+  const commandLine = lines.find(line => {
+    const up = line.toUpperCase();
+    return !/\bBRL\b/.test(up) && (
+      /^\s*WP[A-Z0-9¥¤/*.-]*/.test(up) ||
+      /(?:^|\/)\s*\d+\s*(?:ADT|CNN|CHD|INF)(?:\b|\/)/.test(up)
+    );
+  });
+  if(!commandLine) return null;
+
+  for(const match of commandLine.matchAll(/(\d+)\s*(ADT|CNN|CHD|INF)\b/gi)){
+    const type = /CNN|CHD/i.test(match[2]) ? "CHD" : match[2].toUpperCase();
+    counts[type] = parseInt(match[1], 10) || 0;
+  }
+  return counts.ADT + counts.CHD + counts.INF > 0 ? counts : null;
+}
+
+function classifySabrePricingBlock(block){
+  const up = String(block || "").toUpperCase();
+  if(/\b(?:INF-\d+|PINF)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*INF\b/.test(up)) return "INF";
+  if(/\b(?:CNN-\d+|CHD-\d+|PCNN|PCHD)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*(?:CNN|CHD)\b/.test(up)) return "CHD";
+  if(/\b(?:ADT-\d+|PADT)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*ADT\b/.test(up)) return "ADT";
+  return null;
+}
+
+function splitSabrePricingMasks(raw){
+  const text = String(raw || "").replace(/\r/g, "");
+  const lines = text.split("\n");
+  const starts = [];
+  lines.forEach((line, index) => {
+    if(/^\s*PQ\s+\d+\s+\S+/i.test(line.replace(/[¥¤]/g, " "))) starts.push(index);
+  });
+
+  const masks = { ADT: "", CHD: "", INF: "" };
+  for(let i = 0; i < starts.length; i++){
+    const start = starts[i];
+    const end = i + 1 < starts.length ? starts[i + 1] : lines.length;
+    const block = lines.slice(start, end).join("\n").trim();
+    const type = classifySabrePricingBlock(block);
+    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
+  }
+
+  // WP consolidado: usa a linha tarifária identificada quando não há PQ separado.
+  for(const line of lines){
+    const type = classifySabrePricingBlock(line);
+    if(type && !masks[type] && /\b[A-Z]{3}\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/i.test(line)){
+      masks[type] = line.trim();
+    }
+  }
+
+  const pricingStart = lines.findIndex(line => /^\s*(?:WPP|WPNC|WP\/|PQ[«\s])/i.test(line));
+  const itinerary = pricingStart > 0 ? lines.slice(0, pricingStart).join("\n").trim() : "";
+  return {
+    masks,
+    counts: detectPaxCountsFromPricing(text),
+    itinerary
+  };
+}
+
+function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
+  const raw = $("maskAll").value.trim();
+  if(!raw) return { masks: { ADT: "", CHD: "", INF: "" }, counts: null, itinerary: "" };
+
+  const result = splitSabrePricingMasks(raw);
+  const found = [];
+  for(const type of ["ADT", "CHD", "INF"]){
+    const field = $(`mask${type}`);
+    if(result.masks[type] && (overwrite || !field.value.trim())){
+      field.value = result.masks[type];
+    }
+    if(result.masks[type]) found.push(type);
+  }
+
+  if(result.counts){
+    $("qADT").value = String(result.counts.ADT);
+    $("qCHD").value = String(result.counts.CHD);
+    $("qINF").value = String(result.counts.INF);
+  }
+  if(result.itinerary && !$("itin").value.trim()) $("itin").value = result.itinerary;
+  refreshPaxUI();
+
+  const expected = result.counts
+    ? ["ADT", "CHD", "INF"].filter(type => result.counts[type] > 0)
+    : found;
+  const missing = expected.filter(type => !result.masks[type]);
+  const status = $("maskSplitStatus");
+  if(status){
+    status.textContent = found.length
+      ? `Identificados: ${found.join(", ")}${missing.length ? ` · faltando: ${missing.join(", ")}` : ""}`
+      : "Nenhuma máscara por passageiro foi identificada";
+    status.classList.toggle("warn", !found.length || missing.length > 0);
+  }
+  if(found.length) $("maskReview").open = missing.length > 0;
+
+  if(announce){
+    setStatus(found.length ? "Máscaras distribuídas para revisão" : "Não foi possível separar as máscaras", !found.length);
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+  return result;
 }
 
 $("fldCondicao").addEventListener("change", refreshOptionalUI);
@@ -2481,6 +2616,28 @@ function parsePricingSabre(pricingRaw){
   }
   const uniq = [...new Set(bagSegs)];
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
+  for(const line of lines){
+    const normalized = String(line).replace(/[¥¤]/g, " ").trim();
+    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*XT)?\s+BRL\s*([0-9][0-9.,]*)\s*(?:ADT|CNN|CHD|INF)?\b/i);
+    if(m){
+      const equivBRL = parseAmountAny(m[3]);
+      const totalBRL = parseAmountAny(m[5]);
+      const taxesBRL = m[4] != null
+        ? parseAmountAny(m[4])
+        : (equivBRL != null && totalBRL != null ? Math.max(0, +(totalBRL - equivBRL).toFixed(2)) : null);
+      return {
+        fareCur: m[1].toUpperCase(),
+        fareAmt: parseAmountAny(m[2]),
+        equivBRL,
+        taxesBRL,
+        totalBRL,
+        bag,
+        bagSegs,
+        fareFamily: fareFamilies[0] || null,
+        fareFamilies
+      };
+    }
+  }
   const patterns = [
     /\b([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+XT\s+BRL\s*([0-9][0-9.,]*)/i,
     /\b([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)\s+([0-9][0-9.,]*)\s*XT\s+BRL\s*([0-9][0-9.,]*)/i
@@ -3447,7 +3604,12 @@ $("itin").addEventListener("input", ()=>{
   }
 });
 
+$("btnSplitMasks").addEventListener("click", ()=>{
+  applyCombinedPricingInput({ overwrite: true, announce: true });
+});
+
 $("btnBuild").addEventListener("click", ()=>{
+  if($("maskAll").value.trim()) applyCombinedPricingInput({ overwrite: false, announce: false });
   validationActivated = true;
   const issues = validateQuoteInput();
   renderValidation(issues);
@@ -3525,7 +3687,10 @@ $("btnClear").addEventListener("click", ()=>{
   clearTimeout(draftSaveTimer);
   localStorage.removeItem(DRAFT_STORAGE_KEY);
   ["fldRC","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
-   "itin","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
+   "itin","maskAll","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
+  $("maskSplitStatus").textContent = "Aguardando conteúdo";
+  $("maskSplitStatus").classList.remove("warn");
+  $("maskReview").open = false;
   ["source","baseDate","usageDate"].forEach(key => { delete $("fldFX").dataset[key]; });
   renderFxHint();
   $("fldCabine").value="Econômica";
@@ -3560,6 +3725,10 @@ enhanceAccessibility();
 
 document.querySelector("main").addEventListener("input", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.id === "maskAll"){
+    $("maskSplitStatus").textContent = event.target.value.trim() ? "Conteúdo pronto para identificar" : "Aguardando conteúdo";
+    $("maskSplitStatus").classList.remove("warn");
+  }
   if(event.target.id === "fldFX"){
     event.target.dataset.source = event.target.value.trim() ? "MANUAL" : "";
     delete event.target.dataset.baseDate;

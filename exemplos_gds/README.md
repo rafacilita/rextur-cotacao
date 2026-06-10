@@ -13,6 +13,16 @@ O parser deve preservar o codigo ISO de tres letras informado pelo GDS. Exemplos
 
 O equivalente, as taxas e o total continuam em BRL quando assim informados pelo GDS. O `RATE USED` de outra moeda, como CNY ou JPY, nao deve ser usado como cambio do RC, que e sempre informado em USD.
 
+## Sabre: colagem combinada
+
+O campo principal aceita itinerario, comando WPP e varios PQs no mesmo texto. O sistema:
+
+- le quantidades como `1ADT/1CNN/1INF`;
+- separa blocos `ADT`, `CNN/CHD` e `INF`;
+- preenche os campos individuais para revisao;
+- avisa quando um tipo foi declarado no comando, mas seu PQ nao aparece no conteudo;
+- aceita tarifa zero, como `JPY0 BRL0.00 BRL0.00INF`.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:

@@ -160,6 +160,82 @@ test("le tarifa Sabre com XT", () => {
   app.close();
 });
 
+test("separa PQs Sabre colados em um unico campo", () => {
+  const app = createApp();
+  const raw = fixture("sabre_wp_pq_combinado_jpy.txt");
+  const result = app.splitSabrePricingMasks(raw);
+
+  assert.deepEqual(
+    { ADT: result.counts.ADT, CHD: result.counts.CHD, INF: result.counts.INF },
+    { ADT: 1, CHD: 1, INF: 1 }
+  );
+  assert.equal(result.masks.ADT, "");
+  assert.match(result.masks.CHD, /PQ 2\s+PCNN/);
+  assert.match(result.masks.INF, /PQ 3\s+PINF/);
+  assert.match(result.itinerary, /JL 225N 20DEC/);
+  app.close();
+});
+
+test("le JPY e tarifa zero nos PQs Sabre combinados", () => {
+  const app = createApp();
+  const result = app.splitSabrePricingMasks(fixture("sabre_wp_pq_combinado_jpy.txt"));
+  const chd = app.parsePricingSabre(result.masks.CHD);
+  const inf = app.parsePricingSabre(result.masks.INF);
+
+  assert.deepEqual(
+    [chd.fareCur, chd.fareAmt, chd.equivBRL, chd.taxesBRL, chd.totalBRL, chd.bag],
+    ["JPY", 11400, 367.94, 52.92, 420.86, "2PC"]
+  );
+  assert.deepEqual(
+    [inf.fareCur, inf.fareAmt, inf.equivBRL, inf.taxesBRL, inf.totalBRL, inf.bag],
+    ["JPY", 0, 0, 0, 0, "1PC"]
+  );
+  app.close();
+});
+
+test("distribui campo combinado e sinaliza PQ ausente", () => {
+  const app = createApp();
+  app.document.getElementById("maskAll").value = fixture("sabre_wp_pq_combinado_jpy.txt");
+  const result = app.applyCombinedPricingInput({ overwrite: true, announce: false });
+
+  assert.equal(app.document.getElementById("qADT").value, "1");
+  assert.equal(app.document.getElementById("qCHD").value, "1");
+  assert.equal(app.document.getElementById("qINF").value, "1");
+  assert.equal(app.document.getElementById("maskADT").value, "");
+  assert.match(app.document.getElementById("maskCHD").value, /JPY11400/);
+  assert.match(app.document.getElementById("maskINF").value, /JPY0/);
+  assert.match(app.document.getElementById("itin").value, /HNDKIX/);
+  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/);
+  assert.equal(result.counts.CHD, 1);
+  app.close();
+});
+
+test("distribui ADT CHD e INF quando todos os PQs estao presentes", () => {
+  const app = createApp();
+  const partial = fixture("sabre_wp_pq_combinado_jpy.txt");
+  const adtBlock = [
+    "    PQ 1  NCB",
+    "    BASE FARE       EQUIV AMT     TAXES/FEES/CHARGES          TOTAL",
+    "    JPY15000        BRL483.50       60.00XT            BRL543.50ADT",
+    "    ADT-01  NJPSLJAP",
+    "    01 O HND JL 225N 20DEC 1245  NJPSLJAP        20DEC2620DEC26 02P",
+    "         KIX"
+  ].join("\n");
+  const complete = partial.replace(/(\n\s*PQ 2\s+PCNN)/, `\n${adtBlock}$1`);
+  app.document.getElementById("maskAll").value = complete;
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  app.build();
+
+  assert.match(app.document.getElementById("maskADT").value, /JPY15000/);
+  assert.match(app.document.getElementById("maskCHD").value, /JPY11400/);
+  assert.match(app.document.getElementById("maskINF").value, /JPY0/);
+  assert.equal(app._lastQuote.pricing.ADT.fareAmt, 15000);
+  assert.equal(app._lastQuote.pricing.CHD.fareAmt, 11400);
+  assert.equal(app._lastQuote.pricing.INF.fareAmt, 0);
+  assert.doesNotMatch(app.document.getElementById("maskSplitStatus").textContent, /faltando/);
+  app.close();
+});
+
 test("identifica companhia operadora em code-share", () => {
   const app = createApp();
   const raw = fixture("code_share_operated_by.txt");
