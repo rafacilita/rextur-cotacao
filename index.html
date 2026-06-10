@@ -1790,7 +1790,8 @@ function splitSabrePricingMasks(raw){
 
 function classifyAmadeusPricingBlock(block){
   const up = String(block || "").toUpperCase();
-  const header = up.match(/^\s*\d{2}\s+.*?\*\s*\*\s*(CH|IN)\b/m);
+  const summaryLine = up.split(/\r?\n/).find(line => /^\s*\d{2}\s+\S+/.test(line)) || "";
+  const header = summaryLine.match(/\*\s*(?:\*\s*)?(CH|IN)\s*\*/);
   if(header) return header[1] === "IN" ? "INF" : "CHD";
   if(/\/IN\d*\b/.test(up) || /\bIN\d*\+?\*\s*\*\s*IN\b/.test(up)) return "INF";
   if(/\/CH\d*\b/.test(up) || /\bCH\d*\+?\*\s*\*\s*CH\b/.test(up)) return "CHD";
@@ -2619,12 +2620,21 @@ function parsePricingAmadeus(pricingRaw){
     const mPC = l.match(/\b(\d{1,2})\s*(PC|P)\b/i);
     if (mPC) {
       bagSegs.push(normalizeBagAllowance(`${mPC[1]}${mPC[2]}`));
+      continue;
+    }
+    // Alguns FQQs exibem franquia em quilos apenas como 10/20/30 no fim da linha.
+    const mKg = l.match(/\b\d{2}[A-Z]{3}\d{2}[A-Z]{3}\s+(\d{1,2})\s*$/i);
+    if(mKg){
+      bagSegs.push(`${parseInt(mKg[1], 10)}KG`);
     }
   }
   const bagUniq = [...new Set(bagSegs)];
   const bag = bagUniq.length===0 ? null : (bagUniq.length===1 ? bagUniq[0] : "VAR");
   const fareFamilies = extractFareFamilies(pricingRaw);
-  const mFareLabel = flat.match(/\bFARE\b.*?\b([A-Z]{3})\s*([0-9][0-9.,]*)/i);
+  const fareLabelLine = lines.find(line => /^\s*FARE\s+(?!BASIS\b)[A-Z]{3}\s*[0-9]/i.test(line));
+  const mFareLabel = fareLabelLine
+    ? fareLabelLine.match(/^\s*FARE\s+([A-Z]{3})\s*([0-9][0-9.,]*)/i)
+    : null;
   if(mFareLabel){
     fareCur=mFareLabel[1].toUpperCase();
     fareAmt=parseAmountAny(mFareLabel[2]);

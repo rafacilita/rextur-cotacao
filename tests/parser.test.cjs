@@ -298,6 +298,57 @@ test("interpreta retorno de marco no ano seguinte no Amadeus combinado", () => {
   app.close();
 });
 
+test("reconhece CHD e INF em cabecalho FQQ Amadeus curto", () => {
+  const app = createApp();
+  const raw = fixture("amadeus_fqq_cabecalho_curto_cny.txt");
+  const result = app.splitCombinedPricingMasks(raw);
+
+  assert.deepEqual(
+    { ADT: result.counts.ADT, CHD: result.counts.CHD, INF: result.counts.INF },
+    { ADT: 1, CHD: 1, INF: 1 }
+  );
+  assert.match(result.masks.ADT, /01 BCN\s+\*/);
+  assert.match(result.masks.CHD, /02 BCNCH\s+\* CH/);
+  assert.match(result.masks.INF, /03 BCNINF\s+\* IN/);
+  app.close();
+});
+
+test("gera os tres tipos a partir do FQQ Amadeus curto", () => {
+  const app = createApp();
+  app.document.getElementById("maskAll").value = fixture("amadeus_fqq_cabecalho_curto_cny.txt");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  app.build();
+
+  assert.equal(app.document.getElementById("qADT").value, "1");
+  assert.equal(app.document.getElementById("qCHD").value, "1");
+  assert.equal(app.document.getElementById("qINF").value, "1");
+  assert.deepEqual(
+    [
+      app._lastQuote.pricing.ADT.fareAmt,
+      app._lastQuote.pricing.CHD.fareAmt,
+      app._lastQuote.pricing.INF.fareAmt
+    ],
+    [5810, 2910, 590]
+  );
+  assert.deepEqual(
+    [
+      app._lastQuote.pricing.ADT.totalBRL,
+      app._lastQuote.pricing.CHD.totalBRL,
+      app._lastQuote.pricing.INF.totalBRL
+    ],
+    [4587.46, 2274.65, 450.35]
+  );
+  assert.deepEqual(
+    [
+      app._lastQuote.pricing.ADT.bag,
+      app._lastQuote.pricing.CHD.bag,
+      app._lastQuote.pricing.INF.bag
+    ],
+    ["20KG", "20KG", "10KG"]
+  );
+  app.close();
+});
+
 test("identifica companhia operadora em code-share", () => {
   const app = createApp();
   const raw = fixture("code_share_operated_by.txt");

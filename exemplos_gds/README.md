@@ -33,6 +33,8 @@ O mesmo campo aceita itinerario seguido de varios retornos `FQQ`. O sistema usa 
 
 Linhas de navegacao como `PAGE`, `fqq02` e `fqq03` podem permanecer no texto colado.
 
+O marcador pode aparecer em cabecalho longo (`* * CH`) ou curto (`* CH`). Franquias numericas na coluna BG, como `20` e `10`, sao tratadas como `20KG` e `10KG`.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:

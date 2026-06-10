@@ -1,0 +1,77 @@
+# Amadeus FQQ com cabecalho curto para CHD e INF
+
+```text
+RP/SAO2R2100/
+  1  CA1835 B 20OCT 2 PEKPVG DK2  0800 1015  20OCT  E  0 333 B
+     SEE RTSVC
+FQQ01
+
+01 BCN        *          * 1          *   4587.46  *      *Y
+
+LAST TKT DTE 20OCT26 - DATE OF ORIGIN
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ BJS
+ SHA CA  1835 B  B 20OCT 0800  BCN             20OCT20OCT 20
+
+CNY     5810      20OCT26BJS CA SHA5810.00CNY5810.00END
+BRL  4434.81
+BRL   114.49-YQ
+BRL    38.16-CN
+BRL  4587.46
+RATE USED 1CNY=0.76330707BRL
+NO CHARGEABLE ANCILLARY SERVICE
+BG CXR: CA
+PRICED WITH VALIDATING CARRIER CA - REPRICE IF DIFFERENT VC
+30 PERCENT PENALTY APPLIES
+>                                                 PAGE  2/ 3
+>
+fqq02
+FQQ02
+
+02 BCNCH      * CH       * 2          *   2274.65  *      *Y
+
+LAST TKT DTE 20OCT26 - DATE OF ORIGIN
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ BJS
+ SHA CA  1835 B  B 20OCT 0800  BCNCH           20OCT20OCT 20
+
+CNY     2910      20OCT26BJS CA SHA2905.00CNY2905.00END
+BRL  2221.22
+BRL    53.43-YQ
+BRL  2274.65
+RATE USED 1CNY=0.76330707BRL
+NO CHARGEABLE ANCILLARY SERVICE
+BG CXR: CA
+PRICED WITH VALIDATING CARRIER CA - REPRICE IF DIFFERENT VC
+30 PERCENT PENALTY APPLIES
+>                                                 PAGE  2/ 3
+>
+fqq03
+FQQ03
+
+03 BCNINF     * IN       * 3          *    450.35  *      *N
+
+LAST TKT DTE 20OCT26 - DATE OF ORIGIN
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ BJS
+ SHA CA  1835 B  B 20OCT 0800  BCNINF          20OCT20OCT 10
+
+CNY      590      20OCT26BJS CA SHA581.00CNY581.00END
+BRL   450.35
+BRL   450.35
+RATE USED 1CNY=0.76330707BRL
+NO CHARGEABLE ANCILLARY SERVICE
+BG CXR: CA
+PRICED WITH VALIDATING CARRIER CA - REPRICE IF DIFFERENT VC
+30 PERCENT PENALTY APPLIES
+```
+
+## Resultado esperado
+
+- Quantidades preenchidas: 1 ADT, 1 CHD e 1 INF.
+- ADT: CNY 5810; equivalente BRL 4434.81; total BRL 4587.46.
+- CHD: CNY 2910; equivalente BRL 2221.22; total BRL 2274.65.
+- INF: CNY 590; equivalente e total BRL 450.35.
