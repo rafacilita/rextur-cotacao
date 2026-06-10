@@ -4,6 +4,15 @@ Use esta pasta para salvar exemplos reais anonimizados de Sabre e Amadeus.
 
 Esses exemplos servirao como base para evoluir o parser com seguranca. A ideia e comparar o que o sistema le automaticamente com o que deveria ler.
 
+## Moedas tarifarias
+
+O parser deve preservar o codigo ISO de tres letras informado pelo GDS. Exemplos ja cobertos:
+
+- USD, EUR e CNY
+- GBP, JPY, AUD, CAD, CHF e AED
+
+O equivalente, as taxas e o total continuam em BRL quando assim informados pelo GDS. O `RATE USED` de outra moeda, como CNY ou JPY, nao deve ser usado como cambio do RC, que e sempre informado em USD.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:

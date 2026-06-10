@@ -108,6 +108,48 @@ test("gera cotacao Amadeus CNY sem usar cambio CNY no RC", () => {
   app.close();
 });
 
+test("aceita outras moedas ISO em tarifas Amadeus", () => {
+  const app = createApp();
+  const cases = [
+    { currency: "GBP", fare: "875.50", expected: 875.50 },
+    { currency: "JPY", fare: "125000", expected: 125000 },
+    { currency: "AUD", fare: "1430.75", expected: 1430.75 },
+    { currency: "CAD", fare: "1299.00", expected: 1299 },
+    { currency: "CHF", fare: "910.40", expected: 910.40 },
+    { currency: "AED", fare: "3280", expected: 3280 }
+  ];
+
+  for(const item of cases){
+    const raw = [
+      `${item.currency} ${item.fare} 10JAN27AAA XX BBB100.00NUC100.00END ROE1.00`,
+      "BRL 5000.00 END ROE1.00",
+      "BRL 400.00-YQ",
+      "BRL 5400.00",
+      `RATE USED 1${item.currency}=1.000000BRL`
+    ].join("\n");
+    const price = app.parsePricingAmadeus(raw);
+    assert.equal(price.fareCur, item.currency);
+    assert.equal(price.fareAmt, item.expected);
+    assert.match(app.moneyCurrency(price.fareAmt, price.fareCur), new RegExp(`^${item.currency}\\s`));
+  }
+  app.close();
+});
+
+test("nao usa cambio de moeda estrangeira como cambio USD do RC", () => {
+  const app = createApp();
+  const [itinRaw, adtRaw] = fixtureBlocks("amadeus_cny_adt_chd_inf.txt");
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = adtRaw;
+  app.document.getElementById("fldRC").value = "40";
+  app.build();
+
+  assert.equal(app.document.getElementById("fldFX").value, "");
+  assert.equal(app._lastQuote.iataRate, null);
+  assert.equal(app._lastQuote.totals.group.rcTotal, 0);
+  assert.ok(app._lastQuote.meta.warnings.some(warning => warning.includes("câmbio não encontrado")));
+  app.close();
+});
+
 test("le tarifa Sabre com XT", () => {
   const app = createApp();
   const price = app.parsePricingSabre(fixture("sabre_tarifa_xt.txt"));
