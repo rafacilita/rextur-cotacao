@@ -2441,8 +2441,20 @@ function parsePricingAmadeus(pricingRaw){
   const bagUniq = [...new Set(bagSegs)];
   const bag = bagUniq.length===0 ? null : (bagUniq.length===1 ? bagUniq[0] : "VAR");
   const fareFamilies = extractFareFamilies(pricingRaw);
-  const mFare = flat.match(/\bFARE\b.*?\b(USD|EUR|GBP|BRL)\s*([0-9][0-9.,]*)/i) || flat.match(/\b(USD|EUR|GBP|BRL)\s*([0-9][0-9.,]*)\b/i);
-  if(mFare){ fareCur=mFare[1].toUpperCase(); fareAmt=parseAmountAny(mFare[2]); }
+  const mFareLabel = flat.match(/\bFARE\b.*?\b([A-Z]{3})\s*([0-9][0-9.,]*)/i);
+  if(mFareLabel){
+    fareCur=mFareLabel[1].toUpperCase();
+    fareAmt=parseAmountAny(mFareLabel[2]);
+  } else {
+    const currencyRows = lines
+      .map(line => String(line).trim().match(/^([A-Z]{3})\s+([0-9][0-9.,]*)\b/i))
+      .filter(Boolean);
+    const originalFareRow = currencyRows.find(match => match[1].toUpperCase() !== "BRL") || currencyRows[0];
+    if(originalFareRow){
+      fareCur=originalFareRow[1].toUpperCase();
+      fareAmt=parseAmountAny(originalFareRow[2]);
+    }
+  }
   const mEq = flat.match(/\bEQUIV\b\s*BRL\s*([0-9][0-9.,]*)/i);
   if(mEq) equiv=parseAmountAny(mEq[1]);
   if(equiv==null){ const mEq2 = flat.match(/\bBRL\s*([0-9][0-9.,]*)\s+.{0,260}?(?:NUC|END|ROE)/i); if(mEq2) equiv=parseAmountAny(mEq2[1]); }

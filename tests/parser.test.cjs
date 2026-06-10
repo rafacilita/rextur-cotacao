@@ -29,6 +29,13 @@ function fixtureAll(name){
   return blocks.join("\n\n");
 }
 
+function fixtureBlocks(name){
+  const content = readFileSync(join(root, "exemplos_gds", name), "utf8");
+  const blocks = Array.from(content.matchAll(/```text\s*([\s\S]*?)```/gi), match => match[1].trim());
+  if(!blocks.length) throw new Error(`Blocos GDS nao encontrados em ${name}`);
+  return blocks;
+}
+
 test("detecta e interpreta PNR Amadeus simples", () => {
   const app = createApp();
   const raw = fixture("amadeus_pnr_simples.txt");
@@ -60,6 +67,44 @@ test("le tarifa Amadeus com cambio e bagagem", () => {
   assert.equal(price.fareAmt, 500);
   assert.equal(price.totalBRL, 3200);
   assert.equal(price.bag, "1PC");
+  app.close();
+});
+
+test("preserva tarifa original Amadeus em CNY para ADT CHD e INF", () => {
+  const app = createApp();
+  const [, adtRaw, chdRaw, infRaw] = fixtureBlocks("amadeus_cny_adt_chd_inf.txt");
+  const prices = [adtRaw, chdRaw, infRaw].map(raw => app.parsePricingAmadeus(raw));
+
+  assert.deepEqual(prices.map(price => price.fareCur), ["CNY", "CNY", "CNY"]);
+  assert.deepEqual(prices.map(price => price.fareAmt), [20500, 15380, 2050]);
+  assert.deepEqual(prices.map(price => price.equivBRL), [15647.79, 11739.66, 1564.77]);
+  assert.deepEqual(prices.map(price => price.totalBRL), [20513.52, 16338.26, 1564.77]);
+  assert.deepEqual(prices.map(price => price.bag), ["2PC", "2PC", "1PC"]);
+  app.close();
+});
+
+test("gera cotacao Amadeus CNY sem usar cambio CNY no RC", () => {
+  const app = createApp();
+  const [itinRaw, adtRaw, chdRaw, infRaw] = fixtureBlocks("amadeus_cny_adt_chd_inf.txt");
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = adtRaw;
+  app.document.getElementById("maskCHD").value = chdRaw;
+  app.document.getElementById("maskINF").value = infRaw;
+  app.document.getElementById("fldRC").value = "40";
+  app.setFxRate(5.1693, { source: "BCB" }, false);
+  app.build();
+
+  assert.equal(app._lastQuote.pricing.ADT.fareCur, "CNY");
+  assert.equal(app._lastQuote.pricing.CHD.fareCur, "CNY");
+  assert.equal(app._lastQuote.pricing.INF.fareCur, "CNY");
+  assert.equal(app._lastQuote.iataRate.rate, 5.1693);
+  assert.match(app.document.getElementById("preview").textContent, /CNY\s*20,500\.00/);
+  assert.match(app.document.getElementById("preview").textContent, /CNY\s*15,380\.00/);
+  assert.match(app.document.getElementById("preview").textContent, /CNY\s*2,050\.00/);
   app.close();
 });
 
