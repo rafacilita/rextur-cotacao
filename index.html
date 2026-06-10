@@ -930,11 +930,11 @@
               <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
             </div>
             <div class="field">
-              <label>WP/PQ e máscaras de tarifa</label>
+              <label>Tarifamento completo e máscaras</label>
 
               <div class="subcard" style="margin-top:0;">
                 <h3>Colar tudo de uma vez</h3>
-                <textarea id="maskAll" style="min-height:220px;" placeholder="Cole aqui o WP/WPP/PQ completo. O itinerário pode vir junto."></textarea>
+                <textarea id="maskAll" style="min-height:220px;" placeholder="Cole o Sabre WP/PQ ou Amadeus FQQ completo. O itinerário pode vir junto."></textarea>
                 <div class="maskCombinedActions">
                   <button id="btnSplitMasks" class="secondary" type="button">Identificar máscaras</button>
                   <div class="status" id="maskSplitStatus" role="status" aria-live="polite">Aguardando conteúdo</div>
@@ -971,7 +971,7 @@
                 </div>
               </details>
 
-              <div class="help">O sistema separa ADT, CNN/CHD e INF. Campos individuais permanecem disponíveis para revisão manual.</div>
+              <div class="help">O sistema separa ADT, CNN/CHD e INF em Sabre ou Amadeus. Campos individuais permanecem disponíveis para revisão.</div>
             </div>
           </div>
 
@@ -1788,11 +1788,59 @@ function splitSabrePricingMasks(raw){
   };
 }
 
+function classifyAmadeusPricingBlock(block){
+  const up = String(block || "").toUpperCase();
+  const header = up.match(/^\s*\d{2}\s+.*?\*\s*\*\s*(CH|IN)\b/m);
+  if(header) return header[1] === "IN" ? "INF" : "CHD";
+  if(/\/IN\d*\b/.test(up) || /\bIN\d*\+?\*\s*\*\s*IN\b/.test(up)) return "INF";
+  if(/\/CH\d*\b/.test(up) || /\bCH\d*\+?\*\s*\*\s*CH\b/.test(up)) return "CHD";
+  return /\bLAST TKT DTE\b/.test(up) && /\b[A-Z]{3}\s+[0-9]/.test(up) ? "ADT" : null;
+}
+
+function splitAmadeusPricingMasks(raw){
+  const text = String(raw || "").replace(/\r/g, "");
+  const lines = text.split("\n");
+  const starts = [];
+
+  lines.forEach((line, index) => {
+    const command = line.trim().match(/^FQQ(\d+)\s*$/i);
+    if(!command) return;
+    let next = index + 1;
+    while(next < lines.length && !lines[next].trim()) next++;
+    if(new RegExp(`^\\s*${command[1]}\\s+`).test(lines[next] || "")) starts.push(index);
+  });
+
+  const masks = { ADT: "", CHD: "", INF: "" };
+  for(let i = 0; i < starts.length; i++){
+    const start = starts[i];
+    const end = i + 1 < starts.length ? starts[i + 1] : lines.length;
+    const block = lines.slice(start, end).join("\n").trim();
+    const type = classifyAmadeusPricingBlock(block);
+    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
+  }
+
+  const foundTypes = ["ADT", "CHD", "INF"].filter(type => masks[type]);
+  const explicitCounts = detectPaxCountsFromPricing(text);
+  const counts = explicitCounts || {
+    ADT: masks.ADT ? 1 : 0,
+    CHD: masks.CHD ? 1 : 0,
+    INF: masks.INF ? 1 : 0
+  };
+  const itinerary = starts.length ? lines.slice(0, starts[0]).join("\n").trim() : "";
+  return { masks, counts: foundTypes.length ? counts : null, itinerary };
+}
+
+function splitCombinedPricingMasks(raw){
+  const text = String(raw || "");
+  if(/^\s*FQQ\d+\s*$/im.test(text)) return splitAmadeusPricingMasks(text);
+  return splitSabrePricingMasks(text);
+}
+
 function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
   const raw = $("maskAll").value.trim();
   if(!raw) return { masks: { ADT: "", CHD: "", INF: "" }, counts: null, itinerary: "" };
 
-  const result = splitSabrePricingMasks(raw);
+  const result = splitCombinedPricingMasks(raw);
   const found = [];
   for(const type of ["ADT", "CHD", "INF"]){
     const field = $(`mask${type}`);

@@ -236,6 +236,68 @@ test("distribui ADT CHD e INF quando todos os PQs estao presentes", () => {
   app.close();
 });
 
+test("separa FQQs Amadeus colados em um unico campo", () => {
+  const app = createApp();
+  const raw = fixture("amadeus_fqq_combinado_eur.txt");
+  const result = app.splitCombinedPricingMasks(raw);
+
+  assert.deepEqual(
+    { ADT: result.counts.ADT, CHD: result.counts.CHD, INF: result.counts.INF },
+    { ADT: 1, CHD: 1, INF: 1 }
+  );
+  assert.match(result.masks.ADT, /^FQQ01/m);
+  assert.match(result.masks.CHD, /^FQQ02/m);
+  assert.match(result.masks.INF, /^FQQ03/m);
+  assert.match(result.itinerary, /TK 418 S 20NOV/);
+  app.close();
+});
+
+test("le ADT CHD e INF dos FQQs Amadeus combinados", () => {
+  const app = createApp();
+  const result = app.splitCombinedPricingMasks(fixture("amadeus_fqq_combinado_eur.txt"));
+  const prices = ["ADT", "CHD", "INF"].map(type => app.parsePricingAmadeus(result.masks[type]));
+
+  assert.deepEqual(prices.map(price => price.fareCur), ["EUR", "EUR", "EUR"]);
+  assert.deepEqual(prices.map(price => price.fareAmt), [2348, 1761, 235]);
+  assert.deepEqual(prices.map(price => price.equivBRL), [13997.13, 10497.85, 1400.90]);
+  assert.deepEqual(prices.map(price => price.totalBRL), [18196.12, 14696.84, 1400.90]);
+  assert.deepEqual(prices.map(price => price.bag), ["2PC", "2PC", "1PC"]);
+  app.close();
+});
+
+test("gera cotacao completa a partir do campo combinado Amadeus", () => {
+  const app = createApp();
+  app.document.getElementById("maskAll").value = fixture("amadeus_fqq_combinado_eur.txt");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  app.build();
+
+  assert.equal(app.document.getElementById("qADT").value, "1");
+  assert.equal(app.document.getElementById("qCHD").value, "1");
+  assert.equal(app.document.getElementById("qINF").value, "1");
+  assert.equal(app._lastQuote.meta.gds, "AMA");
+  assert.equal(app._lastQuote.pricing.ADT.fareAmt, 2348);
+  assert.equal(app._lastQuote.pricing.CHD.fareAmt, 1761);
+  assert.equal(app._lastQuote.pricing.INF.fareAmt, 235);
+  assert.match(app.document.getElementById("preview").textContent, /EUR\s*2,348\.00/);
+  assert.match(app.document.getElementById("preview").textContent, /EUR\s*1,761\.00/);
+  assert.match(app.document.getElementById("preview").textContent, /EUR\s*235\.00/);
+  app.close();
+});
+
+test("interpreta retorno de marco no ano seguinte no Amadeus combinado", () => {
+  const app = createApp();
+  const raw = fixture("amadeus_fqq_combinado_eur.txt");
+  const result = app.splitCombinedPricingMasks(raw);
+  const year = app.inferYearFromText(raw);
+  const segments = app.parseItinerary(result.itinerary, "AMA", year);
+
+  assert.equal(year, 2026);
+  assert.equal(segments[0].depDateFmt, "20/11/2026");
+  assert.equal(segments[2].depDateFmt, "05/03/2027");
+  assert.equal(segments[3].depDateFmt, "06/03/2027");
+  app.close();
+});
+
 test("identifica companhia operadora em code-share", () => {
   const app = createApp();
   const raw = fixture("code_share_operated_by.txt");

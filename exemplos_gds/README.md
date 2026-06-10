@@ -23,6 +23,16 @@ O campo principal aceita itinerario, comando WPP e varios PQs no mesmo texto. O 
 - avisa quando um tipo foi declarado no comando, mas seu PQ nao aparece no conteudo;
 - aceita tarifa zero, como `JPY0 BRL0.00 BRL0.00INF`.
 
+## Amadeus: colagem combinada
+
+O mesmo campo aceita itinerario seguido de varios retornos `FQQ`. O sistema usa o cabecalho de cada bloco para separar:
+
+- ADT quando nao ha marcador de desconto;
+- CHD quando o cabecalho informa `CH`;
+- INF quando o cabecalho informa `IN`.
+
+Linhas de navegacao como `PAGE`, `fqq02` e `fqq03` podem permanecer no texto colado.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:
