@@ -349,6 +349,63 @@ test("gera os tres tipos a partir do FQQ Amadeus curto", () => {
   app.close();
 });
 
+test("interpreta itinerario visual Sabre em duas linhas", () => {
+  const app = createApp();
+  const raw = fixture("sabre_visual_yq_pq_paginado.txt");
+  const result = app.splitCombinedPricingMasks(raw);
+  const segments = app.parseItinerary(result.itinerary, "SAB", 2026);
+
+  assert.equal(segments.length, 1);
+  assert.deepEqual(
+    [
+      segments[0].airline,
+      segments[0].flight,
+      segments[0].rbd,
+      segments[0].org,
+      segments[0].dst,
+      segments[0].depDateFmt,
+      segments[0].depTimeFmt,
+      segments[0].arrTimeFmt,
+      segments[0].statusCode
+    ],
+    ["NH", "920", "W", "PVG", "NRT", "20/09/2026", "13:00", "16:55", "SS"]
+  );
+  app.close();
+});
+
+test("le taxas YQ em PQs Sabre paginados", () => {
+  const app = createApp();
+  const result = app.splitCombinedPricingMasks(fixture("sabre_visual_yq_pq_paginado.txt"));
+  const chd = app.parsePricingSabre(result.masks.CHD);
+  const inf = app.parsePricingSabre(result.masks.INF);
+
+  assert.equal(result.masks.ADT, "");
+  assert.deepEqual(
+    [chd.fareCur, chd.fareAmt, chd.equivBRL, chd.taxesBRL, chd.totalBRL, chd.bag],
+    ["CNY", 1690, 1291.52, 377.16, 1668.68, "2PC"]
+  );
+  assert.deepEqual(
+    [inf.fareCur, inf.fareAmt, inf.equivBRL, inf.taxesBRL, inf.totalBRL, inf.bag],
+    ["CNY", 230, 175.76, 40.15, 215.91, "1PC"]
+  );
+  app.close();
+});
+
+test("gera parcial Sabre visual preservando aviso de ADT ausente", () => {
+  const app = createApp();
+  app.document.getElementById("maskAll").value = fixture("sabre_visual_yq_pq_paginado.txt");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  app.build();
+
+  assert.equal(app._lastQuote.itinerary.length, 1);
+  assert.equal(app._lastQuote.pricing.ADT, null);
+  assert.equal(app._lastQuote.pricing.CHD.totalBRL, 1668.68);
+  assert.equal(app._lastQuote.pricing.INF.totalBRL, 215.91);
+  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/);
+  assert.match(app.document.getElementById("preview").textContent, /PVG.*NRT/s);
+  app.close();
+});
+
 test("identifica companhia operadora em code-share", () => {
   const app = createApp();
   const raw = fixture("code_share_operated_by.txt");

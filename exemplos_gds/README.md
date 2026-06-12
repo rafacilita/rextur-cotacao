@@ -23,6 +23,12 @@ O campo principal aceita itinerario, comando WPP e varios PQs no mesmo texto. O 
 - avisa quando um tipo foi declarado no comando, mas seu PQ nao aparece no conteudo;
 - aceita tarifa zero, como `JPY0 BRL0.00 BRL0.00INF`.
 
+Tambem sao aceitos:
+
+- itinerario visual em duas linhas, com cidades e horarios;
+- outros codigos de taxa no resumo do PQ, como `YQ`;
+- paginacao que deixa o cabecalho do PQ em uma tela e a linha de valores apos `MD`.
+
 ## Amadeus: colagem combinada
 
 O mesmo campo aceita itinerario seguido de varios retornos `FQQ`. O sistema usa o cabecalho de cada bloco para separar:
