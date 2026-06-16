@@ -930,19 +930,11 @@
               <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
             </div>
             <div class="field">
-              <label>Tarifamento completo e máscaras</label>
-
-              <div class="subcard" style="margin-top:0;">
-                <h3>Colar tudo de uma vez</h3>
-                <textarea id="maskAll" style="min-height:220px;" placeholder="Cole o Sabre WP/PQ ou Amadeus FQQ completo. O itinerário pode vir junto."></textarea>
-                <div class="maskCombinedActions">
-                  <button id="btnSplitMasks" class="secondary" type="button">Identificar máscaras</button>
-                  <div class="status" id="maskSplitStatus" role="status" aria-live="polite">Aguardando conteúdo</div>
-                </div>
-              </div>
-
-              <details class="maskReview" id="maskReview">
-                <summary>Revisar campos separados por passageiro</summary>
+              <label>Máscaras por passageiro</label>
+              <textarea id="maskAll" hidden aria-hidden="true"></textarea>
+              <button id="btnSplitMasks" class="secondary" type="button" hidden>Identificar máscaras</button>
+              <div class="status" id="maskSplitStatus" role="status" aria-live="polite" hidden>Aguardando conteúdo</div>
+              <div class="maskReview maskReviewStatic" id="maskReview">
                 <div class="subcard" id="maskADTWrap">
                   <h3>ADT (máscara)</h3>
                   <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
@@ -969,9 +961,9 @@
                     <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
                   </div>
                 </div>
-              </details>
+              </div>
 
-              <div class="help">O sistema separa ADT, CNN/CHD e INF em Sabre ou Amadeus. Campos individuais permanecem disponíveis para revisão.</div>
+              <div class="help">Cole cada máscara no passageiro correspondente. Esse modo é mais estável para validar cotações Sabre e Amadeus.</div>
             </div>
           </div>
 
@@ -1381,8 +1373,8 @@ function restoreDraft(){
   } else if($("fldFX").value.trim()){
     $("fldFX").dataset.source = "MANUAL";
   }
+  if($("maskAll")) $("maskAll").value = "";
   renderFxHint();
-  if($("maskAll").value.trim()) applyCombinedPricingInput({ overwrite: false, announce: false });
 
   const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
   updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
@@ -3701,7 +3693,6 @@ $("btnSplitMasks").addEventListener("click", ()=>{
 });
 
 $("btnBuild").addEventListener("click", ()=>{
-  if($("maskAll").value.trim()) applyCombinedPricingInput({ overwrite: false, announce: false });
   validationActivated = true;
   const issues = validateQuoteInput();
   renderValidation(issues);
