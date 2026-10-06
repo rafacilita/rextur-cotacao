@@ -1143,3 +1143,40 @@ test("avisa quando a moeda da tarifa nao e lida, em vez de enviar em branco", ()
   );
   app.close();
 });
+
+// ─── Identidade RexturAdvance no e-mail ───────────────────────────────────────
+
+test("e-mail carrega a identidade da marca", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+
+  const html = app.document.getElementById("preview").dataset.html;
+  // Navy do logo no cabecalho.
+  assert.match(html, /#002554/);
+  // Nome da marca acima do titulo.
+  assert.match(html, /RexturAdvance/);
+  // Filete com as quatro cores do laco, em celulas solidas que o Outlook aceita.
+  for(const cor of ["#ed458f", "#8c4593", "#04a8db", "#f2a75e"]){
+    assert.match(html, new RegExp(cor), `filete da marca sem a cor ${cor}`);
+  }
+  app.close();
+});
+
+test("cor de marca nao substitui cor de estado no e-mail", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = maskRaw;
+  app.build();
+
+  const html = app.document.getElementById("preview").dataset.html;
+  // O trecho sem bagagem precisa seguir em vermelho de alerta, e nao em cor da
+  // marca: e sinal de risco, nao identidade. Se virar magenta, a agencia perde
+  // a leitura de que algo exige atencao.
+  assert.match(html, /#a8321f/);
+  assert.doesNotMatch(html, /Sem Bag<\/td>[\s\S]{0,40}#ed458f/);
+  app.close();
+});
