@@ -1,0 +1,91 @@
+# Exemplo: Amadeus TST/FXP com tarifa em THB e origem em BKK
+
+## BLOCO GDS
+
+Origem do exemplo:
+Amadeus
+
+Descricao operacional:
+BKK DXB GRU CWB, emissao com origem na Tailandia, entao a tarifa sai em THB.
+
+Quantidade de passageiros:
+- 1 ADT
+
+Este exemplo existe por dois motivos, ambos defeitos reais encontrados nele:
+
+1. A linha de tarifa traz um indicador de tipo entre `FARE` e o codigo da moeda
+   (`FARE  F THB`). O parser exigia a moeda imediatamente apos `FARE`, entao nao
+   lia THB nem o valor, e o e-mail saia com a coluna de tarifa em branco.
+
+2. As taxas vem discriminadas no formato `TXnnn X BRL valor-CODIGO`, varias por
+   linha. A conferencia de taxas so reconhecia taxa no inicio da linha, entao
+   nao encontrava nenhuma e marcava as taxas como inferidas sem conferencia,
+   gerando aviso falso numa mascara que fecha exatamente.
+
+Observacao de dominio importante:
+a moeda da tarifa NAO pode ser deduzida da origem. Aqui a origem e BKK e a
+tarifa sai em THB, mas saindo do Brasil as tarifas internacionais costumam sair
+em USD. A unica fonte confiavel e o codigo ISO que o proprio GDS imprime.
+
+## MASCARA ADT
+
+```text
+TST00001     SAO2R2100 WS/06OCT I 0 LD 13MAR27 2359  OD BKKCWB
+T-
+FXP
+   1.TESTE/FULANA MRS(ADT/22MAR88)
+ 1   BKK EK  371 K 13MAR 0255  OK KSSOSTH1                   2PC
+ 2 X DXB EK  261 K 13MAR 0905  OK KSSOSTH1                   2PC
+ 3 X GRU LA 4551 S 13MAR 2035  OK KSSOSTH1                   2PC
+     CWB
+FARE  F THB      42535
+EQUIV   BRL    6634.91
+TX001 X BRL  1331.23-YQAC TX002 X BRL    35.75-BRLO TX003 X BRL     5.45-E7AP
+TX004 X BRL     3.89-G8DP TX005 X BRL   174.70-TSLA TX006 X BRL    71.11-F6TO
+TX007 X BRL     7.11-ZRAP
+TOTAL   BRL    8264.15    BSR 0.15598711
+GRAND TOTAL BRL    8264.15
+BKK EK X/DXB EK X/SAO LA CWB1285.47NUC1285.47END ROE33.08898
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Tipo de bloco:
+Tarifa final (TST/FXP)
+
+Valores:
+- Moeda da tarifa: THB
+- Tarifa: 42535 (valor inteiro, THB nao vem em centavos nesta mascara)
+- Equivalente BRL: 6634.91
+- Taxas BRL: 1629.24
+- Total BRL: 8264.15
+
+A soma das sete taxas discriminadas fecha exatamente com total menos
+equivalente: 1331.23 + 35.75 + 5.45 + 3.89 + 174.70 + 71.11 + 7.11 = 1629.24
+
+Procedencia esperada:
+- totalSource: EXPLICIT_TOTAL (ha linha GRAND TOTAL)
+- taxesSource: DERIVED_DIFF_CORROBORATED (as linhas TXnnn confirmam a diferenca)
+
+Bagagem:
+2PC em todos os trechos
+
+Cambio:
+O `BSR 0.15598711` e a taxa THB para BRL. NAO deve ser usado como cambio do RC,
+que e sempre informado em USD.
+
+Warnings esperados:
+- Nenhum sobre moeda, tarifa ou taxas
+
+Warnings que NAO devem aparecer:
+- Taxas inferidas sem conferencia
+- Tarifa nao identificada
+
+## OBSERVACOES
+
+Se um dia aparecer uma mascara cuja moeda o parser nao consiga ler, o sistema
+deve avisar na tela em vez de enviar a cotacao com a tarifa em branco. Esse
+aviso tambem e coberto por teste.

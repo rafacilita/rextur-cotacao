@@ -1061,3 +1061,85 @@ test("campo de cambio usa virgula decimal, igual ao resto da interface", () => {
   assert.equal(app.parseAmountAny(valor), 5.1695);
   app.close();
 });
+
+// ─── Moeda da tarifa: ler o codigo ISO que o GDS imprime ──────────────────────
+// A moeda nao pode ser deduzida da origem: BKK sai em THB, mas o Brasil costuma
+// sair em USD para rotas internacionais. A unica fonte confiavel e a mascara.
+
+test("le tarifa em THB com indicador de tipo na linha FARE", () => {
+  const app = createApp();
+  const price = app.parsePricingAmadeus(fixture("amadeus_thb_origem_bkk_tst.txt"));
+
+  // Antes da correcao a moeda e o valor saiam nulos, porque o parser exigia o
+  // codigo ISO imediatamente apos FARE e aqui vem "FARE  F THB".
+  assert.equal(price.fareCur, "THB");
+  assert.equal(price.fareAmt, 42535);
+  assert.equal(price.equivBRL, 6634.91);
+  assert.equal(price.taxesBRL, 1629.24);
+  assert.equal(price.totalBRL, 8264.15);
+  app.close();
+});
+
+test("indicador de tipo na linha FARE nao quebra os formatos ja suportados", () => {
+  const app = createApp();
+  // Sem indicador, formato classico.
+  const semIndicador = app.parsePricingAmadeus(fixture("amadeus_tarifa_fxp.txt"));
+  assert.equal(semIndicador.fareCur, "USD");
+  assert.equal(semIndicador.fareAmt, 500);
+
+  // "FARE BASIS" e "FARE FAMILIES" nao podem ser confundidos com linha de tarifa.
+  const armadilha = app.parsePricingAmadeus([
+    "FARE BASIS QLTSL58E",
+    "FARE FAMILIES:    (ENTER FQFn FOR DETAILS)",
+    "EUR 1200.00",
+    "BRL 7200.00 NUC1200.00END ROE1.00",
+    "BRL 7200.00"
+  ].join("\n"));
+  assert.equal(armadilha.fareCur, "EUR");
+  assert.equal(armadilha.fareAmt, 1200);
+  app.close();
+});
+
+test("conferencia de taxas reconhece o formato TXnnn", () => {
+  const app = createApp();
+  const price = app.parsePricingAmadeus(fixture("amadeus_thb_origem_bkk_tst.txt"));
+
+  // As sete taxas TXnnn somam exatamente total menos equivalente, entao a
+  // leitura esta conferida e nao deve gerar aviso de taxa inferida.
+  assert.equal(price.taxLinesBRL, 1629.24);
+  assert.equal(price.taxesSource, "DERIVED_DIFF_CORROBORATED");
+
+  const app2 = createApp();
+  app2.document.getElementById("itin").value = fixture("amadeus_pnr_simples.txt");
+  app2.document.getElementById("maskADT").value = fixture("amadeus_thb_origem_bkk_tst.txt");
+  app2.build();
+  const avisos = app2._lastQuote.meta.warnings;
+  assert.equal(avisos.some(w => /inferid/i.test(w)), false,
+    `nao deveria avisar sobre valor inferido: ${JSON.stringify(avisos)}`);
+  assert.equal(avisos.some(w => /moeda da tarifa/i.test(w)), false,
+    `nao deveria avisar sobre moeda: ${JSON.stringify(avisos)}`);
+  app.close();
+  app2.close();
+});
+
+test("avisa quando a moeda da tarifa nao e lida, em vez de enviar em branco", () => {
+  const app = createApp();
+  // Mascara com valores em BRL legiveis, mas sem nenhuma linha de moeda original.
+  const mask = [
+    "EQUIV   BRL    6634.91",
+    "TOTAL   BRL    8264.15",
+    "GRAND TOTAL BRL    8264.15"
+  ].join("\n");
+  const price = app.parsePricingAmadeus(mask);
+  assert.equal(price.fareCur, null);
+  assert.equal(price.equivBRL, 6634.91);
+
+  app.document.getElementById("itin").value = fixture("amadeus_pnr_simples.txt");
+  app.document.getElementById("maskADT").value = mask;
+  app.build();
+  assert.ok(
+    app._lastQuote.meta.warnings.some(w => /moeda da tarifa não identificada/i.test(w)),
+    "a falha de leitura da moeda precisa aparecer na tela"
+  );
+  app.close();
+});

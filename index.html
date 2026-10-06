@@ -2547,14 +2547,32 @@ function extractFareFamilies(pricingRaw){
   return found;
 }
 
-// Soma as linhas de taxa explicitas da mascara, para conferir taxas obtidas por diferenca.
-// Considera apenas linhas que COMECAM com "BRL n-XX" ou "TAX BRL n": somar todas as
-// ocorrencias de "-XX" contaria duas vezes o detalhamento de XT, que aparece
-// discriminado a direita e consolidado a esquerda na mesma mascara.
+// Soma as taxas discriminadas da mascara, para conferir taxas obtidas por diferenca.
+// Ha dois formatos de detalhamento no Amadeus e cada um exige uma regra propria,
+// documentada dentro da funcao. Retorna { sum, found }; found em zero significa
+// que nao havia taxa discriminada para cruzar.
 function sumExplicitTaxLinesBRL(pricingRaw){
+  const lines = trimLines(pricingRaw).map(l => String(l).replace(/[\u00a5\u00a4]/g, " ").trim());
+
+  // Formato TSTnnn/FXP: cada taxa vem rotulada como TX001, TX002 e assim por
+  // diante, varias por linha, sem linha consolidada. Aqui da para somar todas
+  // as ocorrencias sem risco de contar duas vezes.
+  if(lines.some(line => /\bTX\d{3}\b/i.test(line))){
+    let sum = 0, found = 0;
+    for(const line of lines){
+      for(const m of line.matchAll(/\bTX\d{3}\b\s*(?:[A-Z]\s+)?BRL\s*([0-9][0-9.,]*)/gi)){
+        const v = parseAmountAny(m[1]);
+        if(v != null){ sum += v; found++; }
+      }
+    }
+    return { sum: +sum.toFixed(2), found };
+  }
+
+  // Formato tradicional: considera apenas a PRIMEIRA coluna de taxas. Somar
+  // todas as ocorrencias de "-XX" contaria duas vezes o detalhamento de XT,
+  // que aparece discriminado a direita e consolidado a esquerda na mesma linha.
   let sum = 0, found = 0;
-  for(const l of trimLines(pricingRaw)){
-    const line = String(l).replace(/[\u00a5\u00a4]/g, " ").trim();
+  for(const line of lines){
     let m = line.match(/^BRL\s*([0-9][0-9.,]*)\s*-\s*([A-Z]{1,3})\b/i);
     if(!m) m = line.match(/^TAX(?:ES)?\s+BRL\s*([0-9][0-9.,]*)/i);
     if(m){ const v = parseAmountAny(m[1]); if(v != null){ sum += v; found++; } }
@@ -2611,10 +2629,13 @@ function parsePricingAmadeus(pricingRaw){
   const bagUniq = [...new Set(bagSegs)];
   const bag = bagUniq.length===0 ? null : (bagUniq.length===1 ? bagUniq[0] : "VAR");
   const fareFamilies = extractFareFamilies(pricingRaw);
-  const fareLabelLine = lines.find(line => /^\s*FARE\s+(?!BASIS\b)[A-Z]{3}\s*[0-9]/i.test(line));
-  const mFareLabel = fareLabelLine
-    ? fareLabelLine.match(/^\s*FARE\s+([A-Z]{3})\s*([0-9][0-9.,]*)/i)
-    : null;
+  // A moeda da tarifa e sempre o codigo ISO que o GDS imprime. Nao da para
+  // deduzir pela origem: BKK sai em THB, mas o Brasil costuma sair em USD.
+  // Entre FARE e o codigo pode vir um indicador de tipo de tarifa, como o
+  // "F" de "FARE  F THB  42535", por isso ele e opcional aqui.
+  const FARE_LINE_RE = /^\s*FARE\s+(?!BASIS\b)(?:[A-Z]\s+)?([A-Z]{3})\s*([0-9][0-9.,]*)/i;
+  const fareLabelLine = lines.find(line => FARE_LINE_RE.test(line));
+  const mFareLabel = fareLabelLine ? fareLabelLine.match(FARE_LINE_RE) : null;
   if(mFareLabel){
     fareCur=mFareLabel[1].toUpperCase();
     fareAmt=parseAmountAny(mFareLabel[2]);
@@ -3004,6 +3025,11 @@ function applyValidations(q) {
 
     if (pr.fareAmt == null && pr.equivBRL == null) {
       q.meta.warnings.push(`${type}: tarifa não identificada. Confira a máscara colada.`);
+    } else if (pr.fareAmt == null || pr.fareCur == null) {
+      // Os valores em BRL foram lidos, mas a moeda da tarifa não. Sem este aviso
+      // a cotação seguia para a agência com a coluna de tarifa em branco, sem
+      // ninguém perceber. Vale para qualquer moeda e qualquer formato novo.
+      q.meta.warnings.push(`${type}: moeda da tarifa não identificada na máscara. Os valores em BRL foram lidos, mas a tarifa na moeda original ficou em branco.`);
     }
 
     if (!pr.bag) {

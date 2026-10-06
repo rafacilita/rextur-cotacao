@@ -8,10 +8,34 @@ Esses exemplos servirao como base para evoluir o parser com seguranca. A ideia e
 
 O parser deve preservar o codigo ISO de tres letras informado pelo GDS. Exemplos ja cobertos:
 
-- USD, EUR e CNY
+- USD, EUR, CNY e THB
 - GBP, JPY, AUD, CAD, CHF e AED
 
-O equivalente, as taxas e o total continuam em BRL quando assim informados pelo GDS. O `RATE USED` de outra moeda, como CNY ou JPY, nao deve ser usado como cambio do RC, que e sempre informado em USD.
+O equivalente, as taxas e o total continuam em BRL quando assim informados pelo GDS. O `RATE USED` de outra moeda, como CNY ou JPY, nao deve ser usado como cambio do RC, que e sempre informado em USD. O mesmo vale para o `BSR` de uma mascara em THB.
+
+### A moeda nao se deduz da origem
+
+Nao existe regra de origem que determine a moeda da tarifa, e tentar inferir
+seria errado. Dois casos reais que se contradizem:
+
+- saindo de BKK, a tarifa sai em THB, acompanhando o pais de emissao;
+- saindo do Brasil, as tarifas internacionais costumam sair em USD, e nao em BRL.
+
+Entao a unica fonte confiavel e o codigo ISO que o proprio GDS imprime na
+mascara. O parser nao mantem lista de moedas aceitas: qualquer codigo de tres
+letras e lido e formatado, inclusive moedas sem centavos como JPY.
+
+O que o sistema garante no lugar de adivinhar: quando os valores em BRL sao
+lidos mas a moeda da tarifa nao, isso gera aviso na tela. Antes a cotacao seguia
+para a agencia com a coluna de tarifa em branco, sem ninguem perceber. Se uma
+mascara nova chegar num formato desconhecido, a falha aparece em vez de passar.
+
+Formatos de linha de tarifa ja suportados no Amadeus:
+
+```text
+FARE     USD     500.00      <- classico
+FARE  F THB      42535       <- com indicador de tipo entre FARE e a moeda
+```
 
 ## Sabre: colagem combinada
 
