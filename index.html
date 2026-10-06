@@ -622,14 +622,14 @@
     </div>
     <div class="title">
       <h1>Calculadora de Cotação INTER</h1>
-      <p>Leitura do GDS, revisão e e-mail pronto para a agência.</p>
+      <p>Leitura de GDS e de portal NDC, revisão e e-mail pronto para a agência.</p>
     </div>
   </div>
 
   <div class="pillrow">
     <div class="pill" title="Detectado do Itinerário">
       <span class="dot"></span>
-      <label>GDS:</label>
+      <label>Fonte:</label>
       <b id="gdsDetected" style="font-size:12px;">—</b>
     </div>
 
@@ -724,13 +724,108 @@
         </div>
 
         <div class="sourceBlock">
+          <div class="field" style="max-width:340px; margin-bottom:16px;">
+            <label for="fldFonte">Fonte dos dados</label>
+            <select id="fldFonte">
+              <option value="gds">Sabre ou Amadeus</option>
+              <option value="ndc">Portal NDC</option>
+            </select>
+          </div>
+
+          <div id="ndcBlock" style="display:none;">
+            <div class="row3">
+              <div class="field">
+                <label for="ndcCarrier">Companhia validadora</label>
+                <input id="ndcCarrier" maxlength="3" placeholder="Ex.: AZ" />
+              </div>
+              <div class="field">
+                <label for="ndcFareCur">Moeda da tarifa-base</label>
+                <input id="ndcFareCur" maxlength="3" placeholder="Ex.: USD" />
+              </div>
+              <div class="field">
+                <label for="ndcRate">Câmbio usado na tela</label>
+                <input id="ndcRate" inputmode="decimal" placeholder="Ex.: 5,2238" />
+              </div>
+            </div>
+            <div class="row3" style="margin-top:12px;">
+              <div class="field">
+                <label for="ndcBag">Bagagem</label>
+                <input id="ndcBag" placeholder="Ex.: 1PC / 2PC / NIL" />
+              </div>
+            </div>
+
+            <div class="subcard" id="ndcADTWrap">
+              <h3>Valores do adulto</h3>
+              <div class="row4">
+                <div class="field">
+                  <label for="ndcFareADT">Tarifa-base</label>
+                  <input id="ndcFareADT" inputmode="decimal" placeholder="1039.00" />
+                </div>
+                <div class="field">
+                  <label for="ndcEquivADT">Tarifa equivalente (BRL)</label>
+                  <input id="ndcEquivADT" inputmode="decimal" placeholder="5427.52" />
+                </div>
+                <div class="field">
+                  <label for="ndcTaxesADT">Impostos e taxas (BRL)</label>
+                  <input id="ndcTaxesADT" inputmode="decimal" placeholder="848.03" />
+                </div>
+                <div class="field">
+                  <label for="ndcTotalADT">Total por passageiro (BRL)</label>
+                  <input id="ndcTotalADT" inputmode="decimal" placeholder="6275.55" />
+                </div>
+              </div>
+            </div>
+            <div class="subcard" id="ndcCHDWrap">
+              <h3>Valores do criança</h3>
+              <div class="row4">
+                <div class="field">
+                  <label for="ndcFareCHD">Tarifa-base</label>
+                  <input id="ndcFareCHD" inputmode="decimal" placeholder="1039.00" />
+                </div>
+                <div class="field">
+                  <label for="ndcEquivCHD">Tarifa equivalente (BRL)</label>
+                  <input id="ndcEquivCHD" inputmode="decimal" placeholder="5427.52" />
+                </div>
+                <div class="field">
+                  <label for="ndcTaxesCHD">Impostos e taxas (BRL)</label>
+                  <input id="ndcTaxesCHD" inputmode="decimal" placeholder="848.03" />
+                </div>
+                <div class="field">
+                  <label for="ndcTotalCHD">Total por passageiro (BRL)</label>
+                  <input id="ndcTotalCHD" inputmode="decimal" placeholder="6275.55" />
+                </div>
+              </div>
+            </div>
+            <div class="subcard" id="ndcINFWrap">
+              <h3>Valores do bebê</h3>
+              <div class="row4">
+                <div class="field">
+                  <label for="ndcFareINF">Tarifa-base</label>
+                  <input id="ndcFareINF" inputmode="decimal" placeholder="1039.00" />
+                </div>
+                <div class="field">
+                  <label for="ndcEquivINF">Tarifa equivalente (BRL)</label>
+                  <input id="ndcEquivINF" inputmode="decimal" placeholder="5427.52" />
+                </div>
+                <div class="field">
+                  <label for="ndcTaxesINF">Impostos e taxas (BRL)</label>
+                  <input id="ndcTaxesINF" inputmode="decimal" placeholder="848.03" />
+                </div>
+                <div class="field">
+                  <label for="ndcTotalINF">Total por passageiro (BRL)</label>
+                  <input id="ndcTotalINF" inputmode="decimal" placeholder="6275.55" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="textareas">
             <div class="field">
               <label for="itin">Itinerário</label>
               <textarea id="itin" placeholder="Cole o itinerário do Sabre ou Amadeus"></textarea>
               <div class="help">O GDS é identificado pelo formato do itinerário colado.</div>
             </div>
-            <div class="field">
+            <div class="field" id="maskColumn">
               <label>Máscaras por passageiro</label>
               <textarea id="maskAll" hidden aria-hidden="true"></textarea>
               <button id="btnSplitMasks" class="secondary" type="button" hidden>Identificar máscaras</button>
@@ -1165,6 +1260,8 @@ function renderFxHint(){
 
   if(rate != null && meta.source === "BCB" && meta.baseDate && meta.usageDate){
     hint.textContent = `Venda BCB de ${rate.toFixed(4).replace(".", ",")}, fechamento de ${meta.baseDate}, aplicado em ${meta.usageDate}. Vale só para o RC. A tarifa em BRL continua a do GDS.`;
+  } else if(rate != null && meta.source === "NDC"){
+    hint.textContent = "Câmbio lido da tela do portal, onde a tarifa-base é em USD. Vale só para o RC.";
   } else if(rate != null && meta.source === "GDS"){
     hint.textContent = "Câmbio lido da máscara do GDS. Vale só para o RC. A tarifa em BRL continua a do GDS.";
   } else if(rate != null){
@@ -1300,11 +1397,20 @@ function validateQuoteInput(){
 
   if(qADT + qCHD + qINF <= 0) add("qADT", "Informe pelo menos um passageiro.", "error");
   if(!itin) add("itin", "Cole o itinerário antes de gerar a prévia.", "error");
-  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato colado não corresponde a Sabre nem a Amadeus.", "error");
+  else if(fonteAtiva() !== "ndc" && detectGDSFromItin(itin) === SOURCE_DASH) add("itin", "O formato colado não corresponde a Sabre nem a Amadeus.", "error");
 
-  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara do ADT está vazia.");
-  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara do CHD está vazia.");
-  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara do INF está vazia.");
+  if(fonteAtiva() === "ndc"){
+    // No portal nao ha mascara: o que precisa estar preenchido sao os valores.
+    const faltando = ["ADT","CHD","INF"]
+      .filter(t => (t === "ADT" ? qADT : t === "CHD" ? qCHD : qINF) > 0)
+      .filter(t => !["Fare","Equiv","Taxes","Total"].some(c => ($("ndc"+c+t) || {}).value?.trim()));
+    for(const t of faltando) add("ndcEquiv" + t, `Informe os valores do ${t} lidos na tela do portal.`);
+    if(!$("ndcFareCur").value.trim()) add("ndcFareCur", "Informe a moeda da tarifa-base.");
+  } else {
+    if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara do ADT está vazia.");
+    if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara do CHD está vazia.");
+    if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara do INF está vazia.");
+  }
 
   if($("fldCondicao").value === "Outro" && !$("fldCondOutro").value.trim()){
     add("fldCondOutro", "Escreva a condição ou escolha outra opção.");
@@ -1419,6 +1525,45 @@ function enhanceAccessibility(){
 }
 
 // ─── UI (inalterada) ──────────────────────────────────────────────────────────
+
+// Fonte ativa dos dados. "gds" cobre Sabre e Amadeus por colagem de texto;
+// "ndc" cobre portais de companhia, onde os valores sao transcritos da tela.
+function fonteAtiva(){
+  const el = $("fldFonte");
+  return (el && el.value === "ndc") ? "ndc" : "gds";
+}
+
+// Mostra o bloco da fonte escolhida e ajusta o texto de apoio do itinerario,
+// que muda de formato entre colagem de GDS e transcricao de portal.
+function refreshSourceUI(){
+  const ndc = fonteAtiva() === "ndc";
+  const bloco = $("ndcBlock");
+  const mascaras = $("maskColumn");
+  if(bloco) bloco.style.display = ndc ? "" : "none";
+  if(mascaras) mascaras.style.display = ndc ? "none" : "";
+
+  const itin = $("itin");
+  const ajuda = itin ? itin.parentElement.querySelector(".help") : null;
+  if(itin){
+    itin.placeholder = ndc
+      ? "AZ675 W GRU FCO 10FEV27 1545 0705+1 339"
+      : "Cole o itinerário do Sabre ou Amadeus";
+  }
+  if(ajuda){
+    ajuda.textContent = ndc
+      ? "Uma linha por voo: voo, classe, origem, destino, data, saída, chegada com +1 se cair no dia seguinte, e equipamento. Use ARNK para trecho terrestre."
+      : "O GDS é identificado pelo formato do itinerário colado.";
+  }
+
+  // Os blocos de valores seguem a quantidade de passageiros informada.
+  if(ndc){
+    const qtd = { ADT: +$("qADT").value || 0, CHD: +$("qCHD").value || 0, INF: +$("qINF").value || 0 };
+    for(const tipo of ["ADT", "CHD", "INF"]){
+      const wrap = $("ndc" + tipo + "Wrap");
+      if(wrap) wrap.style.display = qtd[tipo] > 0 ? "" : "none";
+    }
+  }
+}
 
 function refreshOptionalUI(){
   const c = $("fldCondicao").value;
@@ -1816,15 +1961,28 @@ function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
   return result;
 }
 
+$("fldFonte").addEventListener("change", ()=>{
+  refreshSourceUI();
+  const g = fonteAtiva() === "ndc" ? "NDC" : detectGDSFromItin($("itin").value || "");
+  $("gdsDetected").textContent = sourceLabel(g);
+  markPreviewDirty();
+  scheduleDraftSave();
+});
 $("fldCondicao").addEventListener("change", refreshOptionalUI);
 ["payFaturado","payCartao","payDeposito"].forEach(id => $(id).addEventListener("change", refreshOptionalUI));
 $("fldAssentosMode").addEventListener("change", refreshOptionalUI);
-["qADT","qCHD","qINF","chkNomes"].forEach(id => $(id).addEventListener("input", refreshPaxUI));
+["qADT","qCHD","qINF","chkNomes"].forEach(id => $(id).addEventListener("input", ()=>{ refreshPaxUI(); refreshSourceUI(); }));
 $("fldLOC").addEventListener("input", (e)=>{ e.target.value = e.target.value.toUpperCase(); });
 refreshOptionalUI();
 refreshPaxUI();
 
 // ─── GDS DETECT (inalterado) ──────────────────────────────────────────────────
+
+// Rotulo de cada fonte de dados. NDC nao e um GDS: e um portal de reserva da
+// companhia, onde os dados sao transcritos da tela em vez de colados como texto.
+const SOURCE_LABEL = { AMA: "Amadeus", SAB: "Sabre", NDC: "Portal NDC" };
+const SOURCE_DASH = "\u2014";
+function sourceLabel(code){ return SOURCE_LABEL[code] || SOURCE_DASH; }
 
 function detectGDSFromItin(itinRaw){
   const lines = trimLines(itinRaw);
@@ -2763,6 +2921,22 @@ function parsePricingSabre(pricingRaw){
 
 // ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
 
+// Monta os precos do portal para um tipo de passageiro. Moeda, cambio e bagagem
+// sao do orcamento inteiro; so os quatro valores monetarios variam por tipo.
+function collectNdcPricing(tipo){
+  const v = (id) => { const el = $(id); return el ? el.value.trim() : ""; };
+  const temValor = ["Fare", "Equiv", "Taxes", "Total"].some(c => v("ndc" + c + tipo));
+  if(!temValor) return null;
+  return buildNdcPricing({
+    fareCur:  v("ndcFareCur"),
+    fareAmt:  v("ndcFare"  + tipo),
+    equivBRL: v("ndcEquiv" + tipo),
+    taxesBRL: v("ndcTaxes" + tipo),
+    totalBRL: v("ndcTotal" + tipo),
+    bag:      v("ndcBag")
+  });
+}
+
 function collectPayment(){
   const parts=[];
   if($("payFaturado").checked) parts.push("Faturado");
@@ -2773,6 +2947,136 @@ function collectPayment(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// PORTAL NDC
+//
+// Portais de reserva da companhia (eLATAM, e-GOL) nao devolvem mascara de texto
+// como Sabre e Amadeus: a tela e HTML. Por isso os dados chegam transcritos pelo
+// operador, em campos estruturados, e nao por colagem de texto bruto.
+//
+// As duas funcoes abaixo devolvem o MESMO formato dos parsers de GDS, de modo que
+// o restante do sistema (modelo, motor de regras, e-mail) nao distingue a origem.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Converte horario de 12 horas do portal para 24 horas. "03:45p" vira "1545".
+// Devolve null quando nao reconhece, para o chamador decidir o que fazer.
+function ndcTime12to24(token){
+  const m = String(token || "").trim().match(/^(\d{1,2}):?(\d{2})\s*([ap])m?$/i);
+  if(!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const periodo = m[3].toLowerCase();
+  if(h === 12) h = 0;
+  if(periodo === "p") h += 12;
+  return String(h).padStart(2, "0") + min;
+}
+
+// Le o itinerario do portal em uma linha por voo:
+//   VOO CLASSE ORIGEM DESTINO DATA SAIDA CHEGADA[+N] [EQUIPAMENTO]
+// Exemplo: AZ675 W GRU FCO 10FEV27 1545 0705+1 339
+//
+// A linha ARNK marca trecho terrestre, igual ao Amadeus, o que faz o open jaw
+// ser tratado pela mesma logica ja existente de projecao aerea.
+function parseNdcItinerary(raw, year){
+  const MES = { JAN:1, FEV:2, MAR:3, ABR:4, MAI:5, JUN:6, JUL:7, AGO:8, SET:9, OUT:10, NOV:11, DEZ:12,
+                FEB:2, APR:4, MAY:5, AUG:8, SEP:9, OCT:10, DEC:12 };
+  const segs = [];
+
+  for(const linha of trimLines(raw)){
+    const l = String(linha).trim();
+    if(!l) continue;
+
+    // Trecho terrestre: reaproveita o mesmo formato de segmento de superficie
+    // que o ramo Amadeus produz, incluindo statusClass "surface".
+    if(/^(ARNK|\/\/)$/i.test(l)){
+      segs.push({
+        surface: true, org: null, dst: null,
+        airline: "", flight: "", rbd: "",
+        depDateFmt: "", arrDateFmt: "", depTimeFmt: "", arrTimeFmt: "",
+        arrDayOffset: 0, statusCode: "ARNK", statusClass: "surface",
+        paxCount: null, equipment: null,
+        opCarrier: null, opFlight: null, opName: null
+      });
+      continue;
+    }
+
+    const m = l.match(new RegExp(
+      "^([A-Z0-9]{2})\\s*(\\d{1,4})" +      // companhia e voo, juntos ou separados
+      "\\s+([A-Z])" +                        // classe
+      "\\s+([A-Z]{3})\\s+([A-Z]{3})" +      // origem e destino
+      "\\s+(\\d{2})([A-Z]{3})(\\d{2})" +  // data: 10FEV27
+      "\\s+(\\d{3,4})" +                    // hora de saida
+      "\\s+(\\d{3,4})(?:\\+(\\d))?" +   // hora de chegada e offset de dia
+      "(?:\\s+(\\S+))?\\s*$", "i"));      // equipamento, opcional
+    if(!m) continue;
+
+    const mes = MES[m[7].toUpperCase()];
+    if(!mes) continue;
+
+    // Ano de dois digitos vem do portal; year entra apenas como reserva.
+    const ano = 2000 + parseInt(m[8], 10);
+    const dia = parseInt(m[6], 10);
+    const fmt = (d, mm, yy) => String(d).padStart(2,"0") + "/" + String(mm).padStart(2,"0") + "/" + yy;
+
+    const offset = m[11] ? parseInt(m[11], 10) : 0;
+    // A data de chegada deriva da saida mais o offset, respeitando virada de mes.
+    const chegada = new Date(Date.UTC(ano, mes - 1, dia + offset));
+
+    segs.push({
+      org: m[4].toUpperCase(),
+      dst: m[5].toUpperCase(),
+      airline: m[1].toUpperCase(),
+      flight: m[2],
+      rbd: m[3].toUpperCase(),
+      depDateFmt: fmt(dia, mes, ano),
+      arrDateFmt: fmt(chegada.getUTCDate(), chegada.getUTCMonth() + 1, chegada.getUTCFullYear()),
+      depTimeFmt: fmtTime(m[9]),
+      arrTimeFmt: fmtTime(m[10]),
+      arrDayOffset: offset,
+      // O portal so lista voos confirmados no carrinho, entao nao ha status a ler.
+      statusCode: "", statusClass: "confirmed",
+      paxCount: null,
+      equipment: m[12] ? m[12].toUpperCase() : null,
+      opCarrier: null, opFlight: null, opName: null
+    });
+  }
+
+  return segs;
+}
+
+// Monta o objeto de precos a partir dos campos transcritos da tela do portal.
+// Procedencia NDC_MANUAL deixa explicito que o valor foi informado pelo operador,
+// e nao lido de uma linha de mascara nem inferido por diferenca.
+function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag }){
+  const num = (v) => { const n = parseAmountAny(v); return (n != null && Number.isFinite(n)) ? n : null; };
+  const cur = String(fareCur || "").trim().toUpperCase();
+  const equiv = num(equivBRL);
+  const taxes = num(taxesBRL);
+  let total = num(totalBRL);
+
+  // Total ausente mas as duas partes presentes: a soma e exata, nao uma inferencia.
+  if(total == null && equiv != null && taxes != null) total = +(equiv + taxes).toFixed(2);
+
+  const franquia = normalizeBagAllowance(bag);
+
+  return {
+    fareCur: /^[A-Z]{3}$/.test(cur) ? cur : null,
+    fareAmt: num(fareAmt),
+    equivBRL: equiv,
+    taxesBRL: taxes,
+    totalBRL: total,
+    bag: franquia,
+    bagSegs: franquia ? [franquia] : [],
+    fareFamily: null,
+    fareFamilies: [],
+    totalSource: total != null ? "NDC_MANUAL" : null,
+    // A tela do portal mostra o total de impostos e taxas de forma explicita,
+    // entao o valor e lido, nao obtido por subtracao.
+    taxesSource: taxes != null ? "READ" : null,
+    taxLinesBRL: null
+  };
+}
+
 // QUOTEMODEL — FASE 1
 // Camada intermediária entre parser e renderer.
 // Não altera parsing nem renderização — só organiza os dados.
@@ -3214,6 +3518,7 @@ function applyRules(quote) {
 function buildEmail(quote) {
   // ── Compat layer: QuoteModel → variáveis internas ───────────────────────────
   const cabine          = quote.commercial.cabine;
+  const validatingCarrier = quote.commercial.validatingCarrier || "";
   const condicao        = quote.commercial.condicao;
   const rcUSD           = quote.commercial.rcUSD;
   const fxRate          = quote.iataRate ? quote.iataRate.rate : null;
@@ -3407,6 +3712,9 @@ function buildEmail(quote) {
   }
   if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
   if(cabine) optItems.push(["Cabine", escapeHtml(cabine)]);
+  // Companhia validadora aparece quando informada: e quem emite o bilhete, e pode
+  // nao ser a companhia que opera o primeiro voo.
+  if(validatingCarrier) optItems.push(["Companhia validadora", escapeHtml(validatingCarrier)]);
   if(pay.methods.length) optItems.push(["Forma de pagamento", escapeHtml(pay.methods.join(", ")) + (pay.link ? ` — link: ${escapeHtml(pay.link)}` : "")]);
   if(condicao) optItems.push(["Condição", escapeHtml(condicao)]);
   if(assentosText) optItems.push(["Assentos", escapeHtml(assentosText)]);
@@ -3544,18 +3852,21 @@ function buildEmail(quote) {
 
 function build() {
   const itin = $("itin").value || "";
-  const gds = detectGDSFromItin(itin);
-  $("gdsDetected").textContent = (gds === "AMA" ? "Amadeus" : (gds === "SAB" ? "Sabre" : "—"));
-  if (gds === "—") {
+  const fonte = fonteAtiva();
+  // No modo NDC a fonte e escolhida pelo operador, nao detectada: a tela do
+  // portal nao deixa assinatura de texto como um retorno de GDS deixa.
+  const gds = (fonte === "ndc") ? "NDC" : detectGDSFromItin(itin);
+  $("gdsDetected").textContent = sourceLabel(gds);
+  if (gds === SOURCE_DASH) {
     setStatus("GDS não identificado pelo formato do itinerário", true);
   } else {
-    setStatus("GDS identificado: " + (gds === "AMA" ? "Amadeus" : "Sabre"));
+    setStatus("Fonte identificada: " + sourceLabel(gds));
   }
 
   const year = inferYearFromText(
     itin + "\n" + $("maskADT").value + "\n" + $("maskCHD").value + "\n" + $("maskINF").value
   );
-  const segs = parseItinerary(itin, gds, year);
+  const segs = (fonte === "ndc") ? parseNdcItinerary(itin, year) : parseItinerary(itin, gds, year);
 
   // ── coleta campos de configuração (inalterado) ────────────────────────────
   const cabine       = $("fldCabine").value || "";
@@ -3580,10 +3891,17 @@ function build() {
 
   // ── parsing de tarifas (inalterado) ───────────────────────────────────────
   const prices = {};
-  const parseFor = (raw) => (gds === "SAB" ? parsePricingSabre(raw) : (gds === "AMA" ? parsePricingAmadeus(raw) : null));
-  if (pax.adt > 0 && $("maskADT").value.trim()) prices.ADT = parseFor($("maskADT").value);
-  if (pax.chd > 0 && $("maskCHD").value.trim()) prices.CHD = parseFor($("maskCHD").value);
-  if (pax.inf > 0 && $("maskINF").value.trim()) prices.INF = parseFor($("maskINF").value);
+  if (fonte === "ndc") {
+    if (pax.adt > 0) prices.ADT = collectNdcPricing("ADT");
+    if (pax.chd > 0) prices.CHD = collectNdcPricing("CHD");
+    if (pax.inf > 0) prices.INF = collectNdcPricing("INF");
+    for (const t of ["ADT","CHD","INF"]) if (prices[t] == null) delete prices[t];
+  } else {
+    const parseFor = (raw) => (gds === "SAB" ? parsePricingSabre(raw) : (gds === "AMA" ? parsePricingAmadeus(raw) : null));
+    if (pax.adt > 0 && $("maskADT").value.trim()) prices.ADT = parseFor($("maskADT").value);
+    if (pax.chd > 0 && $("maskCHD").value.trim()) prices.CHD = parseFor($("maskCHD").value);
+    if (pax.inf > 0 && $("maskINF").value.trim()) prices.INF = parseFor($("maskINF").value);
+  }
 
   // ── bagagem manual override (inalterado) ─────────────────────────────────
   function applyBagOverride(typeKey, wrapId, inputId) {
@@ -3617,9 +3935,20 @@ function build() {
     if (mm) return parseFloat(mm[1]);
     return null;
   }
-  const fxMaskSrc = [$("maskADT").value, $("maskCHD").value, $("maskINF").value].join("\n\n");
-  const fxIata = extractIataFx(fxMaskSrc);
-  if (!fxInput && fxIata != null) setFxRate(fxIata, { source: "GDS" }, false);
+  if (fonte === "ndc") {
+    // A taxa da tela converte a MOEDA DA TARIFA para BRL. O RC e sempre em USD,
+    // entao ela so pode alimentar o câmbio do RC quando a tarifa tambem for USD.
+    // Foi exatamente o erro evitado no caso THB, onde o BSR era THB para BRL.
+    const moedaNdc = ($("ndcFareCur").value || "").trim().toUpperCase();
+    const taxaNdc = parseAmountAny($("ndcRate").value);
+    if (!fxInput && taxaNdc != null && taxaNdc > 0 && moedaNdc === "USD") {
+      setFxRate(taxaNdc, { source: "NDC" }, false);
+    }
+  } else {
+    const fxMaskSrc = [$("maskADT").value, $("maskCHD").value, $("maskINF").value].join("\n\n");
+    const fxIata = extractIataFx(fxMaskSrc);
+    if (!fxInput && fxIata != null) setFxRate(fxIata, { source: "GDS" }, false);
+  }
   const fxRate = parseAmountAny($("fldFX").value);
 
   // ── nomes de passageiros (inalterado) ────────────────────────────────────
@@ -3627,9 +3956,16 @@ function build() {
 
   // ── NOVO: monta QuoteModel ───────────────────────────────────────────────
   // Agrega os dados já parseados em uma estrutura única e tipada.
+  // Companhia validadora: quem emite o bilhete, que pode diferir de quem opera
+  // o primeiro voo. Por isso entra como campo proprio e nao sobrescreve a cia.
+  const validatingCarrier = (fonte === "ndc")
+    ? ($("ndcCarrier").value || "").trim().toUpperCase()
+    : "";
+
   const commercial = {
     cabine,
     condicao,
+    validatingCarrier,
     rcUSD,
     assentosText,
     payment,
@@ -3646,7 +3982,7 @@ function build() {
         from: 'USD',
         to: 'BRL',
         rate: fxRate,
-        source: $("fldFX").dataset.source || (fxInput ? 'MANUAL' : 'GDS'),
+        source: $("fldFX").dataset.source || (fxInput ? 'MANUAL' : (fonte === "ndc" ? 'NDC' : 'GDS')),
         baseDate: $("fldFX").dataset.baseDate || null,
         usageDate: $("fldFX").dataset.usageDate || null
       }
@@ -3688,8 +4024,8 @@ function build() {
 
 $("itin").addEventListener("input", ()=>{
   const itinRaw = $("itin").value || "";
-  const g = detectGDSFromItin(itinRaw);
-  $("gdsDetected").textContent = (g==="AMA" ? "Amadeus" : (g==="SAB" ? "Sabre" : "—"));
+  const g = fonteAtiva() === "ndc" ? "NDC" : detectGDSFromItin(itinRaw);
+  $("gdsDetected").textContent = sourceLabel(g);
   const paxList = parsePaxFromItin(itinRaw);
   if(paxList.length){
     const adt = paxList.filter(p=>p.type==="ADT").length;
@@ -3798,6 +4134,12 @@ $("btnClear").addEventListener("click", ()=>{
   $("maskReview").open = false;
   ["source","baseDate","usageDate"].forEach(key => { delete $("fldFX").dataset[key]; });
   renderFxHint();
+  $("fldFonte").value="gds";
+  ["ndcCarrier","ndcFareCur","ndcRate","ndcBag"].forEach(id=>{ if($(id)) $(id).value=""; });
+  for(const t of ["ADT","CHD","INF"]) for(const c of ["Fare","Equiv","Taxes","Total"]){
+    const el = $("ndc"+c+t); if(el) el.value="";
+  }
+  refreshSourceUI();
   $("fldCabine").value="Econômica";
   $("fldCondicao").value="Incluir a RAV";
   $("fldAssentosMode").value="";
@@ -3813,7 +4155,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("preview").dataset.html="";
   document.body.classList.remove("has-preview");
   $("subjectPill").textContent="Assunto: —";
-  $("gdsDetected").textContent="—";
+  $("gdsDetected").textContent = SOURCE_DASH;
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
   window._lastQuote = null;
   previewDirty = false;
@@ -3828,6 +4170,7 @@ $("btnClear").addEventListener("click", ()=>{
 
 refreshOptionalUI();
 refreshPaxUI();
+refreshSourceUI();
 enhanceAccessibility();
 
 document.querySelector("main").addEventListener("input", (event)=>{
@@ -3856,7 +4199,7 @@ document.querySelector("main").addEventListener("change", (event)=>{
 const restoredDraft = restoreDraft();
 if(restoredDraft){
   const restoredGds = detectGDSFromItin($("itin").value || "");
-  $("gdsDetected").textContent = restoredGds === "AMA" ? "Amadeus" : (restoredGds === "SAB" ? "Sabre" : "—");
+  $("gdsDetected").textContent = sourceLabel(restoredGds);
 }
 
 // Preenchimento automatico do cambio na abertura. Nao lanca e nao bloqueia a tela:

@@ -1180,3 +1180,164 @@ test("cor de marca nao substitui cor de estado no e-mail", () => {
   assert.doesNotMatch(html, /Sem Bag<\/td>[\s\S]{0,40}#ed458f/);
   app.close();
 });
+
+// ─── Portal NDC (eLATAM e similares) ─────────────────────────────────────────
+// Portais de companhia nao devolvem mascara de texto: a tela e HTML. Os dados
+// chegam transcritos em campos estruturados, mas desembocam no MESMO modelo.
+
+const ITIN_NDC = [
+  "AZ675 W GRU FCO 10FEV27 1545 0705+1 339",
+  "AZ202 W FCO LHR 11FEV27 0750 0940 32N",
+  "ARNK",
+  "LH2227 T CDG MUC 24FEV27 0910 1035 32N",
+  "LH504 T MUC GRU 24FEV27 1155 2025 359"
+].join("\n");
+
+function preencheNdc(app, { moeda = "USD", rate = "5,2238" } = {}) {
+  const set = (id, v) => { app.document.getElementById(id).value = v; };
+  set("fldFonte", "ndc");
+  app.refreshSourceUI();
+  set("itin", ITIN_NDC);
+  set("ndcCarrier", "AZ");
+  set("ndcFareCur", moeda);
+  set("ndcRate", rate);
+  set("ndcBag", "1PC");
+  set("ndcFareADT", "1039.00");
+  set("ndcEquivADT", "5427.52");
+  set("ndcTaxesADT", "848.03");
+  set("ndcTotalADT", "6275.55");
+}
+
+test("converte horario de 12 horas do portal para 24 horas", () => {
+  const app = createApp();
+  assert.equal(app.ndcTime12to24("03:45p"), "1545");
+  assert.equal(app.ndcTime12to24("07:05a"), "0705");
+  assert.equal(app.ndcTime12to24("08:25p"), "2025");
+  // Meia-noite e meio-dia sao os casos onde conversao ingenua erra.
+  assert.equal(app.ndcTime12to24("12:30a"), "0030");
+  assert.equal(app.ndcTime12to24("12:15p"), "1215");
+  assert.equal(app.ndcTime12to24("abacaxi"), null);
+  app.close();
+});
+
+test("le itinerario do portal com virada de dia e trecho terrestre", () => {
+  const app = createApp();
+  const segs = app.parseNdcItinerary(ITIN_NDC, 2027);
+
+  assert.equal(segs.length, 5);
+  assert.equal(segs[2].surface, true);
+  assert.deepEqual(
+    Array.from(segs.filter(s => !s.surface), s => `${s.airline}${s.flight} ${s.org}-${s.dst}`),
+    ["AZ675 GRU-FCO", "AZ202 FCO-LHR", "LH2227 CDG-MUC", "LH504 MUC-GRU"]
+  );
+  // Sai 10/02 as 15:45 e chega 11/02 as 07:05: o +1 precisa virar a data.
+  assert.equal(segs[0].depDateFmt, "10/02/2027");
+  assert.equal(segs[0].depTimeFmt, "15:45");
+  assert.equal(segs[0].arrDateFmt, "11/02/2027");
+  assert.equal(segs[0].arrTimeFmt, "07:05");
+  assert.equal(segs[0].arrDayOffset, 1);
+  assert.equal(segs[0].equipment, "339");
+  app.close();
+});
+
+test("rota do portal preserva o open jaw entre LHR e CDG", () => {
+  const app = createApp();
+  const segs = app.parseNdcItinerary(ITIN_NDC, 2027);
+  assert.equal(app.buildRouteString(segs), "GRU-FCO-LHR // CDG-MUC-GRU");
+  app.close();
+});
+
+test("valores do portal entram como lidos, nao como inferidos", () => {
+  const app = createApp();
+  const pr = app.buildNdcPricing({
+    fareCur: "USD", fareAmt: "1039.00",
+    equivBRL: "5427.52", taxesBRL: "848.03", totalBRL: "6275.55", bag: "1PC"
+  });
+  assert.equal(pr.fareCur, "USD");
+  assert.equal(pr.fareAmt, 1039);
+  assert.equal(pr.equivBRL, 5427.52);
+  assert.equal(pr.taxesBRL, 848.03);
+  assert.equal(pr.totalBRL, 6275.55);
+  assert.equal(pr.bag, "1PC");
+  // A tela mostra o total de taxas explicito, entao e leitura e nao subtracao.
+  assert.equal(pr.taxesSource, "READ");
+  assert.equal(pr.totalSource, "NDC_MANUAL");
+  app.close();
+});
+
+test("total ausente no portal e somado, nao inferido", () => {
+  const app = createApp();
+  const pr = app.buildNdcPricing({
+    fareCur: "USD", fareAmt: "1039", equivBRL: "5427.52", taxesBRL: "848.03", totalBRL: ""
+  });
+  assert.equal(pr.totalBRL, 6275.55);
+  assert.equal(pr.totalSource, "NDC_MANUAL");
+  app.close();
+});
+
+test("gera cotacao completa a partir do portal NDC", () => {
+  const app = createApp();
+  preencheNdc(app);
+  app.document.getElementById("fldRC").value = "25";
+  app.build();
+
+  const q = app._lastQuote;
+  assert.equal(q.meta.gds, "NDC");
+  assert.equal(app.document.getElementById("gdsDetected").textContent, "Portal NDC");
+  assert.equal(q.totals.group.grandTotal, 6406.14);   // 6275.55 + RC 130.59
+  assert.equal(q.meta.confidence, "HIGH");
+  assert.deepEqual(Array.from(q.meta.warnings), []);
+  assert.match(app.document.getElementById("subjectPill").textContent, /GRU-FCO-LHR \/\/ CDG-MUC-GRU/);
+  app.close();
+});
+
+test("companhia validadora aparece no e-mail", () => {
+  const app = createApp();
+  preencheNdc(app);
+  app.build();
+  const preview = app.document.getElementById("preview").textContent;
+  assert.match(preview, /Companhia validadora/);
+  app.close();
+});
+
+test("cambio do portal so alimenta o RC quando a tarifa e em USD", () => {
+  // A taxa da tela converte a MOEDA DA TARIFA para BRL. Usa-la com tarifa em
+  // outra moeda calcularia o RC errado, que foi o risco visto no caso THB.
+  const comUsd = createApp();
+  preencheNdc(comUsd, { moeda: "USD" });
+  comUsd.document.getElementById("fldRC").value = "25";
+  comUsd.build();
+  assert.equal(comUsd.document.getElementById("fldFX").value, "5,2238");
+  assert.equal(comUsd._lastQuote.totals.byType.ADT.rcPerPax, 130.59);
+  comUsd.close();
+
+  for (const moeda of ["EUR", "THB"]) {
+    const app = createApp();
+    preencheNdc(app, { moeda });
+    app.document.getElementById("fldRC").value = "25";
+    app.build();
+    assert.equal(app.document.getElementById("fldFX").value, "",
+      `câmbio do portal nao deveria ser aceito com tarifa em ${moeda}`);
+    assert.ok(app._lastQuote.meta.warnings.some(w => /câmbio não encontrado/i.test(w)),
+      `deveria avisar falta de câmbio com tarifa em ${moeda}`);
+    app.close();
+  }
+});
+
+test("modo portal nao exige mascara de GDS", () => {
+  const app = createApp();
+  preencheNdc(app);
+  const issues = app.validateQuoteInput();
+  assert.equal(issues.some(i => /máscara/i.test(i.message)), false,
+    `nao deveria cobrar mascara no modo portal: ${JSON.stringify(issues)}`);
+  app.close();
+});
+
+test("modo GDS segue exigindo mascara", () => {
+  const app = createApp();
+  app.document.getElementById("itin").value = fixture("amadeus_pnr_simples.txt");
+  const issues = app.validateQuoteInput();
+  assert.ok(issues.some(i => i.id === "maskADT"),
+    "o modo GDS precisa continuar cobrando a mascara do ADT");
+  app.close();
+});

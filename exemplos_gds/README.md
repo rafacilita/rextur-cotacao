@@ -83,6 +83,44 @@ O mesmo desalinhamento afetava a rota (`GRU-MAD-VLC // --MAD-GRU`, com o `ARNK` 
 
 Ao mexer em bagagem, rota ou itinerario, rode este exemplo.
 
+## Portal NDC (eLATAM, e-GOL e similares)
+
+Portais de reserva da companhia nao devolvem mascara de texto: a tela e HTML.
+Por isso a calculadora tem uma fonte propria, escolhida no seletor "Fonte dos
+dados", onde os valores sao transcritos da tela em campos estruturados.
+
+O itinerario usa uma linha por voo:
+
+```text
+VOO CLASSE ORIGEM DESTINO DATA SAIDA CHEGADA[+N] [EQUIPAMENTO]
+AZ675 W GRU FCO 10FEV27 1545 0705+1 339
+ARNK
+```
+
+- `+N` marca chegada em dia posterior, que no portal aparece com o horario em
+  vermelho;
+- `ARNK` marca trecho terrestre, o que faz o open jaw ser tratado pela mesma
+  logica de projecao aerea usada no Amadeus;
+- os horarios do portal vem em 12 horas (`03:45p`) e sao convertidos para 24
+  horas na leitura.
+
+### O cambio da tela nao serve sempre ao RC
+
+A taxa exibida no portal (`Rate used`) converte a MOEDA DA TARIFA para BRL. O RC
+e sempre informado em USD, entao essa taxa so pode alimentar o cambio do RC
+quando a tarifa-base tambem for em USD. Com tarifa em EUR ou THB o sistema
+recusa a taxa e avisa que falta cambio, em vez de calcular o RC errado.
+
+Exemplo coberto: `ndc_elatam_az_gru_fco_lhr_cdg_mux.txt`.
+
+### Por que nao usamos OCR
+
+Como a tela do portal e HTML, selecionar a tabela e copiar devolve texto de
+verdade. Entao OCR nao e necessario para esse caso, e seria pior: um digito lido
+errado numa tarifa e erro de cobranca, nao erro cosmetico. Quando houver um
+copiar-colar real registrado na fixture, da para preencher a mascara
+automaticamente sem nenhuma dependencia nova.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:
