@@ -41,6 +41,24 @@ Linhas de navegacao como `PAGE`, `fqq02` e `fqq03` podem permanecer no texto col
 
 O marcador pode aparecer em cabecalho longo (`* * CH`) ou curto (`* CH`). Franquias numericas na coluna BG, como `20` e `10`, sao tratadas como `20KG` e `10KG`.
 
+## Amadeus: ARNK e alinhamento da bagagem
+
+`amadeus_arnk_surface_bio.txt` existe para fixar um ponto que ja causou erro no e-mail.
+
+A coluna BG da mascara traz uma franquia por trecho **aereo**. O itinerario, porem, pode
+ter uma linha `ARNK` de trecho terrestre, que ocupa posicao mas nao e voo. Se a leitura
+indexar a bagagem pela posicao do itinerario, todos os trechos depois do `ARNK` recebem a
+franquia do trecho anterior.
+
+Nesse exemplo o trecho `BIO-MAD` e `NIL` no GDS. Com o desalinhamento, o e-mail exibia
+`1PC` e prometia a agencia uma bagagem que a companhia nao concedeu, alem de perder o
+destaque vermelho de "Sem Bag".
+
+O mesmo desalinhamento afetava a rota (`GRU-MAD-VLC // --MAD-GRU`, com o `ARNK` virando
+`--`) e o aviso de trecho sem bagagem, que citava "trecho 3" em vez de `BIO-MAD`.
+
+Ao mexer em bagagem, rota ou itinerario, rode este exemplo.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:

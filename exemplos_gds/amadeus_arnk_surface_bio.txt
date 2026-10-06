@@ -1,0 +1,110 @@
+# Exemplo: Amadeus com ARNK (trecho terrestre) e bagagem diferente por trecho
+
+## BLOCO GDS
+
+Origem do exemplo:
+Amadeus
+
+Descricao operacional:
+GRU MAD VLC // BIO MAD GRU. O cliente desce em VLC e embarca de volta em BIO,
+entao existe um ARNK (trecho terrestre) entre VLC e BIO.
+
+Quantidade de passageiros:
+- 1 ADT
+
+Este exemplo existe especificamente para fixar o alinhamento entre a coluna BG
+da mascara e os trechos aereos do itinerario. O ARNK ocupa uma linha do
+itinerario mas NAO tem franquia de bagagem, porque nao e um voo.
+
+## ITINERARIO
+
+```text
+RP/SAO2R2100/
+  1  IB6830 Q 20SEP 7*GRUMAD HK1  2210 1215  21SEP  E  0 359
+  2  IB3100 Q 21SEP 1*MADVLC HK1  1400 1510  21SEP  E  0 320
+  3  ARNK
+  4  IB3822 Q 02OCT 5*BIOMAD HK1  0700 0810  02OCT  E  0 CR9
+  5  IB6831 Q 02OCT 5*MADGRU HK1  1200 2010  02OCT  E  0 359
+```
+
+## MASCARA ADT
+
+```text
+FQQ01
+
+LAST TKT DTE 20SEP26 - DATE OF ORIGIN
+
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ SAO
+XMAD IB  6830 Q  Q 20SEP 2210  QOWIB           20SEP20SEP 2P
+ VLC IB  3100 Q  Q 21SEP 1400  QOWIB           21SEP21SEP 2P
+XMAD IB  3822 Q  Q 02OCT 0700  QOWIB           02OCT02OCT NIL
+ SAO IB  6831 Q  Q 02OCT 1200  QOWIB           02OCT02OCT 1P
+
+EUR     1200      20SEP26SAO IB X/MAD IB VLC
+BRL  7200.00      IB X/MAD IB SAO NUC1200.00END ROE1.000000
+BRL  1150.00-YQ
+BRL   100.00-BR
+BRL  8450.00
+RATE USED 1EUR=6.0000BRL
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Tipo de bloco:
+PNR ativo + tarifa final
+
+Segmentos:
+- 5 linhas no itinerario, sendo 4 trechos aereos e 1 de superficie
+- O trecho de superficie fica na posicao 3 (indice 2)
+- IB 6830, GRU-MAD, 20SEP, status HK
+- IB 3100, MAD-VLC, 21SEP, status HK
+- ARNK (trecho terrestre), sem origem/destino
+- IB 3822, BIO-MAD, 02OCT, status HK
+- IB 6831, MAD-GRU, 02OCT, status HK
+
+Rota:
+GRU-MAD-VLC // BIO-MAD-GRU
+
+O ARNK nao deve aparecer na rota e nao deve produzir `--` nem `null`.
+A descontinuidade entre VLC e BIO ainda deve gerar o marcador `//`.
+
+Bagagem, em ordem de trecho AEREO:
+- GRU-MAD: 2PC
+- MAD-VLC: 2PC
+- BIO-MAD: Sem Bag
+- MAD-GRU: 1PC
+
+O trecho BIO-MAD e o que NAO tem bagagem. Se a leitura estiver desalinhada pelo
+ARNK, o e-mail mostra 1PC nesse trecho e promete a agencia uma bagagem que o GDS
+nao concedeu.
+
+Valores:
+- Tarifa moeda: EUR 1200.00
+- Equivalente BRL: 7200.00
+- Taxas BRL: 1250.00 (1150.00 YQ + 100.00 BR)
+- Total BRL: 8450.00
+- Cambio informado: 1EUR = 6.0000BRL
+
+O total vem da ultima linha BRL isolada, nao de uma linha TOTAL explicita, e as
+taxas sao obtidas por diferenca. A soma das linhas de taxa confere com a
+diferenca, portanto nao deve gerar aviso de taxa inferida.
+
+Warnings esperados:
+- Bagagem diferente durante o itinerario (VAR)
+- Pelo menos um trecho sem bagagem, citando BIO-MAD
+
+Warnings que NAO devem aparecer:
+- Aviso de taxa inferida sem conferencia
+- Aviso de status de segmento (todos os trechos estao HK)
+
+## OBSERVACOES
+
+Fecha a lacuna "Amadeus com ARNK" listada no plano de testes de
+ANALISE_CRITICA_CONFIABILIDADE_GDS.md.
+
+O valor do cambio nesta mascara e EUR, nao USD. Ele nao deve ser usado como
+cambio do RC, que e sempre informado em USD.

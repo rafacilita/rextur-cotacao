@@ -5,810 +5,582 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Calculadora de Cotação INTER – Nova Emissão</title>
   <style>
+    /* ─────────────────────────────────────────────────────────────────────────
+       Sistema visual da calculadora de cotacao.
+
+       Escala unica, para o conjunto parecer uma ferramenta e nao uma colagem:
+         raio      4px em controles, 8px em cartoes
+         peso      400 / 500 / 600 / 700
+         tamanho   11 / 12 / 13 / 14 / 15 / 20 px
+         espaco    4 / 8 / 12 / 16 / 20 / 24 px
+         sombra    uma, discreta, apenas em cartao
+         acento    um, reservado para a acao principal
+
+       Sem gradiente, sem vidro fosco e sem sombra difusa: e uma ferramenta
+       operacional de uso repetitivo, nao uma vitrine.
+       ───────────────────────────────────────────────────────────────────────── */
+
     :root{
-      --bg:#0b0f16;
-      --text:#e5e7eb;
-      --muted:#9ca3af;
-      --line:rgba(255,255,255,.10);
-      --accent:#7c3aed;
-      --accent2:#a855f7;
-      --warn:#f59e0b;
-      --shadow: 0 20px 60px rgba(0,0,0,.45);
-      --radius:18px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      --canvas:#eef1f5;
+      --surface:#ffffff;
+      --surface-2:#f7f9fb;
+      --ink:#1a2433;
+      --ink-2:#5a6a7d;
+      --ink-3:#7d8b9c;
+      --line:#d7dee7;
+      --line-strong:#bcc7d4;
+      --accent:#1f4d7a;
+      --accent-hover:#1a4269;
+      --accent-ink:#ffffff;
+      --focus:rgba(31,77,122,.16);
+      --ok:#0f6f49;
+      --ok-line:#a9d4bf;
+      --ok-bg:#f1f8f4;
+      --warn:#8a5a06;
+      --warn-line:#e3c37f;
+      --warn-bg:#fdf7ea;
+      --err:#a8321f;
+      --err-line:#e3ada3;
+      --err-bg:#fdf4f2;
+      --paper:#ffffff;
+      --radius:8px;
+      --radius-sm:4px;
+      --shadow:0 1px 2px rgba(16,24,40,.05);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    body[data-theme="light"]{
-      --bg:#f4f6fb;
-      --text:#0f172a;
-      --muted:#475569;
-      --line:rgba(15,23,42,.12);
-      --shadow: 0 18px 50px rgba(2,6,23,.12);
-    }
-    body[data-theme="light"]{
-      background:
-        radial-gradient(1200px 800px at 15% 10%, rgba(124,58,237,.18), transparent 60%),
-        radial-gradient(900px 700px at 85% 20%, rgba(168,85,247,.14), transparent 60%),
-        var(--bg);
-      color:var(--text);
-    }
-    body[data-theme="light"] .card{
-      background: linear-gradient(180deg, rgba(2,6,23,.03), rgba(2,6,23,.02));
-      border-color: var(--line);
-      box-shadow: var(--shadow);
-    }
-    body[data-theme="light"] .pill,
-    body[data-theme="light"] .kpi,
-    body[data-theme="light"] .chip,
-    body[data-theme="light"] .subcard,
-    body[data-theme="light"] select,
-    body[data-theme="light"] input,
-    body[data-theme="light"] textarea,
-    body[data-theme="light"] .status{
-      background: rgba(2,6,23,.04);
-      border-color: var(--line);
-      color: var(--text);
-    }
-    body[data-theme="light"] textarea{
-      background: rgba(2,6,23,.03);
-    }
-    body[data-theme="light"] .previewWrap{
-      background:#fff;
-      border-color: rgba(2,6,23,.12);
+    body[data-theme="dark"]{
+      --canvas:#13171f;
+      --surface:#1b212b;
+      --surface-2:#161b24;
+      --ink:#e7edf4;
+      --ink-2:#97a4b5;
+      --ink-3:#7a8798;
+      --line:#2b3440;
+      --line-strong:#3c4856;
+      --accent:#3d7cb8;
+      --accent-hover:#4a88c4;
+      --accent-ink:#ffffff;
+      --focus:rgba(61,124,184,.22);
+      --ok:#5ec49a;
+      --ok-line:#2f5a49;
+      --ok-bg:#16241f;
+      --warn:#e0b259;
+      --warn-line:#5c4620;
+      --warn-bg:#241e12;
+      --err:#e8897a;
+      --err-line:#5e2f28;
+      --err-bg:#251715;
+      --shadow:0 1px 2px rgba(0,0,0,.2);
     }
 
     *{box-sizing:border-box}
     html{overflow-x:hidden}
+
     body{
-      margin:0; font-family:var(--sans);
-      background:
-        radial-gradient(1200px 800px at 15% 10%, rgba(124,58,237,.35), transparent 60%),
-        radial-gradient(900px 700px at 85% 20%, rgba(168,85,247,.22), transparent 60%),
-        var(--bg);
-      color:var(--text);
-      overflow-x:hidden;
+      margin:0;
+      font-family:var(--sans);
+      font-size:13px;
+      line-height:1.45;
+      background:var(--canvas);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ── Cabecalho ───────────────────────────────────────────────────────── */
+
+    .topbar{
+      background:var(--surface);
+      border-bottom:1px solid var(--line);
     }
     header{
-      padding:18px 22px;
-      display:flex; align-items:center; justify-content:space-between;
-      gap:14px;
+      max-width:1600px;
+      margin:0 auto;
+      padding:12px 24px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
       flex-wrap:wrap;
     }
-    .title{display:flex; flex-direction:column; gap:4px;}
-    .topbar{
-      background: linear-gradient(180deg, rgba(217,204,227,.18), rgba(217,204,227,0));
-      border-bottom: 1px solid var(--line);
-    }
-    .brand{display:flex; align-items:center; gap:14px;}
+    .brand{display:flex; align-items:center; gap:12px}
     .logoBox{
-      width:56px; height:56px;
-      border-radius:16px;
-      background: rgba(255,255,255,.90);
-      display:flex; align-items:center; justify-content:center;
-      box-shadow: 0 12px 30px rgba(0,0,0,.25);
-      overflow:hidden;
-      flex: 0 0 auto;
-    }
-    .logoBox img{width:46px; height:46px; object-fit:contain; display:block;}
-
-    .title h1{margin:0; font-size:22px; letter-spacing:.2px}
-    .title p{margin:0; color:var(--muted); font-size:13px}
-    .pillrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .pill{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius:999px;
-      padding:7px 10px;
-      display:flex; gap:8px; align-items:center;
-      box-shadow: 0 10px 25px rgba(0,0,0,.25);
-    }
-    .pill .dot{width:8px; height:8px; border-radius:50%; background:var(--accent2); box-shadow:0 0 0 3px rgba(34,197,94,.15);}
-    .pill label{color:var(--muted); font-size:12px}
-    .pill{gap:8px}
-    .pill select{
-      padding:6px 10px;
-      border-radius:999px;
-      min-width: 92px;
-    }
-    .pill label{margin-right:2px}
-
-    select, input, textarea, button{font-family:inherit}
-    select, input{
-      width:100%;
-      min-width:0;
-      background:rgba(0,0,0,.25);
-      border:1px solid var(--line);
-      color:var(--text);
-      border-radius:12px;
-      padding:10px 12px;
-      outline:none;
-    }
-    select:focus, input:focus, textarea:focus{border-color: rgba(124,58,237,.65); box-shadow:0 0 0 3px rgba(124,58,237,.18)}
-    main{padding:0 22px 22px;}
-    .grid{display:grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); gap:16px; align-items:start;}
-    .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      min-width:0;
-    }
-    .card .hd{
-      padding:14px 16px;
-      border-bottom:1px solid var(--line);
-      display:flex; justify-content:space-between; gap:10px; align-items:center;
-    }
-    .card .hd h2{margin:0; font-size:15px; letter-spacing:.2px}
-    .card .bd{padding:14px 16px}
-    .row4{
-      display:grid;
-      grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(120px,.78fr) minmax(250px,1.45fr);
-      gap:10px;
-    }
-    .row3{display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px}
-    .row2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
-    .row1{display:grid; grid-template-columns: 1fr; gap:10px}
-    .field label{display:block; font-size:12px; color:var(--muted); margin:2px 0 6px}
-    .field{min-width:0}
-    .help{font-size:12px; color:var(--muted); margin-top:6px}
-    .hint{font-size:12px; color:var(--muted); overflow-wrap:anywhere}
-    .inlineNote{
-      font-size:11.5px;
-      color:var(--muted);
-      line-height:1.35;
-      padding-top:22px;
-      opacity:.88;
-    }
-    textarea{
-      width:100%;
-      min-height: 250px;
-      resize:vertical;
-      background: rgba(0,0,0,.28);
-      border:1px solid var(--line);
-      color:var(--text);
-      border-radius: 16px;
-      padding:12px 12px;
-      font-family: var(--mono);
-      font-size: 12.5px;
-      line-height: 1.35;
-      outline:none;
-    }
-    .textareas{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
-    .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
-    button{
-      border:none;
-      background: rgba(124,58,237,.25);
-      color:var(--text);
-      border:1px solid rgba(124,58,237,.55);
-      padding:11px 14px;
-      border-radius: 14px;
-      cursor:pointer;
-      font-weight:650;
-    }
-    button.secondary{
-      background: rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      font-weight:600;
-    }
-    button.ghost{
-      background: transparent;
-      border:1px dashed rgba(255,255,255,.20);
-      color:var(--muted);
-      font-weight:600;
-    }
-    button:hover{filter:brightness(1.08)}
-    button:disabled{cursor:wait; opacity:.65; filter:none}
-    .fxControl{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px}
-    .fxControl button{
-      min-width:100px;
-      padding:10px 11px;
-      border-radius:10px;
-      font-size:12px;
-      white-space:nowrap;
-    }
-    .kpis{display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; margin-top:12px}
-    .kpi{
-      background: rgba(0,0,0,.22);
-      border:1px solid var(--line);
-      border-radius: 16px;
-      padding:10px 12px;
-      min-height: 64px;
-    }
-    .kpi .k{color:var(--muted); font-size:12px}
-    .kpi .v{font-size:16px; font-weight:750; margin-top:6px}
-    .previewWrap{
-      height: calc(100vh - 160px);
-      min-height: 640px;
-      overflow:auto;
-      background:#fff;
-      border-radius: 14px;
-      border:1px solid rgba(0,0,0,.12);
-    }
-    #preview:empty::before{
-      content:"A preview aparece aqui depois de gerar a cotacao.";
-      display:block;
-      padding:28px 18px;
-      color:#64748b;
-      font-size:13px;
-      text-align:center;
-    }
-    .status{
-      font-size:12px; color:var(--muted);
-      padding:6px 10px; border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.18);
-      white-space:nowrap;
-    }
-    .status.warn{
-      color:#111;
-      border-color: rgba(245,158,11,.75);
-      background: rgba(245,158,11,.22);
-    }
-    .validationSummary{
-      display:none;
-      margin-top:10px;
-      padding:9px 11px;
-      border:1px solid rgba(217,119,6,.28);
-      border-radius:7px;
-      background:rgba(245,158,11,.08);
-      color:var(--text);
-      font-size:12px;
-      line-height:1.45;
-    }
-    .validationSummary.show{display:block}
-    .validationSummary.error{
-      border-color:rgba(220,38,38,.28);
-      background:rgba(220,38,38,.07);
-    }
-    .validationSummary strong{display:block; margin-bottom:3px}
-    .validationSummary ul{margin:0; padding-left:18px}
-    select.is-invalid,input.is-invalid,textarea.is-invalid{
-      border-color:rgba(220,38,38,.72) !important;
-      box-shadow:0 0 0 3px rgba(220,38,38,.10) !important;
-    }
-    select.is-warning,input.is-warning,textarea.is-warning{
-      border-color:rgba(217,119,6,.66) !important;
-      box-shadow:0 0 0 3px rgba(245,158,11,.09) !important;
-    }
-    .switches{display:flex; gap:10px; flex-wrap:wrap}
-    .chip{
-      display:flex; align-items:center; gap:8px;
-      padding:8px 10px;
-      border-radius: 999px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.22);
-      font-size:12px; color:var(--text);
-      user-select:none;
-    }
-    .chip input{accent-color: var(--accent); width:14px; height:14px;}
-    .subcard{
-      margin-top:12px;
-      background: rgba(0,0,0,.18);
-      border:1px solid var(--line);
-      border-radius: 16px;
-      padding:12px;
-    }
-    .subcard h3{margin:0 0 10px 0; font-size:13px; color:var(--text); letter-spacing:.2px}
-    .divider{height:1px; background:var(--line); margin:12px 0;}
-    @media (max-width: 1100px){
-      .grid{grid-template-columns:1fr}
-      .previewWrap{height:auto; min-height:520px}
-      .kpis{grid-template-columns: 1fr 1fr}
-      .textareas{grid-template-columns: 1fr}
-      .row4{grid-template-columns:1fr 1fr}
-    }
-    @media (max-width: 760px){
-      header{
-        padding:16px;
-        align-items:flex-start;
-      }
-      .brand{
-        width:100%;
-        align-items:center;
-      }
-      .logoBox{
-        width:48px;
-        height:48px;
-        border-radius:14px;
-      }
-      .logoBox img{width:40px; height:40px}
-      .title{min-width:0; flex:1}
-      .title h1{font-size:20px; line-height:1.15}
-      .title p{font-size:12px; line-height:1.35}
-      .title p,.help,.hint{
-        overflow-wrap:anywhere;
-      }
-      .pillrow{
-        width:100%;
-        display:grid;
-        grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
-        justify-content:stretch;
-      }
-      .pill{
-        width:100%;
-        flex:1 1 auto;
-        min-width:0;
-        justify-content:flex-start;
-        min-height:40px;
-      }
-      .pill select{
-        min-width:0;
-        width:auto;
-        flex:1;
-      }
-      main{padding:0 12px 16px}
-      .card{border-radius:14px}
-      .card .hd{
-        padding:12px;
-        align-items:flex-start;
-        flex-wrap:wrap;
-      }
-      .card .hd > div{
-        width:100%;
-        flex-wrap:wrap;
-      }
-      .card .bd{padding:12px}
-      .row4,.row3,.row2{grid-template-columns:1fr}
-      .subcard{
-        padding:10px;
-        border-radius:14px;
-      }
-      .switches{gap:8px}
-      .chip{
-        min-height:38px;
-        max-width:100%;
-      }
-      .btnrow{
-        display:grid;
-        grid-template-columns:1fr;
-      }
-      button{width:100%}
-      textarea{min-height:220px; border-radius:14px}
-      #maskADT,#maskCHD,#maskINF{min-height:150px !important}
-      .kpis{grid-template-columns:1fr}
-      .previewWrap{
-        min-height:360px;
-        max-height:70vh;
-      }
-      .status{
-        white-space:normal;
-        line-height:1.25;
-        max-width:100%;
-      }
-      #hintOptional{width:100%}
-    }
-    @media (max-width: 360px){
-      .pillrow{grid-template-columns:1fr}
-    }
-
-    /* UX refinement layer: quieter operational interface, same field IDs/logic. */
-    :root{
-      --bg:#101318;
-      --text:#f2f5f9;
-      --muted:#9aa7b7;
-      --line:rgba(148,163,184,.20);
-      --accent:#5b6ee1;
-      --accent2:#22b8a7;
-      --control:#151a22;
-      --surface:#171c25;
-      --surface2:#11161d;
-      --paper:#ffffff;
-      --shadow:0 18px 48px rgba(0,0,0,.28);
-      --radius:12px;
-    }
-    body{
-      background:linear-gradient(180deg, rgba(91,110,225,.10) 0, rgba(16,19,24,0) 180px), var(--bg);
-      color:var(--text);
-    }
-    body[data-theme="light"]{
-      --bg:#f4f6f9;
-      --text:#182235;
-      --muted:#667285;
-      --line:rgba(71,85,105,.14);
-      --control:#ffffff;
-      --surface:#ffffff;
-      --surface2:#f7f9fc;
-      --shadow:0 10px 30px rgba(15,23,42,.055);
-      background:
-        linear-gradient(180deg, #fafbfe 0, #f4f6f9 250px),
-        #f4f6f9;
-    }
-    .topbar{
-      background:rgba(17,22,29,.86);
-      backdrop-filter: blur(14px);
-      border-bottom:1px solid var(--line);
-    }
-    body[data-theme="light"] .topbar{
-      background:rgba(255,255,255,.98);
-      box-shadow:0 1px 0 rgba(15,23,42,.06);
-    }
-    header{
-      padding:14px 22px;
-      max-width:1680px;
-      margin:0 auto;
-    }
-    .logoBox{
-      width:46px;
-      height:46px;
-      border-radius:10px;
-      background:#fff;
-      box-shadow:0 7px 18px rgba(15,23,42,.12);
-    }
-    .logoBox img{width:37px; height:37px}
-    .title h1{
-      font-size:21px;
-      line-height:1.12;
-      letter-spacing:0;
-      font-weight:820;
-    }
-    .title p{font-size:12.5px; color:var(--muted)}
-    .pill{
-      background:rgba(255,255,255,.035);
-      border-color:var(--line);
-      box-shadow:none;
-      min-height:36px;
-      border-radius:8px;
-    }
-    body[data-theme="light"] .pill{background:#f6f8fb}
-    .pill .dot{
-      background:var(--accent2);
-      box-shadow:0 0 0 3px rgba(34,184,167,.16);
-    }
-    main{
-      max-width:1680px;
-      margin:0 auto;
-      padding:18px 22px 30px;
-    }
-    .grid{
-      grid-template-columns:minmax(720px, 1.08fr) minmax(440px, .92fr);
-      gap:18px;
-    }
-    .grid > section:nth-child(2){
-      position:sticky;
-      top:14px;
-    }
-    .card{
+      width:36px;
+      height:36px;
+      border-radius:var(--radius-sm);
       background:var(--surface);
-      border-color:var(--line);
-      border-radius:9px;
-      box-shadow:var(--shadow);
-    }
-    body[data-theme="light"] .card{
-      background:var(--surface);
-      border-color:var(--line);
-      box-shadow:0 10px 30px rgba(15,23,42,.055);
-    }
-    .card .hd{
-      padding:14px 16px;
-      background:rgba(255,255,255,.012);
-      border-bottom:1px solid var(--line);
-    }
-    body[data-theme="light"] .card .hd{background:#ffffff}
-    .card .hd h2{
-      font-size:14px;
-      letter-spacing:.01em;
-      font-weight:800;
-    }
-    .card .bd{padding:16px 16px 18px}
-    .field label{
-      font-size:11.5px;
-      color:#b8c4d4;
-      margin-bottom:6px;
-      font-weight:620;
-    }
-    body[data-theme="light"] .field label{color:#5f6f84}
-    select,input,textarea{
-      background:var(--control);
-      border-color:rgba(148,163,184,.18);
-      border-radius:7px;
-      color:var(--text);
-      transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
-    }
-    select,input{
-      min-height:40px;
-      padding:9px 11px;
-    }
-    input[type="checkbox"]{
-      width:14px;
-      height:14px;
-      min-height:0;
-      padding:0;
-      border-radius:3px;
-      box-shadow:none;
-      background:transparent;
+      border:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
       flex:0 0 auto;
     }
-    body[data-theme="light"] input[type="checkbox"]{
-      background:transparent;
-      box-shadow:none;
+    .logoBox img{width:26px; height:26px; object-fit:contain; display:block}
+    .title{display:flex; flex-direction:column; gap:1px; min-width:0}
+    .title h1{
+      margin:0;
+      font-size:15px;
+      font-weight:600;
+      letter-spacing:0;
+      line-height:1.3;
     }
-    textarea{
-      background:#0f141b;
-      border-radius:10px;
-      min-height:280px;
-      font-size:12px;
-      line-height:1.42;
-    }
-    body[data-theme="light"] textarea{background:#ffffff}
-    body[data-theme="light"] select,
-    body[data-theme="light"] input,
-    body[data-theme="light"] textarea{
-      background:#ffffff;
-      border-color:rgba(100,116,139,.24);
-      box-shadow:inset 0 1px 1px rgba(15,23,42,.025);
-    }
-    select:focus,input:focus,textarea:focus{
-      border-color:rgba(34,184,167,.78);
-      box-shadow:0 0 0 3px rgba(34,184,167,.14);
-    }
-    .row4,.row3,.row2{gap:12px}
-    .hint,.help,.inlineNote{color:var(--muted)}
-    .hint{
-      margin-top:2px !important;
-      font-size:12px;
-    }
-    .subcard{
-      background:var(--surface2);
-      border-color:rgba(148,163,184,.13);
-      border-radius:8px;
-      padding:12px;
-    }
-    body[data-theme="light"] .subcard{
-      background:#f8fafc;
-      border-color:rgba(71,85,105,.12);
-    }
-    .subcard h3{
-      font-size:12px;
-      text-transform:uppercase;
-      letter-spacing:.04em;
-      color:#d8e0ea;
-    }
-    body[data-theme="light"] .subcard h3{color:#334155}
-    .chip{
-      border-radius:8px;
-      background:rgba(255,255,255,.025);
-      border-color:rgba(148,163,184,.18);
-      min-height:34px;
-      padding:7px 10px;
-      font-weight:620;
-    }
-    body[data-theme="light"] .chip{
-      background:#ffffff;
-      border-color:rgba(71,85,105,.16);
-    }
-    .chip input{accent-color:var(--accent2)}
-    .switches .chip{min-width:0}
-    .switches{
-      align-items:center;
-      gap:8px;
-    }
-    .switches .chip{
-      min-height:30px;
-      padding:4px 6px;
-      border-radius:8px;
-      background:transparent;
-      border-color:transparent;
-    }
-    .switches .chip:hover{background:rgba(148,163,184,.08)}
-    body[data-theme="light"] .switches .chip{background:transparent}
-    body[data-theme="light"] .switches .chip:hover{background:#eef2f7}
-    .divider{
-      margin:14px 0;
-      background:rgba(148,163,184,.16);
-    }
-    .textareas{
-      grid-template-columns:minmax(0,1.16fr) minmax(0,.84fr);
-      gap:14px;
-    }
-    .sourceBlock{
-      margin-bottom:14px;
-    }
-    .paxBlock{
-      margin-top:0;
-      margin-bottom:14px;
-    }
-    .paxBlock{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) max-content;
-      gap:8px 12px;
-      align-items:end;
-      padding:12px 14px;
-      background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018));
-    }
-    body[data-theme="light"] .paxBlock{
-      background:#ffffff;
-      box-shadow:0 1px 0 rgba(15,23,42,.03);
-    }
-    .paxBlock > h3{
-      grid-column:1 / -1;
-      margin-bottom:2px;
-    }
-    .paxBlock .row3{
-      grid-column:1;
-      grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:10px;
-    }
-    .paxBlock .row1{
-      grid-column:2;
-      margin-top:0 !important;
-    }
-    .paxBlock .chip{
-      min-height:38px;
-      white-space:nowrap;
-    }
-    .paxBlock #autoPaxSuggest,
-    .paxBlock #paxCard{
-      grid-column:1 / -1;
-    }
-    .paxBlock input{
-      min-height:38px;
-    }
-    .sourceBlock{
-      padding:14px;
-      border:1px solid rgba(148,163,184,.13);
-      border-radius:8px;
-      background:rgba(255,255,255,.014);
-    }
-    body[data-theme="light"] .sourceBlock{
-      background:#ffffff;
-      border-color:rgba(71,85,105,.12);
-    }
-    .sourceBlock .textareas{
-      align-items:start;
-    }
-    .sourceBlock textarea{
-      min-height:220px;
-    }
-    #itin{min-height:300px}
-    #maskADT,#maskCHD,#maskINF{min-height:170px !important}
-    .sourceBlock #maskADTWrap,
-    .sourceBlock #maskCHDWrap,
-    .sourceBlock #maskINFWrap{
-      background:#ffffff;
-    }
-    .maskCombinedActions{
+    .title p{margin:0; color:var(--ink-2); font-size:12px}
+
+    .pillrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .pill{
       display:flex;
       align-items:center;
       gap:8px;
+      min-height:32px;
+      padding:4px 10px;
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      font-size:12px;
+      color:var(--ink-2);
+    }
+    .pill .dot{
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      background:var(--ink-3);
+      flex:0 0 auto;
+    }
+    .pill label{color:var(--ink-2); font-size:12px}
+    .pill b{color:var(--ink); font-weight:600}
+    .pill select{
+      width:auto;
+      min-width:92px;
+      min-height:26px;
+      padding:2px 6px;
+      border-radius:var(--radius-sm);
+      font-size:12px;
+      background:var(--surface);
+    }
+
+    /* ── Estrutura ───────────────────────────────────────────────────────── */
+
+    main{
+      max-width:1600px;
+      margin:0 auto;
+      padding:20px 24px 32px;
+    }
+
+    /* Uma coluna enquanto nao ha previa: o formulario usa a largura toda.
+       A segunda coluna entra apenas quando existe e-mail para mostrar. */
+    .grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr);
+      gap:20px;
+      align-items:start;
+    }
+    body.has-preview .grid{
+      grid-template-columns:minmax(0,1.05fr) minmax(430px,.95fr);
+    }
+    .grid > section:nth-child(2){display:none}
+    body.has-preview .grid > section:nth-child(2){
+      display:block;
+      position:sticky;
+      top:16px;
+    }
+
+    .card{
+      background:var(--surface);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      min-width:0;
+    }
+    .card .hd{
+      padding:12px 16px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
       flex-wrap:wrap;
-      margin-top:10px;
     }
-    .maskReview{
-      margin-top:10px;
-      border-top:1px solid var(--line);
-      padding-top:10px;
+    .card .hd h2{
+      margin:0;
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:0;
     }
+    .card .bd{padding:16px}
+
+    .divider{
+      height:1px;
+      background:var(--line);
+      margin:20px 0;
+      border:0;
+    }
+
+    /* ── Campos ──────────────────────────────────────────────────────────── */
+
+    .row1{display:grid; grid-template-columns:minmax(0,1fr); gap:12px}
+    .row2{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+    .row3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+    .row4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+
+    .field{min-width:0; display:flex; flex-direction:column}
+    .field label{
+      display:block;
+      font-size:12px;
+      font-weight:500;
+      color:var(--ink-2);
+      margin:0 0 5px;
+    }
+
+    select, input, textarea, button{font-family:inherit}
+
+    select, input{
+      width:100%;
+      min-width:0;
+      min-height:34px;
+      padding:7px 10px;
+      background:var(--surface);
+      border:1px solid var(--line-strong);
+      border-radius:var(--radius-sm);
+      color:var(--ink);
+      font-size:13px;
+      outline:none;
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    select{
+      cursor:pointer;
+      /* seta propria: evita o recorte do texto da opcao que havia antes */
+      appearance:none;
+      background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+      background-position:calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+      background-size:5px 5px, 5px 5px;
+      background-repeat:no-repeat;
+      padding-right:30px;
+    }
+    textarea{
+      width:100%;
+      padding:10px 11px;
+      background:var(--surface);
+      border:1px solid var(--line-strong);
+      border-radius:var(--radius-sm);
+      color:var(--ink);
+      font-family:var(--mono);
+      font-size:12px;
+      line-height:1.5;
+      resize:vertical;
+      outline:none;
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    body[data-theme="dark"] textarea,
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] input{background:var(--surface-2)}
+
+    select:focus, input:focus, textarea:focus{
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px var(--focus);
+    }
+    input::placeholder, textarea::placeholder{color:var(--ink-3)}
+
+    input[type="checkbox"]{
+      width:15px;
+      height:15px;
+      min-height:0;
+      padding:0;
+      border-radius:3px;
+      accent-color:var(--accent);
+      flex:0 0 auto;
+      cursor:pointer;
+    }
+
+    .help, .hint, .inlineNote{
+      color:var(--ink-2);
+      font-size:12px;
+      overflow-wrap:anywhere;
+    }
+    .help{margin-top:6px}
+    .hint{margin-top:6px}
+    .inlineNote{line-height:1.4}
+
+    /* ── Blocos internos ─────────────────────────────────────────────────── */
+
+    .subcard{
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:14px 16px;
+      margin-top:16px;
+    }
+    .subcard h3{
+      margin:0 0 12px;
+      font-size:12px;
+      font-weight:600;
+      color:var(--ink);
+      letter-spacing:0;
+    }
+    .subcard > h3:first-child{margin-top:0}
+
+    .paxBlock{margin-top:0; margin-bottom:16px}
+    .paxBlock .row3{max-width:420px}
+
+    .sourceBlock{
+      margin-bottom:16px;
+      padding:14px 16px;
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+    }
+    .textareas{
+      display:grid;
+      grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+      gap:16px;
+      align-items:start;
+    }
+    .sourceBlock textarea{background:var(--surface)}
+    body[data-theme="dark"] .sourceBlock textarea{background:var(--surface)}
+    #itin{min-height:260px}
+    #maskADT, #maskCHD, #maskINF{min-height:150px}
+    .sourceBlock .subcard{background:var(--surface); margin-top:0}
+    .sourceBlock .subcard + .subcard{margin-top:12px}
+
+    .maskReview{margin:0}
     .maskReview summary{
       cursor:pointer;
-      color:var(--muted);
+      color:var(--ink-2);
       font-size:12px;
-      font-weight:700;
+      font-weight:500;
     }
-    body[data-theme="dark"] .sourceBlock #maskADTWrap,
-    body[data-theme="dark"] .sourceBlock #maskCHDWrap,
-    body[data-theme="dark"] .sourceBlock #maskINFWrap{
-      background:rgba(255,255,255,.018);
-    }
-    .btnrow{
+
+    /* ── Caixas de marcacao ──────────────────────────────────────────────── */
+
+    .switches{display:flex; gap:4px; flex-wrap:wrap; align-items:center}
+    .chip{
+      display:inline-flex;
       align-items:center;
       gap:8px;
-      padding-top:2px;
+      min-height:30px;
+      padding:4px 8px;
+      border:1px solid transparent;
+      border-radius:var(--radius-sm);
+      background:transparent;
+      font-size:13px;
+      color:var(--ink);
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip:hover{background:var(--canvas)}
+    body[data-theme="dark"] .chip:hover{background:var(--surface-2)}
+
+    /* ── Botoes ──────────────────────────────────────────────────────────── */
+
+    .btnrow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-top:16px;
     }
     button{
-      border-radius:7px;
-      min-height:40px;
-      padding:10px 14px;
-      background:#263a8f;
-      border:1px solid rgba(141,153,255,.35);
-      box-shadow:0 7px 16px rgba(38,58,143,.18);
-      font-weight:740;
+      min-height:34px;
+      padding:7px 14px;
+      border:1px solid var(--accent);
+      border-radius:var(--radius-sm);
+      background:var(--accent);
+      color:var(--accent-ink);
+      font-size:13px;
+      font-weight:500;
+      cursor:pointer;
+      transition:background-color .12s ease;
     }
-    body[data-theme="light"] button{
-      background:#263a8f;
-      color:#ffffff;
-      box-shadow:0 8px 18px rgba(38,58,143,.16);
-    }
+    button:hover{background:var(--accent-hover); border-color:var(--accent-hover)}
     button.secondary{
-      background:rgba(255,255,255,.045);
-      border-color:var(--line);
-      box-shadow:none;
+      background:var(--surface);
+      border-color:var(--line-strong);
+      color:var(--ink);
     }
-    body[data-theme="light"] button.secondary{
-      background:#ffffff;
-      color:#172033;
-      border-color:rgba(71,85,105,.18);
-    }
+    button.secondary:hover{background:var(--surface-2); border-color:var(--line-strong)}
     button.ghost{
-      border-style:solid;
       background:transparent;
-      box-shadow:none;
+      border-color:transparent;
+      color:var(--ink-2);
     }
-    body[data-theme="light"] button.ghost{
-      background:transparent;
-      color:#647085;
-      border-color:rgba(71,85,105,.18);
-      box-shadow:none;
+    button.ghost:hover{background:var(--canvas); color:var(--ink)}
+    body[data-theme="dark"] button.ghost:hover{background:var(--surface-2)}
+    button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+    button:disabled{opacity:.55; cursor:default}
+    button:disabled:hover{background:var(--accent); border-color:var(--accent)}
+
+    .fxControl{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px}
+    .fxControl button{white-space:nowrap; padding:7px 12px}
+
+    /* ── Estado e avisos ─────────────────────────────────────────────────── */
+
+    .status{
+      font-size:12px;
+      color:var(--ink-2);
+      padding:3px 8px;
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      white-space:nowrap;
     }
-    button:hover{filter:none; transform:translateY(-1px)}
+    .status.warn{
+      color:var(--warn);
+      border-color:var(--warn-line);
+      background:var(--warn-bg);
+    }
+
+    .validationSummary{
+      display:none;
+      margin-top:16px;
+      padding:12px 14px;
+      border:1px solid var(--warn-line);
+      border-left-width:3px;
+      border-radius:var(--radius-sm);
+      background:var(--warn-bg);
+      color:var(--ink);
+      font-size:12px;
+      line-height:1.5;
+    }
+    .validationSummary.show{display:block}
+    .validationSummary.error{
+      border-color:var(--err-line);
+      background:var(--err-bg);
+    }
+    .validationSummary strong{
+      display:block;
+      margin-bottom:4px;
+      font-size:12px;
+      font-weight:600;
+    }
+    .validationSummary ul{margin:0 0 12px; padding-left:18px}
+    .validationSummary ul:last-child{margin-bottom:0}
+    .validationSummary li{margin:2px 0}
+
+    select.is-invalid, input.is-invalid, textarea.is-invalid{
+      border-color:var(--err) !important;
+      box-shadow:0 0 0 3px var(--err-bg) !important;
+    }
+    select.is-warning, input.is-warning, textarea.is-warning{
+      border-color:var(--warn-line) !important;
+      box-shadow:0 0 0 3px var(--warn-bg) !important;
+    }
+
+    /* Confiabilidade da leitura: barra lateral colorida em vez de caixa inteira,
+       para nao competir com a lista de avisos logo abaixo. */
+    .confidencePill{
+      display:none;
+      margin-top:16px;
+      padding:10px 14px;
+      border:1px solid var(--line);
+      border-left:3px solid var(--ink-3);
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      font-size:12px;
+      font-weight:500;
+      line-height:1.45;
+    }
+    .confidencePill.show{display:block}
+    .confidencePill strong{font-weight:600}
+    .confidencePill.conf-high{
+      border-color:var(--ok-line);
+      border-left-color:var(--ok);
+      background:var(--ok-bg);
+      color:var(--ok);
+    }
+    .confidencePill.conf-medium{
+      border-color:var(--warn-line);
+      border-left-color:var(--warn);
+      background:var(--warn-bg);
+      color:var(--warn);
+    }
+    .confidencePill.conf-low{
+      border-color:var(--err-line);
+      border-left-color:var(--err);
+      background:var(--err-bg);
+      color:var(--err);
+    }
+
+    /* ── Indicadores de valor ────────────────────────────────────────────── */
+
     .kpis{
-      gap:8px;
-      margin-top:12px;
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:1px;
+      margin-top:16px;
+      background:var(--line);
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      overflow:hidden;
     }
     .kpi{
-      background:rgba(255,255,255,.02);
-      border-color:rgba(148,163,184,.14);
-      border-radius:7px;
+      background:var(--surface);
+      padding:10px 12px;
       min-height:58px;
-      padding:9px 10px;
     }
-    body[data-theme="light"] .kpi{
-      background:#ffffff;
-      border-color:rgba(71,85,105,.12);
+    .kpi .k{
+      color:var(--ink-2);
+      font-size:11px;
+      line-height:1.3;
     }
-    .kpi .k{font-size:11px; line-height:1.25}
-    .kpi .v{font-size:15px; letter-spacing:0}
+    .kpi .v{
+      margin-top:4px;
+      font-size:14px;
+      font-weight:600;
+      font-variant-numeric:tabular-nums;
+      letter-spacing:0;
+    }
+
+    /* ── Previa do e-mail ────────────────────────────────────────────────── */
+
     .previewWrap{
-      border-radius:7px;
+      height:calc(100vh - 150px);
+      min-height:560px;
+      overflow:auto;
       background:var(--paper);
-      border:1px solid rgba(15,23,42,.10);
-      box-shadow:none;
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
     }
-    body[data-theme="light"] .previewWrap{
-      border-color:rgba(15,23,42,.11);
-      box-shadow:0 1px 2px rgba(15,23,42,.035);
-    }
-    #preview{min-height:100%}
+    #preview{min-height:100%; padding:16px}
     #preview:empty::before{
-      content:"A prévia do e-mail aparece aqui após gerar a cotação.";
-      padding:34px 20px;
-      color:#64748b;
+      content:"A previa aparece aqui depois de gerar a cotacao.";
+      display:block;
+      padding:32px 20px;
+      color:#6b7a8d;
+      font-size:12px;
+      text-align:center;
     }
-    .status{
-      background:rgba(255,255,255,.022);
-      border-color:rgba(148,163,184,.18);
-      border-radius:7px;
-      padding:6px 9px;
+
+    /* ── Telas estreitas ─────────────────────────────────────────────────── */
+
+    @media (max-width:1180px){
+      body.has-preview .grid{grid-template-columns:minmax(0,1fr)}
+      body.has-preview .grid > section:nth-child(2){position:static}
+      .previewWrap{height:auto; min-height:480px; max-height:70vh}
+      .textareas{grid-template-columns:minmax(0,1fr)}
+      .row4{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
-    body[data-theme="light"] .status{
-      background:#f8fafc;
-      border-color:rgba(71,85,105,.16);
-    }
-    .inlineNote{
-      padding-top:21px;
-      font-size:11.5px;
-    }
-    @media (max-width:1100px){
-      .grid > section:nth-child(2){position:static}
-      .grid{grid-template-columns:1fr}
-    }
+
     @media (max-width:760px){
-      header{padding:14px}
-      main{padding:14px 12px 22px}
-      .title h1{font-size:19px}
-      .pillrow{gap:8px}
-      .card .bd{padding:14px 12px}
-      .textareas{grid-template-columns:1fr}
-      .paxBlock{
-        grid-template-columns:1fr;
-      }
-      .paxBlock .row3,
-      .paxBlock .row1{
-        grid-column:1;
-      }
-      .paxBlock .chip{white-space:normal}
-      .sourceBlock textarea{min-height:220px}
-      #itin{min-height:260px}
-      .btnrow{
-        position:sticky;
-        bottom:0;
-        z-index:5;
-        background:linear-gradient(180deg, rgba(16,19,24,0), var(--bg) 22%);
-        padding:16px 0 0;
-      }
-      body[data-theme="light"] .btnrow{background:linear-gradient(180deg, rgba(245,247,251,0), var(--bg) 22%)}
-      .inlineNote{padding-top:0}
+      header{padding:12px 16px}
+      main{padding:16px 16px 24px}
+      .brand{width:100%}
+      .pillrow{width:100%}
+      .pill{flex:1 1 auto; min-width:0}
+      .card .bd{padding:14px}
+      .row2, .row3, .row4{grid-template-columns:minmax(0,1fr)}
+      .paxBlock .row3{max-width:none; grid-template-columns:repeat(3,minmax(0,1fr))}
+      .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .btnrow{display:grid; grid-template-columns:minmax(0,1fr)}
+      .btnrow button{width:100%}
+      #itin{min-height:200px}
+      #maskADT, #maskCHD, #maskINF{min-height:130px}
+      .status{white-space:normal}
+    }
+
+    @media (max-width:420px){
+      .paxBlock .row3{grid-template-columns:minmax(0,1fr)}
     }
   </style>
 </head>
@@ -820,7 +592,7 @@
     </div>
     <div class="title">
       <h1>Calculadora de Cotação INTER</h1>
-      <p>Monte, revise e copie a cotação para envio à agência.</p>
+      <p>Leitura do GDS, revisão e e-mail pronto para a agência.</p>
     </div>
   </div>
 
@@ -846,9 +618,8 @@
   <div class="grid">
     <section class="card">
       <div class="hd">
-        <h2>Fonte e revisão da cotação</h2>
+        <h2>Cotação</h2>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <div class="status" id="modePill">Cotação</div>
           <div class="status" id="draftPill">Rascunho local</div>
           <div class="status" id="statusPill" role="status" aria-live="polite">Pronto</div>
         </div>
@@ -856,18 +627,18 @@
 
       <div class="bd">
         <div class="subcard paxBlock">
-          <h3>PAXS</h3>
+          <h3>Passageiros</h3>
           <div class="row3">
             <div class="field">
-              <label>Qtd ADT</label>
+              <label for="qADT">Adultos</label>
               <input id="qADT" type="number" min="0" value="1" />
             </div>
             <div class="field">
-              <label>Qtd CHD</label>
+              <label for="qCHD">Crianças</label>
               <input id="qCHD" type="number" min="0" value="0" />
             </div>
             <div class="field">
-              <label>Qtd INF</label>
+              <label for="qINF">Bebês</label>
               <input id="qINF" type="number" min="0" value="0" />
             </div>
           </div>
@@ -875,7 +646,7 @@
 
           <div class="row1" style="margin-top:10px;">
             <label class="chip" style="width:max-content;">
-              <input type="checkbox" id="chkNomes">Informar nomes (opcional)
+              <input type="checkbox" id="chkNomes">Informar nomes dos passageiros
             </label>
           </div>
 
@@ -885,7 +656,7 @@
 
           <div id="paxCard" class="subcard" style="display:none; margin-top:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <h3 style="margin:0;">PAX &amp; Nomes</h3>
+              <h3 style="margin:0;">Nomes dos passageiros</h3>
               <div class="status" id="paxTotalPill">Total: 0</div>
             </div>
 
@@ -925,9 +696,9 @@
         <div class="sourceBlock">
           <div class="textareas">
             <div class="field">
-              <label>Itinerário (Sabre ou Amadeus)</label>
-              <textarea id="itin" placeholder="Cole o itinerário aqui..."></textarea>
-              <div class="help">O sistema tenta identificar Sabre/Amadeus pelo formato do itinerário.</div>
+              <label for="itin">Itinerário</label>
+              <textarea id="itin" placeholder="Cole o itinerário do Sabre ou Amadeus"></textarea>
+              <div class="help">O GDS é identificado pelo formato do itinerário colado.</div>
             </div>
             <div class="field">
               <label>Máscaras por passageiro</label>
@@ -936,34 +707,34 @@
               <div class="status" id="maskSplitStatus" role="status" aria-live="polite" hidden>Aguardando conteúdo</div>
               <div class="maskReview maskReviewStatic" id="maskReview">
                 <div class="subcard" id="maskADTWrap">
-                  <h3>ADT (máscara)</h3>
-                  <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores ADT..."></textarea>
+                  <h3>Máscara do ADT</h3>
+                  <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores do ADT"></textarea>
                   <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
-                    <label>Bagagem ADT (manual, se não detectar)</label>
+                    <label for="bagOvADT">Bagagem do ADT, se não for detectada</label>
                     <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
                   </div>
                 </div>
 
                 <div class="subcard" id="maskCHDWrap" style="display:none;">
-                  <h3>CHD (máscara)</h3>
-                  <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores CHD/CNN..."></textarea>
+                  <h3>Máscara do CHD</h3>
+                  <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores do CHD"></textarea>
                   <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
-                    <label>Bagagem CHD (manual, se não detectar)</label>
+                    <label for="bagOvCHD">Bagagem do CHD, se não for detectada</label>
                     <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
                   </div>
                 </div>
 
                 <div class="subcard" id="maskINFWrap" style="display:none;">
-                  <h3>INF (máscara)</h3>
-                  <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores INF..."></textarea>
+                  <h3>Máscara do INF</h3>
+                  <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores do INF"></textarea>
                   <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
-                    <label>Bagagem INF (manual, se não detectar)</label>
+                    <label for="bagOvINF">Bagagem do INF, se não for detectada</label>
                     <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
                   </div>
                 </div>
               </div>
 
-              <div class="help">Cole cada máscara no passageiro correspondente. Esse modo é mais estável para validar cotações Sabre e Amadeus.</div>
+              <div class="help">Cole a máscara de cada tipo de passageiro no campo correspondente.</div>
             </div>
           </div>
 
@@ -976,57 +747,37 @@
             <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
             <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
           </details>
+          <div id="confidencePill" class="confidencePill" role="status" aria-live="polite" hidden></div>
           <div id="validationSummary" class="validationSummary" role="alert" aria-live="polite"></div>
 
           <div class="kpis">
-            <div class="kpi"><div class="k">Tarifa (moeda) — pax principal</div><div class="v" id="kFare">—</div></div>
-            <div class="kpi"><div class="k">Equiv. BRL — grupo</div><div class="v" id="kEquiv">—</div></div>
-            <div class="kpi"><div class="k">Taxas BRL — grupo</div><div class="v" id="kTaxes">—</div></div>
-            <div class="kpi"><div class="k">Total BRL — grupo</div><div class="v" id="kTotal">—</div></div>
+            <div class="kpi"><div class="k">Tarifa do ADT</div><div class="v" id="kFare">—</div></div>
+            <div class="kpi"><div class="k">Tarifa do grupo</div><div class="v" id="kEquiv">—</div></div>
+            <div class="kpi"><div class="k">Taxas do grupo</div><div class="v" id="kTaxes">—</div></div>
+            <div class="kpi"><div class="k">Total do grupo</div><div class="v" id="kTotal">—</div></div>
           </div>
         </div>
 
         <div class="divider"></div>
 
-        <div class="row4">
-          <div class="field">
-            <label>Cabine</label>
-            <select id="fldCabine">
-              <option value="Econômica">Econômica</option>
-              <option value="Premium Economy">Premium Economy</option>
-              <option value="Executiva">Executiva</option>
-              <option value="Primeira Classe">Primeira Classe</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Condição</label>
-            <select id="fldCondicao">
-              <option value="Incluir a RAV">Incluir a RAV</option>
-              <option value="Outro">Outro…</option>
-              <option value="">(não informar)</option>
-            </select>
-          </div>
-          <div class="field" id="fldCondOutroWrap" style="display:none;">
-            <label>Condição (Outro)</label>
-            <input id="fldCondOutro" placeholder="Digite a condição..." />
-          </div>
-          <div class="field">
-            <label>RC (USD)</label>
-            <input id="fldRC" inputmode="decimal" placeholder="Ex.: 25.00" />
-          </div>
-
-          <div class="field">
-            <label id="lblFX">Câmbio do RC (USD → BRL)</label>
-            <div class="fxControl">
-              <input id="fldFX" inputmode="decimal" placeholder="Ex.: 5,1695" />
-              <button id="btnFetchFX" class="secondary" type="button">Consultar BCB</button>
+        <div class="subcard">
+          <h3>Valores e câmbio</h3>
+          <div class="row2">
+            <div class="field">
+              <label for="fldRC">RC por passageiro (USD)</label>
+              <input id="fldRC" inputmode="decimal" placeholder="Ex.: 25,00" />
+            </div>
+            <div class="field">
+              <label id="lblFX" for="fldFX">Câmbio do RC (USD para BRL)</label>
+              <div class="fxControl">
+                <input id="fldFX" inputmode="decimal" placeholder="Ex.: 5,1695" />
+                <button id="btnFetchFX" class="secondary" type="button">Consultar BCB</button>
+              </div>
             </div>
           </div>
-          <div class="hint" id="fxHint" style="grid-column:1/-1; margin-top:-6px;">
+          <div class="hint" id="fxHint">
             Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.
           </div>
-
-
         </div>
 
         <div class="subcard">
@@ -1034,16 +785,15 @@
           <div class="switches">
             <label class="chip"><input type="checkbox" id="payFaturado">Faturado</label>
             <label class="chip"><input type="checkbox" id="payCartao">Cartão de crédito</label>
-            <label class="chip"><input type="checkbox" id="payDeposito">Transferência Bancária</label>
+            <label class="chip"><input type="checkbox" id="payDeposito">Transferência bancária</label>
           </div>
-
-          <div class="row2" style="margin-top:10px;">
+          <div class="row2" style="margin-top:12px;">
             <div class="field" id="payLinkWrap" style="display:none;">
-              <label>Link de pagamento (opcional)</label>
-              <input id="payLink" placeholder="Cole o link..." />
+              <label for="payLink">Link de pagamento</label>
+              <input id="payLink" placeholder="Cole o link de pagamento" />
             </div>
             <div class="field" id="payParcelWrap" style="display:none;">
-              <label>Parcelamento (sem juros)</label>
+              <label for="payParcel">Parcelamento sem juros</label>
               <select id="payParcel">
                 <option value="1x">1x</option><option value="2x">2x</option><option value="3x">3x</option><option value="4x">4x</option>
                 <option value="5x">5x</option><option value="6x">6x</option><option value="7x">7x</option><option value="8x">8x</option>
@@ -1053,49 +803,74 @@
           </div>
         </div>
 
-        <div class="row3" style="margin-top:12px;">
-<div class="field">
-            <label>Assentos</label>
-            <select id="fldAssentosMode">
-              <option value="">Não informar</option>
-              <option value="padrao">Padrão (marcação antecipada mediante pagamento)</option>
-              <option value="custom">Campo livre…</option>
-            </select>
+        <div class="subcard">
+          <h3>Condições comerciais</h3>
+          <div class="row3">
+            <div class="field">
+              <label for="fldCabine">Cabine</label>
+              <select id="fldCabine">
+                <option value="Econômica">Econômica</option>
+                <option value="Premium Economy">Premium Economy</option>
+                <option value="Executiva">Executiva</option>
+                <option value="Primeira Classe">Primeira Classe</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fldCondicao">Condição</label>
+              <select id="fldCondicao">
+                <option value="Incluir a RAV">Incluir a RAV</option>
+                <option value="Outro">Escrever outra condição</option>
+                <option value="">Não informar</option>
+              </select>
+            </div>
+            <div class="field" id="fldCondOutroWrap" style="display:none;">
+              <label for="fldCondOutro">Qual condição</label>
+              <input id="fldCondOutro" placeholder="Descreva a condição" />
+            </div>
           </div>
-          <div class="field" id="fldAssentosCustomWrap" style="display:none;">
-            <label>Assentos (texto)</label>
-            <input id="fldAssentosCustom" placeholder="Digite..." />
-          </div>
-        </div>
 
-        <div class="row2" style="margin-top:12px;">
-          <div class="field">
-            <label>Multa Reembolso (opcional)</label>
-            <input id="fldMultaReembolso" placeholder="Texto livre..." />
+          <div class="row2" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldAssentosMode">Assentos</label>
+              <select id="fldAssentosMode">
+                <option value="">Não informar</option>
+                <option value="padrao">Marcação antecipada mediante pagamento</option>
+                <option value="custom">Escrever outro texto</option>
+              </select>
+            </div>
+            <div class="field" id="fldAssentosCustomWrap" style="display:none;">
+              <label for="fldAssentosCustom">Texto dos assentos</label>
+              <input id="fldAssentosCustom" placeholder="Descreva a regra de assentos" />
+            </div>
           </div>
-          <div class="field">
-            <label>Multa Remarcação (opcional)</label>
-            <input id="fldMultaRemarcacao" placeholder="Texto livre..." />
-          </div>
-        </div>
 
-        <div class="row3" style="margin-top:12px;">
-          <div class="field">
-            <label>Bilhete em aberto (opcional)</label>
-            <select id="fldOpenTicket">
-              <option value="">(não informar)</option>
-              <option value="Sim">SIM</option>
-              <option value="Não">NÃO</option>
-            </select>
+          <div class="row2" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldMultaReembolso">Multa de reembolso</label>
+              <input id="fldMultaReembolso" placeholder="Ex.: USD 250 mais diferença tarifária" />
+            </div>
+            <div class="field">
+              <label for="fldMultaRemarcacao">Multa de remarcação</label>
+              <input id="fldMultaRemarcacao" placeholder="Ex.: USD 150 mais diferença tarifária" />
+            </div>
           </div>
-          <div class="field">
-            <label>LOC (opcional)</label>
-            <input id="fldLOC" placeholder="Ex.: AY9RIP" />
+
+          <div class="row3" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldOpenTicket">Permite bilhete em aberto</label>
+              <select id="fldOpenTicket">
+                <option value="">Não informar</option>
+                <option value="Sim">Sim</option>
+                <option value="Não">Não</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fldLOC">Localizador</label>
+              <input id="fldLOC" placeholder="Ex.: AY9RIP" />
+            </div>
           </div>
-          <div class="field">
-            <label>&nbsp;</label>
-            <div class="inlineNote" id="hintOptional">Obs.: campos vazios não entram no e-mail.</div>
-          </div>
+
+          <div class="hint" id="hintOptional">Campo em branco não entra no e-mail.</div>
         </div>
 
       </div>
@@ -1235,23 +1010,111 @@ function formatDateBR(date){
   ].join("/");
 }
 
-async function fetchBcbUsdRateForUsageDate(usageDate = getSaoPauloUsageDate(), fetchFn = window.fetch.bind(window)){
+// Somente USD e automatizado. O cambio IATA/BSR de EUR e GBP segue a metodologia
+// ROE da IATA, que NAO coincide com o fechamento PTAX do BCB: conferido, bate exato
+// apenas para USD. Para as demais moedas o campo permanece manual de proposito.
+const BCB_FX_SUPPORTED = ["USD"];
+const BCB_FX_TIMEOUT_MS = 6000;
+const BCB_FX_CACHE_KEY = "bcb_fx_cache_v1";
+
+function readBcbFxCache(){
+  try{ return JSON.parse(localStorage.getItem(BCB_FX_CACHE_KEY) || "{}") || {}; }
+  catch(e){ return {}; }
+}
+
+function writeBcbFxCache(cache){
+  try{ localStorage.setItem(BCB_FX_CACHE_KEY, JSON.stringify(cache)); }
+  catch(e){ /* cota de storage cheia nao deve impedir a cotacao */ }
+}
+
+// Assinatura preservada: (usageDate, fetchFn) + options opcional para o AbortSignal.
+// O default de fetchFn e resolvido com guarda porque jsdom nao expoe window.fetch.
+async function fetchBcbUsdRateForUsageDate(
+  usageDate = getSaoPauloUsageDate(),
+  fetchFn = (typeof window !== "undefined" && typeof window.fetch === "function") ? window.fetch.bind(window) : null,
+  options = {}
+){
+  if(typeof fetchFn !== "function"){
+    throw new Error("Este ambiente nao expoe fetch para consultar o BCB.");
+  }
   const endpoint = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)";
   for(let daysBack = 1; daysBack <= 10; daysBack++){
     const baseDate = new Date(usageDate.getTime());
     baseDate.setUTCDate(baseDate.getUTCDate() - daysBack);
     const queryDate = formatDateForBcb(baseDate);
     const url = `${endpoint}?@dataCotacao='${queryDate}'&$format=json`;
-    const response = await fetchFn(url, { headers: { Accept: "application/json" } });
+    const response = await fetchFn(url, { headers: { Accept: "application/json" }, signal: options.signal });
     if(!response.ok) throw new Error(`BCB respondeu com status ${response.status}`);
     const data = await response.json();
-    const quote = Array.isArray(data.value) ? data.value[data.value.length - 1] : null;
+    // A resposta pode trazer boletins intermediarios (Abertura, Intermediario).
+    // O cambio de referencia e o de Fechamento PTAX; o ultimo item e so fallback.
+    const list = Array.isArray(data.value) ? data.value : [];
+    const quote = list.find(entry => entry && entry.tipoBoletim === "Fechamento PTAX")
+      || list[list.length - 1]
+      || null;
     const rate = quote ? Number(quote.cotacaoVenda) : NaN;
     if(Number.isFinite(rate) && rate > 0){
       return { rate, source: "BCB", baseDate, usageDate };
     }
   }
   throw new Error("Nenhuma cotação de fechamento foi encontrada nos 10 dias anteriores.");
+}
+
+// Consulta com cache diario e tempo limite. Degrada para null em qualquer falha:
+// o operador deve poder digitar o cambio a mao sem ver caixa de erro.
+async function fetchBcbUsdRateCached({ force = false } = {}){
+  if(!BCB_FX_SUPPORTED.includes("USD")) return null;
+
+  const usageDate = getSaoPauloUsageDate();
+  const dayKey = formatDateForBcb(usageDate);
+  const cache = readBcbFxCache();
+  // Cache primeiro: com a cotacao do dia em maos nao ha motivo para tocar a rede.
+  if(!force && cache.USD && cache.USD.dayKey === dayKey) return cache.USD;
+
+  if(typeof window === "undefined" || typeof window.fetch !== "function") return null;
+
+  const controller = (typeof AbortController === "function") ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), BCB_FX_TIMEOUT_MS) : null;
+  try{
+    const quote = await fetchBcbUsdRateForUsageDate(usageDate, undefined, {
+      signal: controller ? controller.signal : undefined
+    });
+    const entry = {
+      rate: quote.rate,
+      source: "BCB",
+      baseDate: formatDateBR(quote.baseDate),
+      usageDate: formatDateBR(quote.usageDate),
+      dayKey
+    };
+    cache.USD = entry;
+    writeBcbFxCache(cache);
+    return entry;
+  }catch(e){
+    console.warn("Consulta de cambio BCB indisponivel.", e);
+    return null;
+  }finally{
+    if(timer) clearTimeout(timer);
+  }
+}
+
+// Guarda de sequencia: resposta atrasada nunca sobrescreve uma consulta mais recente.
+let fxAutofillSeq = 0;
+
+// Preenche o cambio sem atropelar valor digitado a mao nem valor vindo da mascara GDS.
+// force=true (botao) ignora essa protecao e sempre atualiza.
+async function maybeAutofillFx({ force = false } = {}){
+  const input = $("fldFX");
+  if(!input) return null;
+  const canFill = () => force || !input.value.trim() || input.dataset.source === "BCB";
+  if(!canFill()) return null;
+
+  const mySeq = ++fxAutofillSeq;
+  const entry = await fetchBcbUsdRateCached({ force });
+  if(mySeq !== fxAutofillSeq) return null;   // outra consulta comecou depois desta
+  if(!entry || !canFill()) return null;
+
+  setFxRate(entry.rate, { source: "BCB", baseDate: entry.baseDate, usageDate: entry.usageDate }, false);
+  return entry;
 }
 
 function readFxMeta(){
@@ -1271,19 +1134,23 @@ function renderFxHint(){
   const meta = readFxMeta();
 
   if(rate != null && meta.source === "BCB" && meta.baseDate && meta.usageDate){
-    hint.textContent = `Somente RC: BCB venda ${rate.toFixed(4).replace(".", ",")} · fechamento ${meta.baseDate} · uso em ${meta.usageDate}. A tarifa em BRL não é recalculada.`;
+    hint.textContent = `Venda BCB de ${rate.toFixed(4).replace(".", ",")}, fechamento de ${meta.baseDate}, aplicado em ${meta.usageDate}. Vale só para o RC. A tarifa em BRL continua a do GDS.`;
   } else if(rate != null && meta.source === "GDS"){
-    hint.textContent = "Somente RC: taxa obtida da máscara GDS (RATE USED/BSR). A tarifa em BRL não é recalculada.";
+    hint.textContent = "Câmbio lido da máscara do GDS. Vale só para o RC. A tarifa em BRL continua a do GDS.";
   } else if(rate != null){
-    hint.textContent = "Somente RC: câmbio preenchido manualmente. A tarifa permanece conforme o equivalente em BRL do GDS.";
+    hint.textContent = "Câmbio preenchido à mão. Vale só para o RC. A tarifa em BRL continua a do GDS.";
   } else {
-    hint.textContent = "Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.";
+    hint.textContent = "Aplicado somente ao RC. A tarifa em BRL é a informada pelo GDS.";
   }
 }
 
 function setFxRate(rate, meta = {}, trackChange = true){
   const input = $("fldFX");
-  input.value = Number(rate).toFixed(4);
+  // Vírgula decimal: o resto da interface (incluindo a dica abaixo deste campo)
+  // já mostra o câmbio dessa forma. Um campo com ponto ao lado de outro com
+  // vírgula para o mesmo número é o tipo de detalhe que denuncia um sistema
+  // remendado em partes.
+  input.value = Number(rate).toFixed(4).replace(".", ",");
   input.dataset.source = meta.source || "";
   input.dataset.baseDate = meta.baseDate || "";
   input.dataset.usageDate = meta.usageDate || "";
@@ -1327,7 +1194,7 @@ function saveDraft(){
 
 function scheduleDraftSave(){
   clearTimeout(draftSaveTimer);
-  updateDraftPill("Salvando...");
+  updateDraftPill("Salvando");
   draftSaveTimer = setTimeout(saveDraft, 450);
 }
 
@@ -1335,7 +1202,9 @@ function markPreviewDirty(){
   const preview = $("preview");
   if(!preview || !(preview.dataset.html || "").trim()) return;
   previewDirty = true;
-  setStatus("Alterações pendentes", true);
+  setStatus("Prévia desatualizada", true);
+  // A confiabilidade se referia a previa anterior; esconder evita leitura enganosa.
+  renderConfidence(null);
 }
 
 function restoreDraft(){
@@ -1380,7 +1249,7 @@ function restoreDraft(){
   updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
     ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
     : "Rascunho restaurado");
-  setStatus("Rascunho restaurado — gere a prévia");
+  setStatus("Rascunho restaurado. Gere a prévia.");
   return true;
 }
 
@@ -1401,63 +1270,110 @@ function validateQuoteInput(){
 
   if(qADT + qCHD + qINF <= 0) add("qADT", "Informe pelo menos um passageiro.", "error");
   if(!itin) add("itin", "Cole o itinerário antes de gerar a prévia.", "error");
-  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato do itinerário não permitiu identificar Sabre ou Amadeus.", "error");
+  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato colado não corresponde a Sabre nem a Amadeus.", "error");
 
-  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara ADT está vazia.");
-  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara CHD está vazia.");
-  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara INF está vazia.");
+  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara do ADT está vazia.");
+  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara do CHD está vazia.");
+  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara do INF está vazia.");
 
   if($("fldCondicao").value === "Outro" && !$("fldCondOutro").value.trim()){
-    add("fldCondOutro", "Preencha a condição personalizada ou altere a seleção.");
+    add("fldCondOutro", "Escreva a condição ou escolha outra opção.");
   }
   if($("fldAssentosMode").value === "custom" && !$("fldAssentosCustom").value.trim()){
-    add("fldAssentosCustom", "Preencha o texto personalizado de assentos.");
+    add("fldAssentosCustom", "Escreva o texto dos assentos ou escolha outra opção.");
   }
 
   const rcRaw = $("fldRC").value.trim();
   if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
-    add("fldRC", "Informe um valor válido para RC.", "error");
+    add("fldRC", "O RC precisa ser um número válido.", "error");
   }
   const fxRaw = $("fldFX").value.trim();
   if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
-    add("fldFX", "Informe uma taxa de câmbio válida.", "error");
+    add("fldFX", "O câmbio precisa ser um número maior que zero.", "error");
   }
 
   if($("chkNomes").checked){
     const names = collectPaxNames();
-    if(names.ADT.length < qADT) add("chkNomes", "Ha nomes ADT ainda nao preenchidos.");
-    if(names.CHD.length < qCHD) add("chkNomes", "Ha nomes CHD ainda nao preenchidos.");
-    if(names.INF.length < qINF) add("chkNomes", "Ha nomes INF ainda nao preenchidos.");
+    if(names.ADT.length < qADT) add("chkNomes", "Faltam nomes de adultos.");
+    if(names.CHD.length < qCHD) add("chkNomes", "Faltam nomes de crianças.");
+    if(names.INF.length < qINF) add("chkNomes", "Faltam nomes de bebês.");
   }
   return issues;
 }
 
+// Renderiza o painel de avisos. Aceita dois tipos de item:
+//   • avisos de campo    — têm `id` e marcam o controle correspondente;
+//   • avisos do motor    — `source:"engine"`, sem `id`, exibidos em bloco próprio.
+// Itens sem `id` nunca marcam controle, por isso a guarda antes do $().
 function renderValidation(issues){
   clearValidationMarks();
   const summary = $("validationSummary");
   if(!summary) return;
   summary.innerHTML = "";
   summary.classList.remove("show", "error");
-  if(!issues.length) return;
+  const all = Array.isArray(issues) ? issues : [];
+  if(!all.length) return;
 
-  const hasError = issues.some(issue => issue.level === "error");
+  const hasError = all.some(issue => issue.level === "error");
   summary.classList.add("show");
   if(hasError) summary.classList.add("error");
 
-  const title = document.createElement("strong");
-  title.textContent = hasError ? "Revise os campos destacados" : "Confira antes de enviar";
-  const list = document.createElement("ul");
-  issues.forEach(issue => {
-    const item = document.createElement("li");
-    item.textContent = issue.message;
-    list.appendChild(item);
-    const control = $(issue.id);
-    if(control){
-      control.classList.add(issue.level === "error" ? "is-invalid" : "is-warning");
-      if(issue.level === "error") control.setAttribute("aria-invalid", "true");
-    }
-  });
-  summary.append(title, list);
+  const appendBlock = (titleText, items) => {
+    if(!items.length) return;
+    const title = document.createElement("strong");
+    title.textContent = titleText;
+    const list = document.createElement("ul");
+    items.forEach(issue => {
+      const item = document.createElement("li");
+      item.textContent = issue.message;
+      list.appendChild(item);
+      const control = issue.id ? $(issue.id) : null;
+      if(control){
+        control.classList.add(issue.level === "error" ? "is-invalid" : "is-warning");
+        if(issue.level === "error") control.setAttribute("aria-invalid", "true");
+      }
+    });
+    summary.append(title, list);
+  };
+
+  appendBlock(
+    hasError ? "Revise os campos destacados" : "Confira antes de enviar",
+    all.filter(issue => issue.source !== "engine")
+  );
+  appendBlock(
+    "Avisos do motor de cotação. Confira no GDS antes de enviar.",
+    all.filter(issue => issue.source === "engine")
+  );
+}
+
+// Converte os warnings do motor de regras em itens do painel.
+// São strings simples, sem campo associado, por isso id fica null.
+function engineIssuesFromQuote(quote){
+  const list = (quote && quote.meta && Array.isArray(quote.meta.warnings)) ? quote.meta.warnings : [];
+  return list.map(warning => ({ id: null, message: String(warning), level: "warning", source: "engine" }));
+}
+
+const CONFIDENCE_LABEL = { HIGH: "alta", MEDIUM: "média", LOW: "baixa" };
+
+// Exibe o nível de confiabilidade da leitura automática.
+// Chamar com null esconde a tarja (prévia inexistente ou obsoleta).
+function renderConfidence(quote){
+  const el = $("confidencePill");
+  if(!el) return;
+  const level = (quote && quote.meta) ? quote.meta.confidence : null;
+  if(!level){
+    el.hidden = true;
+    el.className = "confidencePill";
+    el.textContent = "";
+    return;
+  }
+  const count = (quote.meta.warnings || []).length;
+  el.className = "confidencePill show conf-" + String(level).toLowerCase();
+  el.hidden = false;
+  const plural = count === 1 ? "1 aviso" : count + " avisos";
+  el.textContent = level === "HIGH"
+    ? "Confiabilidade da leitura: alta. Nenhum aviso do motor."
+    : `Confiabilidade da leitura: ${CONFIDENCE_LABEL[level] || level}. ${plural} para revisar antes de enviar.`;
 }
 
 function enhanceAccessibility(){
@@ -1496,7 +1412,7 @@ function refreshPaxUI(){
   $("paxInfantsWrap").style.display = (wantNames && qINF>0) ? "" : "none";
   $("divChdSep").style.display = (wantNames && qCHD>0) ? "" : "none";
   $("divInfSep").style.display = (wantNames && qINF>0) ? "" : "none";
-  $("paxTotalPill").textContent = "Total: " + (qADT+qCHD+qINF);
+  $("paxTotalPill").textContent = (qADT+qCHD+qINF) + " no total";
   renderPaxInputs("ADT", qADT, "paxAdultosList");
   renderPaxInputs("CHD", qCHD, "paxCriancasList");
   renderPaxInputs("INF", qINF, "paxInfantsList");
@@ -1699,7 +1615,7 @@ function applyAutoPax(paxList){
   for(let i=0;i<chd.length;i++){ const el = document.getElementById(`name_CHD_${i+1}`); if(el) el.value = chd[i]; }
   for(let i=0;i<inf.length;i++){ const el = document.getElementById(`name_INF_${i+1}`); if(el) el.value = inf[i]; }
   $("autoPaxSuggest").style.display = "none";
-  setStatus("PAX preenchidos pelo itinerário");
+  setStatus("Passageiros preenchidos pelo itinerário");
   scheduleDraftSave();
 }
 
@@ -1856,7 +1772,7 @@ function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
   const status = $("maskSplitStatus");
   if(status){
     status.textContent = found.length
-      ? `Identificados: ${found.join(", ")}${missing.length ? ` · faltando: ${missing.join(", ")}` : ""}`
+      ? `Identificados: ${found.join(", ")}${missing.length ? `. Faltando: ${missing.join(", ")}` : ""}`
       : "Nenhuma máscara por passageiro foi identificada";
     status.classList.toggle("warn", !found.length || missing.length > 0);
   }
@@ -2573,10 +2489,12 @@ function iataToName(code) {
 }
 
 function buildRouteString(segs){
-  if(!segs.length) return "—";
-  let parts=[segs[0].org];
+  // Somente trechos aereos entram na rota: ARNK nao tem org/dst e contaminaria a string.
+  const air = (segs || []).filter(s => s && !s.surface && s.org && s.dst);
+  if(!air.length) return "\u2014";
+  let parts=[air[0].org];
   let lastDest=null;
-  for(const s of segs){
+  for(const s of air){
     if(lastDest && s.org!==lastDest){ parts.push("//", s.org); }
     parts.push(s.dst);
     lastDest=s.dst;
@@ -2629,6 +2547,42 @@ function extractFareFamilies(pricingRaw){
   return found;
 }
 
+// Soma as linhas de taxa explicitas da mascara, para conferir taxas obtidas por diferenca.
+// Considera apenas linhas que COMECAM com "BRL n-XX" ou "TAX BRL n": somar todas as
+// ocorrencias de "-XX" contaria duas vezes o detalhamento de XT, que aparece
+// discriminado a direita e consolidado a esquerda na mesma mascara.
+function sumExplicitTaxLinesBRL(pricingRaw){
+  let sum = 0, found = 0;
+  for(const l of trimLines(pricingRaw)){
+    const line = String(l).replace(/[\u00a5\u00a4]/g, " ").trim();
+    let m = line.match(/^BRL\s*([0-9][0-9.,]*)\s*-\s*([A-Z]{1,3})\b/i);
+    if(!m) m = line.match(/^TAX(?:ES)?\s+BRL\s*([0-9][0-9.,]*)/i);
+    if(m){ const v = parseAmountAny(m[1]); if(v != null){ sum += v; found++; } }
+  }
+  return { sum: +sum.toFixed(2), found };
+}
+
+// Classifica taxas obtidas por diferenca (total - equivalente).
+// Quando equivalente + linhas de taxa reconstroem o total, a conta esta conferida
+// e NAO deve gerar aviso: esse e o caminho normal de toda mascara Amadeus.
+function classifyDerivedTaxes(pricingRaw, equiv, total){
+  const tl = sumExplicitTaxLinesBRL(pricingRaw);
+  const derived = +(total - equiv).toFixed(2);
+
+  // Taxa zero sem nenhuma linha de taxa na mascara e leitura coerente, nao suspeita:
+  // e o caso comum de INF isento e de tarifa zero. Tudo concorda em zero.
+  if(derived === 0 && tl.found === 0){
+    return { taxesSource: "DERIVED_DIFF_CORROBORATED", taxLinesBRL: 0 };
+  }
+
+  // Total menor que o equivalente nunca confere: cai em DERIVED_DIFF e gera aviso.
+  const reconciles = tl.found > 0 && Math.abs(+(equiv + tl.sum).toFixed(2) - total) <= 0.02;
+  return {
+    taxesSource: reconciles ? "DERIVED_DIFF_CORROBORATED" : "DERIVED_DIFF",
+    taxLinesBRL: tl.found > 0 ? tl.sum : null
+  };
+}
+
 function parsePricingAmadeus(pricingRaw){
   const lines = trimLines(pricingRaw);
   const flat = flatten(pricingRaw);
@@ -2678,12 +2632,23 @@ function parsePricingAmadeus(pricingRaw){
   if(mEq) equiv=parseAmountAny(mEq[1]);
   if(equiv==null){ const mEq2 = flat.match(/\bBRL\s*([0-9][0-9.,]*)\s+.{0,260}?(?:NUC|END|ROE)/i); if(mEq2) equiv=parseAmountAny(mEq2[1]); }
   if(equiv==null){ for(const l of lines){ const s = l.trim(); const mm = s.match(/^BRL\s*([0-9][0-9.,]*)\b/i); if(mm){ if(!/\-[A-Z]{1,3}\b/i.test(s)){ equiv=parseAmountAny(mm[1]); break; } } } }
+  // Procedencia do total: EXPLICIT_TOTAL e leitura direta; os demais sao fallback.
+  let totalSource = null;
   const mTot = flat.match(/\bGRAND\s+TOTAL\b\s*BRL\s*([0-9][0-9.,]*)/i) || flat.match(/\bTOTAL\b\s*BRL\s*([0-9][0-9.,]*)/i);
-  if(mTot) total=parseAmountAny(mTot[1]);
+  if(mTot){ total=parseAmountAny(mTot[1]); totalSource = "EXPLICIT_TOTAL"; }
   if(total==null){ const brls=[]; for(const l of lines){ const mm=l.match(/^BRL\s*([0-9][0-9.,]*)\s*$/i); if(mm) brls.push(parseAmountAny(mm[1])); } if(brls.length) total=brls[brls.length-1]; }
+  if(total!=null && totalSource==null) totalSource = "LAST_BRL_LINE";
   if(total==null){ const cand=[]; for(const l of lines){ const all=[...String(l).matchAll(/\bBRL\s*([0-9][0-9.,]*)\b(?!\s*-\w)/ig)]; for(const mm of all){ const v=parseAmountAny(mm[1]); if(v!=null && !isNaN(v)) cand.push(v); } } if(cand.length) total = Math.max(...cand); }
-  if(total!=null && equiv!=null){ taxes=Math.max(0, +(total-equiv).toFixed(2)); }
-  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
+  if(total!=null && totalSource==null) totalSource = "MAX_BRL";
+  // Amadeus nao tem linha de taxa consolidada: o valor sempre sai por diferenca.
+  let taxesSource = null, taxLinesBRL = null;
+  if(total!=null && equiv!=null){
+    taxes=Math.max(0, +(total-equiv).toFixed(2));
+    const classified = classifyDerivedTaxes(pricingRaw, equiv, total);
+    taxesSource = classified.taxesSource;
+    taxLinesBRL = classified.taxLinesBRL;
+  }
+  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource, taxesSource, taxLinesBRL};
 }
 
 function parsePricingSabre(pricingRaw){
@@ -2706,10 +2671,21 @@ function parsePricingSabre(pricingRaw){
     if(m){
       const equivBRL = parseAmountAny(m[3]);
       const totalBRL = parseAmountAny(m[5]);
-      const taxesBRL = m[4] != null
+      const taxesRead = m[4] != null;
+      const taxesBRL = taxesRead
         ? parseAmountAny(m[4])
         : (equivBRL != null && totalBRL != null ? Math.max(0, +(totalBRL - equivBRL).toFixed(2)) : null);
+      let taxesSource = null, taxLinesBRL = null;
+      if(taxesRead){ taxesSource = "READ"; }
+      else if(equivBRL != null && totalBRL != null){
+        const classified = classifyDerivedTaxes(pricingRaw, equivBRL, totalBRL);
+        taxesSource = classified.taxesSource;
+        taxLinesBRL = classified.taxLinesBRL;
+      }
       return {
+        totalSource: totalBRL != null ? "READ_LINE" : null,
+        taxesSource,
+        taxLinesBRL,
         fareCur: m[1].toUpperCase(),
         fareAmt: parseAmountAny(m[2]),
         equivBRL,
@@ -2728,10 +2704,10 @@ function parsePricingSabre(pricingRaw){
   ];
   for(const re of patterns){
     const m = flat.match(re);
-    if(m){ return { fareCur:m[1].toUpperCase(), fareAmt:parseAmountAny(m[2]), equivBRL:parseAmountAny(m[3]), taxesBRL:parseAmountAny(m[4]), totalBRL:parseAmountAny(m[5]), bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies }; }
+    if(m){ return { fareCur:m[1].toUpperCase(), fareAmt:parseAmountAny(m[2]), equivBRL:parseAmountAny(m[3]), taxesBRL:parseAmountAny(m[4]), totalBRL:parseAmountAny(m[5]), bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource: "READ_LINE", taxesSource: "READ", taxLinesBRL: null }; }
   }
   const currencyMatch = flat.match(/\b([A-Z]{3})\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/);
-  return {fareCur:currencyMatch ? currencyMatch[1] : null, fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies};
+  return {fareCur:currencyMatch ? currencyMatch[1] : null, fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource: null, taxesSource: null, taxLinesBRL: null};
 }
 
 // ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
@@ -2783,30 +2759,8 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
     INF: prices.INF || null
   };
 
-  // 3. Totais — calculados aqui, não na renderização
-  const rcUSDnum = parseAmountAny(commercial.rcUSD);
-  const fxRate   = iataRate ? iataRate.rate : null;
-  const rcBRL    = (rcUSDnum != null && rcUSDnum > 0 && fxRate != null) ? rcUSDnum * fxRate : 0;
-
-  let groupFare  = 0;
-  let groupTaxes = 0;
-  let groupTotal = 0;
-
-  const paxOrder = [
-    { type: 'ADT', qty: pax.adt },
-    { type: 'CHD', qty: pax.chd },
-    { type: 'INF', qty: pax.inf }
-  ];
-
-  for (const { type, qty } of paxOrder) {
-    if (qty <= 0) continue;
-    const pr = pricing[type];
-    if (!pr) continue;
-    if (pr.equivBRL  != null) groupFare   += pr.equivBRL  * qty;
-    if (pr.taxesBRL  != null) groupTaxes  += pr.taxesBRL  * qty;
-    if (pr.totalBRL  != null) groupTotal  += (pr.totalBRL + rcBRL) * qty;
-  }
-
+  // 3. fareDisplay e o UNICO campo de totals produzido aqui: applyTotalsByPax
+  //    sobrescreve q.totals inteiro e preserva somente ele.
   // fareDisplay para KPI — usa ADT como referência
   let fareDisplay = '—';
   const adtPr = pricing.ADT;
@@ -2814,38 +2768,16 @@ function createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, 
     fareDisplay = moneyCurrency(adtPr.fareAmt, adtPr.fareCur) + ' (ADT)';
   }
 
-  const totals = {
-    // Estrutura nova (para próximas fases)
-    group: {
-      fareTotal:  +groupFare.toFixed(2),
-      taxesTotal: +groupTaxes.toFixed(2),
-      grandTotal: +groupTotal.toFixed(2),
-      currency:   'BRL'
-    },
-    // Aliases de compat — usados diretamente pelos KPIs
-    equivBRL:    +groupFare.toFixed(2),
-    taxesBRL:    +groupTaxes.toFixed(2),
-    totalBRL:    +groupTotal.toFixed(2),
-    fareDisplay
-  };
+  const totals = { fareDisplay };
 
-  // 4. Warnings (preparação para próximas fases)
-  const warnings = [];
-  if (!iataRate && rcUSDnum && rcUSDnum > 0) {
-    warnings.push('RC informado mas câmbio não encontrado — consulte o BCB ou preencha manualmente');
-  }
-  for (const { type, qty } of paxOrder) {
-    if (qty <= 0) continue;
-    const pr = pricing[type];
-    if (pr && !pr.bag) warnings.push(`Bagagem ${type} não detectada — campo manual disponível`);
-  }
-
+  // Os warnings sao produzidos pelo motor de regras (applyCurrency / applyValidations).
+  // Gerar aqui seria inutil: cloneQuote zera meta.warnings antes do pipeline rodar.
   return {
     meta: {
       gds,
       year,
       parsedAt: new Date().toISOString(),
-      warnings
+      warnings: []
     },
     passengers,
     itinerary: segs,
@@ -2918,7 +2850,7 @@ function applyCurrency(q) {
     if (!fxRate || fxRate <= 0) {
       // Warning gerado aqui; rcBRL permanece 0 (totais não incluem RC)
       q.meta.warnings.push(
-        `RC de USD ${rcUSDnum.toFixed(2)}/pax informado mas câmbio não encontrado — total do grupo pode estar incorreto`
+        `RC de USD ${rcUSDnum.toFixed(2)} por passageiro informado, mas câmbio não encontrado. O total do grupo pode estar incorreto.`
       );
     } else {
       q.meta._engine.rcBRL = +(rcUSDnum * fxRate).toFixed(2);
@@ -3032,6 +2964,19 @@ function applyEnrichments(q) {
   return q;
 }
 
+// Classes de status que exigem conferencia antes de enviar ao cliente.
+// Chaves = statusClass produzido por statusClass() dentro de parseItinerary.
+// 'confirmed' e 'surface' ficam de fora de proposito: nao pedem acao.
+// Se 'unknown' gerar ruido em PNR real, basta remover a entrada daqui.
+const SEGMENT_STATUS_ALERTS = {
+  cancelled:  { label: 'está cancelado',              hint: 'Não envie este trecho ao cliente.' },
+  problem:    { label: 'está com status irregular',   hint: 'Verifique o segmento no GDS.' },
+  waitlisted: { label: 'está em lista de espera',     hint: 'Isso não é confirmação de assento.' },
+  pending:    { label: 'aguarda confirmação',         hint: 'O status ainda não foi confirmado.' },
+  flown:      { label: 'já foi voado',                hint: 'Não deveria entrar em nova emissão.' },
+  unknown:    { label: 'tem status não reconhecido',  hint: 'Confira no GDS.' }
+};
+
 // ── applyValidations ──────────────────────────────────────────────────────────
 // Responsabilidade única: todas as validações de negócio.
 // Lê q.pricing e q.passengers. Escreve apenas em q.meta.warnings[].
@@ -3053,31 +2998,44 @@ function applyValidations(q) {
     const pr = q.pricing[type];
 
     if (!pr) {
-      q.meta.warnings.push(`Máscara ${type} não informada ou não reconhecida — valores ausentes`);
+      q.meta.warnings.push(`${type}: máscara não informada ou não reconhecida, então os valores ficaram vazios.`);
       continue;
     }
 
     if (pr.fareAmt == null && pr.equivBRL == null) {
-      q.meta.warnings.push(`${type}: tarifa não identificada — verifique a máscara colada`);
+      q.meta.warnings.push(`${type}: tarifa não identificada. Confira a máscara colada.`);
     }
 
     if (!pr.bag) {
-      q.meta.warnings.push(`${type}: franquia de bagagem não detectada — preencha manualmente se necessário`);
+      q.meta.warnings.push(`${type}: franquia de bagagem não detectada. Preencha à mão se precisar.`);
     }
 
     // Consistência: equiv + taxas deve bater com total (tolerância R$ 1,00)
     if (pr.bag === 'VAR') {
-      q.meta.warnings.push(`${type}: bagagem diferente durante o itinerario - confira a franquia por trecho`);
+      q.meta.warnings.push(`${type}: a franquia muda durante o itinerário. Confira trecho por trecho.`);
     }
 
     if (Array.isArray(pr.bagSegs) && pr.bagSegs.some(b => normalizeBagAllowance(b) === 'Sem Bag')) {
+      // bagSegs e indexado por trecho aereo: indexar q.itinerary direto reportaria o ARNK.
+      const airItin = (Array.isArray(q.itinerary) ? q.itinerary : []).filter(seg => seg && !seg.surface);
       const noBagRoutes = [];
       pr.bagSegs.forEach((b, idx) => {
         if (normalizeBagAllowance(b) !== 'Sem Bag') return;
-        const seg = q.itinerary && q.itinerary[idx] ? q.itinerary[idx] : null;
+        const seg = airItin[idx] || null;
         noBagRoutes.push(seg && seg.org && seg.dst ? `${seg.org}-${seg.dst}` : `trecho ${idx + 1}`);
       });
-      q.meta.warnings.push(`${type}: pelo menos um trecho sem bagagem (${noBagRoutes.join(', ')})`);
+      q.meta.warnings.push(`${type}: trecho sem bagagem em ${noBagRoutes.join(', ')}.`);
+    }
+
+    // Procedencia dos valores. LAST_BRL_LINE e DERIVED_DIFF_CORROBORATED ficam
+    // DE PROPOSITO silenciosos: sao o caminho normal e conferido do Amadeus, e
+    // avisar neles dispararia aviso em toda cotacao, treinando o operador a ignorar o painel.
+    if (pr.totalSource === 'MAX_BRL') {
+      q.meta.warnings.push(`${type}: o total não veio de uma linha TOTAL do GDS. Foi inferido pelo maior valor em BRL da máscara, então confirme o total.`);
+    }
+    if (pr.taxesSource === 'DERIVED_DIFF') {
+      const det = (pr.taxLinesBRL != null) ? ` (linhas de taxa somam BRL ${pr.taxLinesBRL.toFixed(2)})` : '';
+      q.meta.warnings.push(`${type}: taxas inferidas por diferença entre total e equivalente, e não conferem com as linhas de taxa${det}. Confira as taxas no GDS.`);
     }
 
     if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
@@ -3085,19 +3043,32 @@ function applyValidations(q) {
       const diff     = Math.abs(expected - pr.totalBRL);
       if (diff > 1.00) {
         q.meta.warnings.push(
-          `${type}: total informado (BRL ${pr.totalBRL.toFixed(2)}) difere de equiv+taxas (BRL ${expected.toFixed(2)}) em ${diff.toFixed(2)} BRL`
+          `${type}: o total da máscara (BRL ${pr.totalBRL.toFixed(2)}) não fecha com tarifa mais taxas (BRL ${expected.toFixed(2)}). Diferença de BRL ${diff.toFixed(2)}.`
         );
       }
     }
   }
 
+  // Status do segmento: o aviso vai para o operador, nunca para o e-mail do cliente.
+  // Precisa rodar aqui dentro para que o aviso conte em warnCount e derrube a confianca.
+  const segments = Array.isArray(q.itinerary) ? q.itinerary : [];
+  segments.forEach((seg, idx) => {
+    if (!seg || seg.surface) return;
+    const alert = SEGMENT_STATUS_ALERTS[seg.statusClass];
+    if (!alert) return;
+    const voo  = `${seg.airline || ''}${seg.flight || ''}`.trim() || `trecho ${idx + 1}`;
+    const rota = (seg.org && seg.dst) ? `${seg.org}-${seg.dst}` : `trecho ${idx + 1}`;
+    const code = seg.statusCode ? ` [${seg.statusCode}]` : '';
+    q.meta.warnings.push(`Segmento ${voo} ${rota}${code} ${alert.label}. ${alert.hint}`);
+  });
+
   // INF sem ADT ou mais INF do que ADT
   const cntINF = q.passengers.counts.inf;
   const cntADT = q.passengers.counts.adt;
   if (cntINF > 0 && cntADT === 0) {
-    q.meta.warnings.push('INF informado sem ADT correspondente — cada INF deve estar vinculado a um ADT');
+    q.meta.warnings.push('Bebê informado sem adulto. Cada bebê precisa estar vinculado a um adulto.');
   } else if (cntINF > cntADT) {
-    q.meta.warnings.push(`${cntINF} INF para ${cntADT} ADT — cada INF deve estar vinculado a um ADT`);
+    q.meta.warnings.push(`${cntINF} bebês para ${cntADT} adultos. Cada bebê precisa estar vinculado a um adulto.`);
   }
 
   return q;
@@ -3163,17 +3134,16 @@ function applyRules(quote) {
     q = step(q);
   }
 
-  // Log consolidado — não altera UI nem q
-  const icon = { HIGH: '✅', MEDIUM: '⚠️', LOW: '🔴' }[q.meta.confidence] || '❓';
+  // Log consolidado para depuração. Não altera a interface nem o modelo.
   console.groupCollapsed(
-    `[QuoteEngine] ${icon} ${q.meta.confidence} | ${q.meta.gds || '—'} | warnings: ${q.meta.warnings.length}`
+    `[cotacao] confianca=${q.meta.confidence} gds=${q.meta.gds || 'indefinido'} avisos=${q.meta.warnings.length}`
   );
   if (q.meta.warnings.length > 0) {
-    console.warn('[QuoteEngine] Warnings:\n' + q.meta.warnings.map((w, i) => `  ${i+1}. ${w}`).join('\n'));
+    console.warn('[cotacao] avisos:\n' + q.meta.warnings.map((w, i) => `  ${i+1}. ${w}`).join('\n'));
   }
-  console.log('[QuoteEngine] totals.group  →', q.totals.group);
-  console.log('[QuoteEngine] totals.byType →', q.totals.byType);
-  console.log('[QuoteEngine] meta._engine  →', q.meta._engine);
+  console.log('[cotacao] totais do grupo:', q.totals.group);
+  console.log('[cotacao] totais por tipo:', q.totals.byType);
+  console.log('[cotacao] interno do motor:', q.meta._engine);
   console.groupEnd();
 
   return q;
@@ -3186,7 +3156,7 @@ function applyRules(quote) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function buildEmail(quote) {
-  // ── Compat layer: QuoteModel → variáveis internas (corpo inalterado abaixo) ──
+  // ── Compat layer: QuoteModel → variáveis internas ───────────────────────────
   const cabine          = quote.commercial.cabine;
   const condicao        = quote.commercial.condicao;
   const rcUSD           = quote.commercial.rcUSD;
@@ -3203,18 +3173,30 @@ function buildEmail(quote) {
   const prices          = quote.pricing;
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // Corpo da função inalterado a partir daqui
-  const border = "#b8b7d6";
-  const headerBg = "#d9cce3";
-  const thBg = "#b39ddb";
-  const thColor = "#ffffff";
+  // Paleta do documento. Mesma família de cores do app (ver :root em <style>),
+  // para a cotação na tela e o e-mail enviado lerem como o mesmo produto.
+  const LINE    = "#d7dee7";
+  const SECTION = "#f3f5f8";
+  const INK     = "#1a2433";
+  const MUTED   = "#5a6a7d";
+  const ACCENT  = "#1f4d7a";
+  const ALERT_BG  = "#fdf4f2";
+  const ALERT_INK = "#a8321f";
+  const WARN_INK  = "#8a5a06";
+  const cell = `border:1px solid ${LINE}; padding:8px 10px;`;
+  const sectionBar = (text) =>
+    `<div style="margin-top:16px; padding:8px 16px; background:${SECTION}; border:1px solid ${LINE}; border-left:3px solid ${ACCENT}; font-weight:700; font-size:12px; letter-spacing:.03em; color:${INK}; text-transform:uppercase;">${text}</div>`;
+
+  // bagSegs vem indexado por trecho AEREO precificado, mas itinSegs inclui
+  // linhas de superficie (ARNK). Sem essa projecao a coluna BAG desalinha.
+  const airSegs = itinSegs.filter(s => s && !s.surface);
+  const airIndexOf = [];
+  { let n = 0; itinSegs.forEach((s, i) => { airIndexOf[i] = (s && s.surface) ? -1 : n++; }); }
 
   const route = buildRouteString(itinSegs);
-  const carrier = itinSegs[0] ? itinSegs[0].airline : "—";
-  const dtIni = itinSegs[0] ? itinSegs[0].depDateFmt : "—";
-  const dtFim = itinSegs[itinSegs.length-1] ? itinSegs[itinSegs.length-1].arrDateFmt : dtIni;
+  const carrier = airSegs[0] ? airSegs[0].airline : "—";
 
-  const segCount = itinSegs.length;
+  const segCount = airSegs.length;
   const typesPresent = [];
   if(pax.adt>0) typesPresent.push("ADT");
   if(pax.chd>0) typesPresent.push("CHD");
@@ -3247,88 +3229,57 @@ function buildEmail(quote) {
 
   const itinHeadExtra = (!typesPresent.length) ? "" : (
     bagSameAcrossTypes
-      ? `<th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">BAG</th>`
-      : typesPresent.map(t => `<th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">BAG ${t}</th>`).join("")
+      ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Bagagem</th>`
+      : typesPresent.map(t => `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Bagagem ${t}</th>`).join("")
   );
 
   const itinColspan = 5 + (!typesPresent.length ? 0 : (bagSameAcrossTypes ? 1 : typesPresent.length));
 
-  // ── Labels de status do segmento ─────────────────────────────────────────
-  // Baseado em Manual Amadeus p.23-24 (tabela de códigos)
-  const STATUS_LABEL = {
-    confirmed:  '',
-    waitlisted: '<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">⚠ LISTA</span>',
-    cancelled:  '<span style="display:inline-block;background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">✕ CANCELADO</span>',
-    flown:      '<span style="display:inline-block;background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;">✓ VOADO</span>',
-    pending:    '<span style="display:inline-block;background:#eff6ff;color:#1e40af;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;">⟳ AGUARDANDO</span>',
-    problem:    '<span style="display:inline-block;background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">⚠ VERIFICAR</span>',
-    surface:    '',
-    unknown:    ''
-  };
-
   const itinRows = itinSegs.map((s, idx) => {
-    // ── ARNK: trecho terrestre / superfície ─────────────────────────────────
-    // Manual p.9: "SI ARNK — chegada desconhecida (surface segment)"
+    // Trecho terrestre (ARNK): o cliente troca de aeroporto por terra, sem voo.
     if (s.surface) {
       return `
       <tr>
-        <td colspan="${itinColspan}" style="border:1px solid #b8b7d6; padding:6px 10px; font-size:11px; color:#64748b; font-style:italic; text-align:center; background:#f8fafc;">
-          ✈ TRECHO TERRESTRE (SUPERFÍCIE)
+        <td colspan="${itinColspan}" style="${cell} font-size:12px; color:${MUTED}; font-style:italic; text-align:center; background:${SECTION};">
+          Trecho terrestre, sem voo associado
         </td>
       </tr>`;
     }
 
-    // ── Célula do voo: número + operador + status badge ──────────────────────
-    const vooMain = `${escapeHtml(s.airline)}${escapeHtml(s.flight)}`;
+    const vooLabel = `${escapeHtml(s.airline)} ${escapeHtml(s.flight)}`.trim();
     const op = (s.opCarrier && s.opFlight)
       ? `${escapeHtml(s.opCarrier)}${escapeHtml(s.opFlight)}`
       : (s.opName ? escapeHtml(s.opName) : '');
-    const statusBadge = STATUS_LABEL[s.statusClass || 'unknown'] || '';
-    const equipBadge  = s.equipment
-      ? `<span style="font-size:10px;color:#64748b;margin-left:4px;">${escapeHtml(s.equipment)}</span>`
-      : '';
-    let vooCell = vooMain + statusBadge + equipBadge;
-    if (op) vooCell += `<div style="font-size:11px; color:#5b5568; margin-top:2px;">Op: ${op}</div>`;
+    const subLines = [];
+    if (op) subLines.push(`Operado por ${op}`);
+    if (s.equipment) subLines.push(`Equipamento ${escapeHtml(s.equipment)}`);
+    let vooCell = `<div style="font-weight:600;">${vooLabel}</div>`;
+    vooCell += subLines.map(t => `<div style="font-size:11px; color:${MUTED}; margin-top:2px;">${t}</div>`).join("");
 
-    // ── Chegada com offset de dia ────────────────────────────────────────────
-    // Manual p.12: "1525+1 Horário estimado de chegada no dia seguinte (+1)"
+    // Manual Amadeus p.12: "1525+1" é horário estimado de chegada no dia seguinte.
     const chegadaDisplay = `${escapeHtml(s.arrDateFmt)} ${escapeHtml(s.arrTimeFmt)}`
-      + (s.arrDayOffset ? `<span style="font-size:10px;color:#f59e0b;font-weight:700;"> (+${s.arrDayOffset})</span>` : '');
+      + (s.arrDayOffset ? `<span style="color:${WARN_INK}; font-weight:600;"> (+${s.arrDayOffset} dia)</span>` : '');
 
-    let bagCells = "";
+    // Ordinal do trecho aereo: e por ele que bagSegs deve ser consultado, nunca por idx.
+    const bagIdx = airIndexOf[idx];
     const renderBagTd = (v) => {
-      const txt = v || "-";
+      const txt = v || "—";
       const noBag = normalizeBagAllowance(txt) === "Sem Bag";
-      const extra = noBag ? "font-weight:700;color:#991b1b;background:#fef2f2;" : "";
-      return `<td style="border:1px solid #b8b7d6; padding:8px; ${extra}">${escapeHtml(txt)}</td>`;
+      const extra = noBag ? `font-weight:700; color:${ALERT_INK}; background:${ALERT_BG};` : "";
+      return `<td style="${cell} ${extra}">${escapeHtml(txt)}</td>`;
     };
+    let bagCells = "";
     if (typesPresent.length) {
-      const bagTd = (v) => {
-        const txt = v || "â€”";
-        const noBag = normalizeBagAllowance(txt) === "Sem Bag";
-        const extra = noBag ? "font-weight:700;color:#991b1b;background:#fef2f2;" : "";
-        return `<td style="border:1px solid #b8b7d6; padding:8px; ${extra}">${escapeHtml(txt)}</td>`;
-      };
       if (bagSameAcrossTypes) {
         let b = null;
-        for (const t of typesPresent) { const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : null; if(v!=null){ b=v; break; } }
-        bagCells = `<td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(b || "—")}</td>`;
-      } else {
-        bagCells = typesPresent.map(t => { const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : "—"; return `<td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(v)}</td>`; }).join("");
-      }
-    }
-    // ── Célula do trecho: nome IATA quando disponível ────────────────────────
-    if (typesPresent.length) {
-      if (bagSameAcrossTypes) {
-        let b2 = null;
         for (const t of typesPresent) {
-          const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : null;
-          if(v != null){ b2 = v; break; }
+          const v = (bagByType[t] && bagByType[t][bagIdx]) ? bagByType[t][bagIdx] : null;
+          if(v != null){ b = v; break; }
         }
-        bagCells = renderBagTd(b2);
+        bagCells = renderBagTd(b);
       } else {
         bagCells = typesPresent.map(t => {
-          const v = (bagByType[t] && bagByType[t][idx]) ? bagByType[t][idx] : "-";
+          const v = (bagByType[t] && bagByType[t][bagIdx]) ? bagByType[t][bagIdx] : null;
           return renderBagTd(v);
         }).join("");
       }
@@ -3336,47 +3287,46 @@ function buildEmail(quote) {
 
     const orgName = iataToName(s.org);
     const dstName = iataToName(s.dst);
-    // Linha principal: nome completo (ou código se não houver nome)
     const orgDisplay = orgName ? escapeHtml(orgName) : escapeHtml(s.org||'—');
     const dstDisplay = dstName ? escapeHtml(dstName) : escapeHtml(s.dst||'—');
-    // Linha secundária: códigos IATA em tom menor (só quando há nome)
     const codesSub = (orgName || dstName)
-      ? `<div style="font-size:10px; color:#94a3b8; margin-top:1px;">${escapeHtml(s.org||'')} → ${escapeHtml(s.dst||'')}</div>`
+      ? `<div style="font-size:11px; color:${MUTED}; margin-top:1px;">${escapeHtml(s.org||'')} → ${escapeHtml(s.dst||'')}</div>`
       : '';
-    const trechoCell = `<div style="font-weight:700;">${orgDisplay} → ${dstDisplay}</div>${codesSub}`;
+    const trechoCell = `<div style="font-weight:600;">${orgDisplay} → ${dstDisplay}</div>${codesSub}`;
 
     return `
     <tr>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${vooCell}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(s.rbd||"-")}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${trechoCell}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(s.depDateFmt)} ${escapeHtml(s.depTimeFmt)}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${chegadaDisplay}</td>
+      <td style="${cell}">${vooCell}</td>
+      <td style="${cell}">${escapeHtml(s.rbd||"—")}</td>
+      <td style="${cell}">${trechoCell}</td>
+      <td style="${cell}">${escapeHtml(s.depDateFmt)} ${escapeHtml(s.depTimeFmt)}</td>
+      <td style="${cell}">${chegadaDisplay}</td>
       ${bagCells}
     </tr>
   `;
   }).join("");
 
-  const pay = collectPayment();
+  const pay = (quote.commercial && quote.commercial.payment) || { methods: [], link: "" };
 
-  const rows=[];
-  let groupEquiv=0, groupTaxes=0, groupTotal=0;
-  const rcUSDnum = parseAmountAny(rcUSD);
-  const rcBRL = (rcUSDnum!=null && rcUSDnum>0 && fxRate!=null && fxRate>0) ? (rcUSDnum * fxRate) : 0;
-  const order=[{t:"ADT", q:pax.adt},{t:"CHD", q:pax.chd},{t:"INF", q:pax.inf}];
-  for(const o of order){
-    if(o.q<=0) continue;
-    const pr = prices[o.t] || null;
-    rows.push({ type:o.t, qty:o.q, fareCur:pr?.fareCur||null, fareAmt:pr?.fareAmt??null, equivBRL:pr?.equivBRL??null, taxesBRL:pr?.taxesBRL??null, totalBRL:pr?.totalBRL??null, bag:pr?.bag??null, bagSegs:pr?.bagSegs??null, rcBRL: rcBRL || 0 });
-    if(pr?.equivBRL!=null) groupEquiv += pr.equivBRL * o.q;
-    if(pr?.taxesBRL!=null) groupTaxes += pr.taxesBRL * o.q;
-    if(pr?.totalBRL!=null) groupTotal += (pr.totalBRL + rcBRL) * o.q;
-  }
+  // Totais vem prontos de applyTotalsByPax. Recalcular aqui era a origem da
+  // divergencia de centavos entre o e-mail e o KPI: o motor arredonda o RC por
+  // passageiro antes de multiplicar, que e a ordem correta para cobranca.
+  const modelTotals = quote.totals || {};
+  const byType = modelTotals.byType || {};
+  const rows = [{t:"ADT", q:pax.adt},{t:"CHD", q:pax.chd},{t:"INF", q:pax.inf}]
+    .filter(o => o.q > 0)
+    .map(o => Object.assign({ type:o.t, qty:o.q }, byType[o.t] || {}));
+  const groupTotal = (modelTotals.group && modelTotals.group.grandTotal != null)
+    ? modelTotals.group.grandTotal
+    : null;
 
-  const noteParts=[];
-  if(pax.adt) noteParts.push(`ADT ${pax.adt}`);
-  if(pax.chd) noteParts.push(`CHD ${pax.chd}`);
-  if(pax.inf) noteParts.push(`INF ${pax.inf}`);
+  // Descrição legível da composição do grupo, para quem lê o e-mail sem
+  // precisar conhecer os códigos ADT/CHD/INF do GDS.
+  const pluralize = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
+  const noteParts = [];
+  if (pax.adt) noteParts.push(pluralize(pax.adt, "adulto", "adultos"));
+  if (pax.chd) noteParts.push(pluralize(pax.chd, "criança", "crianças"));
+  if (pax.inf) noteParts.push(pluralize(pax.inf, "bebê", "bebês"));
 
   const optItems = [];
   const fareFamilies = [];
@@ -3388,144 +3338,126 @@ function buildEmail(quote) {
       if(f && !fareFamilies.includes(label)) fareFamilies.push(label);
     });
   }
-  if(fareFamilies.length) optItems.push(`<li><b>Familia tarifaria:</b> ${escapeHtml(fareFamilies.join(" | "))}</li>`);
-  if(cabine) optItems.push(`<li><b>Cabine:</b> ${escapeHtml(cabine)}</li>`);
-  if(pay.methods.length) optItems.push(`<li><b>Forma de pagamento:</b> ${escapeHtml(pay.methods.join(" • "))}${pay.link ? ` — <b>Link:</b> ${escapeHtml(pay.link)}` : ""}</li>`);
-  if(condicao) optItems.push(`<li><b>Condição:</b> ${escapeHtml(condicao)}</li>`);
-  if(multaReembolso) optItems.push(`<li><b>Multa Reembolso:</b> ${escapeHtml(multaReembolso)}</li>`);
-  if(multaRemarcacao) optItems.push(`<li><b>Multa Remarcação:</b> ${escapeHtml(multaRemarcacao)}</li>`);
-  if(openTicket) optItems.push(`<li><b>Permite bilhete em aberto:</b> ${escapeHtml(openTicket)}</li>`);
+  if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
+  if(cabine) optItems.push(["Cabine", escapeHtml(cabine)]);
+  if(pay.methods.length) optItems.push(["Forma de pagamento", escapeHtml(pay.methods.join(", ")) + (pay.link ? ` — link: ${escapeHtml(pay.link)}` : "")]);
+  if(condicao) optItems.push(["Condição", escapeHtml(condicao)]);
+  if(assentosText) optItems.push(["Assentos", escapeHtml(assentosText)]);
+  if(multaReembolso) optItems.push(["Multa de reembolso", escapeHtml(multaReembolso)]);
+  if(multaRemarcacao) optItems.push(["Multa de remarcação", escapeHtml(multaRemarcacao)]);
+  if(openTicket) optItems.push(["Permite bilhete em aberto", escapeHtml(openTicket)]);
 
   const subject = `Cotação INTER – ${route} – ${carrier}${loc ? " – LOC "+loc : ""}`;
-  $("subjectPill").textContent = "Assunto: " + subject;
 
   const includeRC = (parseAmountAny(rcUSD)!=null && parseAmountAny(rcUSD)>0 && fxRate!=null && fxRate>0);
   const valuesColspan = 5 + (includeRC ? 1 : 0);
 
-  const valuesHead = includeRC ? `
+  const valuesHead = `
       <tr>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Tipo</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Tarifa (moeda)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Equiv. Tarifa (BRL)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Taxas (BRL)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">RC (BRL)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Total (BRL)</th>
-      </tr>` : `
-      <tr>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Tipo</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Tarifa (moeda)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Equiv. Tarifa (BRL)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Taxas (BRL)</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Total (BRL)</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tipo</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (moeda)</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (BRL)</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Taxas (BRL)</th>
+        ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Total (BRL)</th>
       </tr>`;
 
+  const PAX_LABEL = { ADT: "Adulto", CHD: "Criança", INF: "Bebê" };
+
   const valuesRows = rows.map(r => {
-    const baseTotal = (r.totalBRL!=null) ? r.totalBRL : null;
-    const finalTotal = (baseTotal!=null) ? (baseTotal + (includeRC ? (r.rcBRL || 0) : 0)) : null;
+    // totalPerPax ja inclui o RC arredondado por passageiro.
+    const finalTotal = includeRC
+      ? (r.totalPerPax != null ? r.totalPerPax : null)
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax).toFixed(2) : r.totalPerPax);
     return `
     <tr>
-      <td style="border:1px solid #b8b7d6; padding:8px; font-weight:700;">${r.type} x${r.qty}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${(r.fareCur && r.fareAmt!=null) ? escapeHtml(moneyCurrency(r.fareAmt, r.fareCur)) : "—"}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${r.equivBRL!=null ? moneyBRL(r.equivBRL) : "—"}</td>
-      <td style="border:1px solid #b8b7d6; padding:8px;">${r.taxesBRL!=null ? moneyBRL(r.taxesBRL) : "—"}</td>
-      ${includeRC ? `<td style="border:1px solid #b8b7d6; padding:8px;">${moneyBRL((r.rcBRL||0))}</td>` : ``}
-      <td style="border:1px solid #b8b7d6; padding:8px; font-weight:750;">${finalTotal!=null ? moneyBRL(finalTotal) : "—"}</td>
+      <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
+      <td style="${cell}">${(r.fareCurrency && r.farePerPax!=null) ? escapeHtml(moneyCurrency(r.farePerPax, r.fareCurrency)) : "—"}</td>
+      <td style="${cell}">${r.equivPerPax!=null ? moneyBRL(r.equivPerPax) : "—"}</td>
+      <td style="${cell}">${r.taxesPerPax!=null ? moneyBRL(r.taxesPerPax) : "—"}</td>
+      ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}
+      <td style="${cell} font-weight:700;">${finalTotal!=null ? moneyBRL(finalTotal) : "—"}</td>
     </tr>
   `;
   }).join("");
 
+  const fxRateDisplay = fxRate!=null ? String(+fxRate.toFixed(4)).replace(".", ",") : null;
+
   const html = `
-  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color:#111;">
+  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color:${INK};">
     <table style="border-collapse:collapse; width:100%; font-size:14px;">
       <tr>
-        <td colspan="2" style="background-color:${headerBg}; font-weight:bold; text-align:center; padding:10px; border:1px solid #b8b7d6;">
-          COTAÇÃO INTER – NOVA EMISSÃO
+        <td colspan="2" style="padding:14px 16px; border:1px solid ${LINE}; border-bottom:2px solid ${ACCENT};">
+          <div style="font-size:16px; font-weight:700; color:${ACCENT};">Cotação INTER — Nova emissão</div>
         </td>
       </tr>
       <tr>
-        <td colspan="2" style="text-align:center; padding:8px; border:1px solid #b8b7d6; font-size:12px;">
-          <b>ATENÇÃO:</b> Valores sujeitos a disponibilidade e alteração tarifária até a emissão.
+        <td colspan="2" style="${cell} font-size:12px; color:${MUTED};">
+          Valores sujeitos a disponibilidade e a alteração tarifária até a emissão do bilhete.
         </td>
       </tr>
       <tr>
-        <td style="border:1px solid #b8b7d6; padding:8px; width:30%;"><b>Cia Aérea</b></td>
-        <td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(carrier||"—")}</td>
+        <td style="${cell} width:30%;"><b>Cia aérea</b></td>
+        <td style="${cell}">${escapeHtml(carrier||"—")}</td>
       </tr>
       <tr>
-        <td style="border:1px solid #b8b7d6; padding:8px;"><b>Prazo / Validade</b></td>
-        <td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml("Imediato")}</td>
+        <td style="${cell}"><b>Prazo / validade</b></td>
+        <td style="${cell}">${escapeHtml("Imediato")}</td>
       </tr>
-      ${fxRate!=null ? `
+      ${fxRateDisplay ? `
       <tr>
-        <td style="border:1px solid ${border}; padding:8px;"><b>Câmbio (BRL/${escapeHtml(fxCur||"USD")})</b></td>
-        <td style="border:1px solid ${border}; padding:8px;">${escapeHtml(String(+fxRate.toFixed(4)))}</td>
+        <td style="${cell}"><b>Câmbio (BRL/${escapeHtml(fxCur||"USD")})</b></td>
+        <td style="${cell}">${escapeHtml(fxRateDisplay)}</td>
       </tr>` : ``}
       ${loc ? `
       <tr>
-        <td style="border:1px solid #b8b7d6; padding:8px;"><b>LOC</b></td>
-        <td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(loc)}</td>
+        <td style="${cell}"><b>Localizador</b></td>
+        <td style="${cell}">${escapeHtml(loc)}</td>
       </tr>` : ``}
     </table>
 
     ${optItems.length ? `
-      <div style="height:10px;"></div>
-      <table style="border-collapse:collapse; width:100%; font-size:13px;">
-        <tr>
-          <td colspan="2" style="background-color:${headerBg}; font-weight:bold; text-align:left; padding:8px; border:1px solid #b8b7d6;">
-            CONDIÇÕES
-          </td>
-        </tr>
-        ${optItems.map(li=>{ const x = li.replace(/^<li>/i,"").replace(/<\/li>$/i,""); const parts = x.split(/<\/b>\s*/i); const label = parts[0].replace(/<b>/i,"").replace(/:$/,"").trim(); const val = (parts[1]||"").trim(); return `<tr><td style="border:1px solid #b8b7d6; padding:8px; width:30%;"><b>${label}</b></td><td style="border:1px solid #b8b7d6; padding:8px;">${val}</td></tr>`; }).join("")}
+      ${sectionBar("Condições")}
+      <table style="border-collapse:collapse; width:100%; font-size:13px; border-top:none;">
+        ${optItems.map(([label, val]) => `<tr><td style="${cell} width:30%;"><b>${label}</b></td><td style="${cell}">${val}</td></tr>`).join("")}
       </table>
     ` : ""}
 
     ${(paxNames && (paxNames.ADT.length || paxNames.CHD.length || paxNames.INF.length)) ? `
-      <div style="height:10px;"></div>
-      <table style="border-collapse:collapse; width:100%; font-size:13px;">
-        <tr>
-          <td colspan="2" style="background-color:${headerBg}; font-weight:bold; text-align:left; padding:8px; border:1px solid #b8b7d6;">
-            PASSAGEIROS
-          </td>
-        </tr>
-        ${(paxNames.ADT||[]).map(n=>`<tr><td style="border:1px solid #b8b7d6; padding:8px; width:12%;"><b>ADT</b></td><td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(n)}</td></tr>`).join("")}
-        ${(paxNames.CHD||[]).map(n=>`<tr><td style="border:1px solid #b8b7d6; padding:8px; width:12%;"><b>CHD</b></td><td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(n)}</td></tr>`).join("")}
-        ${(paxNames.INF||[]).map(n=>`<tr><td style="border:1px solid #b8b7d6; padding:8px; width:12%;"><b>INF</b></td><td style="border:1px solid #b8b7d6; padding:8px;">${escapeHtml(n)}</td></tr>`).join("")}
+      ${sectionBar("Passageiros")}
+      <table style="border-collapse:collapse; width:100%; font-size:13px; border-top:none;">
+        ${(paxNames.ADT||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Adulto</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
+        ${(paxNames.CHD||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Criança</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
+        ${(paxNames.INF||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Bebê</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
       </table>
     ` : ""}
 
-    <div style="height:12px;"></div>
-
-    <div style="background-color:${headerBg}; font-weight:bold; text-align:center; padding:10px; border:1px solid #b8b7d6; border-bottom:none;">
-      ITINERÁRIO
-    </div>
-    ${(!typesPresent.length) ? "" : (bagSameAcrossTypes ? `<div style="border:1px solid #b8b7d6; border-top:none; padding:8px; font-size:12px; color:#4b5563;"><b>BAG:</b> franquia de bagagem por trecho.</div>` : `<div style="border:1px solid #b8b7d6; border-top:none; padding:8px; font-size:12px; color:#4b5563;"><b>BAG ADT/CHD/INF:</b> franquia de bagagem por trecho (pode variar entre passageiros).</div>`)}
-    <table style="border-collapse:collapse; width:100%; font-size:13px; margin-bottom:12px;">
+    ${sectionBar("Itinerário")}
+    ${(!typesPresent.length) ? "" : `<div style="${cell} border-top:none; font-size:12px; color:${MUTED};">${bagSameAcrossTypes ? "Franquia de bagagem por trecho de voo." : "Franquia de bagagem por trecho de voo, podendo variar entre os tipos de passageiro."}</div>`}
+    <table style="border-collapse:collapse; width:100%; font-size:13px; margin-bottom:4px; border-top:none;">
       <tr>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Voo</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Classe</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Trecho</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Saída</th>
-        <th style="border:1px solid #b8b7d6; padding:8px; background:${thBg}; color:${thColor}; text-align:left;">Chegada</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Voo</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Classe</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Trecho</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Saída</th>
+        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Chegada</th>
         ${itinHeadExtra}
       </tr>
-      ${itinRows || `<tr><td colspan="${itinColspan}" style="border:1px solid #b8b7d6; padding:10px;">(Cole o itinerário para exibir os trechos)</td></tr>`}
+      ${itinRows || `<tr><td colspan="${itinColspan}" style="${cell}">Cole o itinerário para exibir os trechos.</td></tr>`}
     </table>
 
-    <div style="background-color:${headerBg}; font-weight:bold; text-align:center; padding:10px; border:1px solid #b8b7d6; border-bottom:none;">
-      DESCRITIVO DE VALORES (por pax)
-    </div>
-    <table style="border-collapse:collapse; width:100%; font-size:13px;">
+    ${sectionBar("Valores por passageiro")}
+    <table style="border-collapse:collapse; width:100%; font-size:13px; border-top:none;">
       ${valuesHead}
-      ${valuesRows || `<tr><td colspan="${valuesColspan}" style="border:1px solid #b8b7d6; padding:10px;">(Cole as máscaras para exibir os valores)</td></tr>`}
+      ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
-    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:#4b5563;">Obs.: RC é cobrado <b>por passageiro</b> em USD e somado ao total em BRL.</div>` : ``}
+    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}
 
-    <div style="margin-top:10px; font-size:13px;">
-      <b>Total estimado do grupo:</b> ${moneyBRL(+groupTotal.toFixed(2))} (${escapeHtml(noteParts.join(" • ") || "—")})
+    <div style="margin-top:14px; font-size:13px;">
+      <b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}
     </div>
   </div>`.trim();
 
-  // Retorna o html + subject (compat com callers anteriores)
   return { html, subject };
 }
 
@@ -3540,7 +3472,7 @@ function build() {
   const gds = detectGDSFromItin(itin);
   $("gdsDetected").textContent = (gds === "AMA" ? "Amadeus" : (gds === "SAB" ? "Sabre" : "—"));
   if (gds === "—") {
-    setStatus("Não consegui identificar o GDS pelo itinerário", true);
+    setStatus("GDS não identificado pelo formato do itinerário", true);
   } else {
     setStatus("GDS identificado: " + (gds === "AMA" ? "Amadeus" : "Sabre"));
   }
@@ -3565,6 +3497,9 @@ function build() {
   const am = $("fldAssentosMode").value;
   if (am === "padrao") assentosText = "Marcação antecipada mediante pagamento";
   else if (am === "custom") assentosText = $("fldAssentosCustom").value.trim();
+
+  // Pagamento e lido aqui e viaja no modelo: buildEmail nao deve tocar o DOM.
+  const payment = collectPayment();
 
   const pax = { adt: +$("qADT").value || 0, chd: +$("qCHD").value || 0, inf: +$("qINF").value || 0 };
 
@@ -3622,6 +3557,7 @@ function build() {
     condicao,
     rcUSD,
     assentosText,
+    payment,
     openTicket,
     loc,
     penalties: {
@@ -3653,14 +3589,24 @@ function build() {
 
   // ── renderização: passa finalQuote (buildEmail extrai o que precisa) ─────
   const out = buildEmail(finalQuote);
+  $("subjectPill").textContent = "Assunto: " + out.subject;
   $("preview").innerHTML    = out.html;
   $("preview").dataset.html = out.html;
+  // Revela a coluna da previa. Sem cotacao gerada o formulario usa a largura toda.
+  document.body.classList.add("has-preview");
 
   // ── KPIs lidos de finalQuote.totals ──────────────────────────────────────
   $("kFare").textContent  = finalQuote.totals.fareDisplay;
   $("kEquiv").textContent = finalQuote.totals.equivBRL  != null ? moneyBRL(finalQuote.totals.equivBRL)  : "—";
   $("kTaxes").textContent = finalQuote.totals.taxesBRL  != null ? moneyBRL(finalQuote.totals.taxesBRL)  : "—";
   $("kTotal").textContent = finalQuote.totals.totalBRL  != null ? moneyBRL(finalQuote.totals.totalBRL)  : "—";
+
+  // ── Feedback ao operador: avisos do motor + confiabilidade ────────────────
+  // Fica aqui, e não no handler do botão, porque os testes chamam build()
+  // diretamente e nunca disparam eventos de clique.
+  const engineIssues = engineIssuesFromQuote(finalQuote);
+  renderValidation((validationActivated ? validateQuoteInput() : []).concat(engineIssues));
+  renderConfidence(finalQuote);
 }
 
 // ─── EVENTOS (inalterados) ────────────────────────────────────────────────────
@@ -3705,12 +3651,19 @@ $("btnBuild").addEventListener("click", ()=>{
   }
   try{
     clearError();
-    setStatus("Processando…");
+    setStatus("Gerando prévia");
     build();
     previewDirty = false;
     saveDraft();
-    const warnings = issues.filter(issue => issue.level !== "error");
-    setStatus(warnings.length ? `Prévia gerada com ${warnings.length} aviso(s)` : "Prévia gerada", warnings.length > 0);
+    const inputWarnings = issues.filter(issue => issue.level !== "error").length;
+    const lastQuote = window._lastQuote;
+    const conf = (lastQuote && lastQuote.meta) ? lastQuote.meta.confidence : null;
+    const engineWarnings = (lastQuote && lastQuote.meta && lastQuote.meta.warnings) ? lastQuote.meta.warnings.length : 0;
+    const totalWarnings = inputWarnings + engineWarnings;
+    const resumo = totalWarnings === 0
+      ? "Prévia gerada sem avisos"
+      : `Prévia gerada com ${totalWarnings === 1 ? "1 aviso" : totalWarnings + " avisos"}`;
+    setStatus(resumo, conf !== "HIGH" || totalWarnings > 0);
   }
   catch(e){ console.error(e); setStatus("Erro ao gerar", true); showError(e); }
 });
@@ -3746,23 +3699,17 @@ $("btnCopy").addEventListener("click", async ()=>{
 $("btnFetchFX").addEventListener("click", async ()=>{
   const button = $("btnFetchFX");
   button.disabled = true;
-  button.textContent = "Consultando...";
-  setStatus("Consultando fechamento BCB...");
-  try{
-    const quote = await fetchBcbUsdRateForUsageDate();
-    setFxRate(quote.rate, {
-      source: quote.source,
-      baseDate: formatDateBR(quote.baseDate),
-      usageDate: formatDateBR(quote.usageDate)
-    });
-    setStatus(`Câmbio BCB carregado: ${quote.rate.toFixed(4).replace(".", ",")}`);
-  }catch(e){
-    console.error(e);
-    setStatus("Não foi possível consultar o BCB", true);
-    showError(e);
-  }finally{
-    button.disabled = false;
-    button.textContent = "Consultar BCB";
+  button.textContent = "Consultando";
+  setStatus("Consultando o fechamento no BCB");
+  // force: o clique explicito ignora o cache do dia e o valor ja preenchido.
+  const entry = await maybeAutofillFx({ force: true });
+  button.disabled = false;
+  button.textContent = "Consultar BCB";
+  if(entry){
+    setStatus(`C\u00e2mbio BCB carregado: ${entry.rate.toFixed(4).replace(".", ",")}`);
+  } else {
+    // Sem caixa de erro: o campo continua editavel para digitacao manual.
+    setStatus("N\u00e3o foi poss\u00edvel consultar o BCB \u2014 informe o c\u00e2mbio manualmente", true);
   }
 });
 
@@ -3789,6 +3736,7 @@ $("btnClear").addEventListener("click", ()=>{
   clearError();
   $("preview").innerHTML="";
   $("preview").dataset.html="";
+  document.body.classList.remove("has-preview");
   $("subjectPill").textContent="Assunto: —";
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
@@ -3798,6 +3746,7 @@ $("btnClear").addEventListener("click", ()=>{
   clearValidationMarks();
   const summary = $("validationSummary");
   if(summary){ summary.innerHTML=""; summary.classList.remove("show","error"); }
+  renderConfidence(null);
   updateDraftPill("Não salvo");
   setStatus("Limpo");
 });
@@ -3834,6 +3783,10 @@ if(restoredDraft){
   const restoredGds = detectGDSFromItin($("itin").value || "");
   $("gdsDetected").textContent = restoredGds === "AMA" ? "Amadeus" : (restoredGds === "SAB" ? "Sabre" : "—");
 }
+
+// Preenchimento automatico do cambio na abertura. Nao lanca e nao bloqueia a tela:
+// em ambiente sem fetch (jsdom nos testes) simplesmente nao faz nada.
+maybeAutofillFx().catch(() => {});
 </script>
 </body>
 </html>

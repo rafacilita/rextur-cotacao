@@ -205,7 +205,7 @@ test("distribui campo combinado e sinaliza PQ ausente", () => {
   assert.match(app.document.getElementById("maskCHD").value, /JPY11400/);
   assert.match(app.document.getElementById("maskINF").value, /JPY0/);
   assert.match(app.document.getElementById("itin").value, /HNDKIX/);
-  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/);
+  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/i);
   assert.equal(result.counts.CHD, 1);
   app.close();
 });
@@ -232,7 +232,7 @@ test("distribui ADT CHD e INF quando todos os PQs estao presentes", () => {
   assert.equal(app._lastQuote.pricing.ADT.fareAmt, 15000);
   assert.equal(app._lastQuote.pricing.CHD.fareAmt, 11400);
   assert.equal(app._lastQuote.pricing.INF.fareAmt, 0);
-  assert.doesNotMatch(app.document.getElementById("maskSplitStatus").textContent, /faltando/);
+  assert.doesNotMatch(app.document.getElementById("maskSplitStatus").textContent, /faltando/i);
   app.close();
 });
 
@@ -401,7 +401,7 @@ test("gera parcial Sabre visual preservando aviso de ADT ausente", () => {
   assert.equal(app._lastQuote.pricing.ADT, null);
   assert.equal(app._lastQuote.pricing.CHD.totalBRL, 1668.68);
   assert.equal(app._lastQuote.pricing.INF.totalBRL, 215.91);
-  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/);
+  assert.match(app.document.getElementById("maskSplitStatus").textContent, /faltando: ADT/i);
   assert.match(app.document.getElementById("preview").textContent, /PVG.*NRT/s);
   app.close();
 });
@@ -589,5 +589,475 @@ test("cambio USD BRL altera somente o RC", () => {
   assert.equal(app._lastQuote.pricing.CHD.taxesBRL, 1217.05);
   assert.equal(app._lastQuote.totals.group.rcTotal, 51.70);
   assert.equal(app._lastQuote.totals.totalBRL, 14942.20);
+  app.close();
+});
+
+// ─── Passo 2: avisos do motor e confiabilidade na tela ────────────────────────
+
+test("renderValidation aceita aviso sem id de campo", () => {
+  const app = createApp();
+  app.renderValidation([
+    { id: null, message: "aviso do motor sem campo", level: "warning", source: "engine" }
+  ]);
+  const summary = app.document.getElementById("validationSummary");
+  assert.ok(summary.classList.contains("show"));
+  assert.match(summary.textContent, /aviso do motor sem campo/);
+  assert.match(summary.textContent, /Avisos do motor de cota/);
+  // Aviso sem id nao deve marcar nenhum controle.
+  assert.equal(app.document.querySelectorAll(".is-invalid,.is-warning").length, 0);
+  app.close();
+});
+
+test("separa avisos de campo e avisos do motor em blocos distintos", () => {
+  const app = createApp();
+  app.renderValidation([
+    { id: "fldRC", message: "campo invalido", level: "error" },
+    { id: null, message: "aviso do motor", level: "warning", source: "engine" }
+  ]);
+  const summary = app.document.getElementById("validationSummary");
+  assert.ok(summary.classList.contains("error"));
+  assert.equal(summary.querySelectorAll("ul").length, 2);
+  assert.match(summary.textContent, /Revise os campos destacados/);
+  assert.match(summary.textContent, /Avisos do motor de cota/);
+  assert.ok(app.document.getElementById("fldRC").classList.contains("is-invalid"));
+  app.close();
+});
+
+test("exibe avisos do motor e confiabilidade no painel apos gerar", () => {
+  const app = createApp();
+  const blocks = fixtureBlocks("amadeus_cny_adt_chd_inf.txt");
+  app.document.getElementById("maskAll").value = blocks.join("\n\n");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  // RC informado sem cambio garante ao menos um aviso do motor.
+  app.document.getElementById("fldRC").value = "40";
+  app.build();
+
+  const summary = app.document.getElementById("validationSummary");
+  assert.ok(summary.classList.contains("show"));
+  assert.match(summary.textContent, /c[âa]mbio n[ãa]o encontrado/);
+
+  const pill = app.document.getElementById("confidencePill");
+  assert.equal(pill.hidden, false);
+  assert.match(pill.textContent, /Confiabilidade da leitura/);
+  const level = app._lastQuote.meta.confidence;
+  assert.ok(["HIGH", "MEDIUM", "LOW"].includes(level));
+  assert.ok(pill.className.includes("conf-" + level.toLowerCase()));
+  app.close();
+});
+
+test("esconde a confiabilidade quando a previa fica obsoleta", () => {
+  const app = createApp();
+  const blocks = fixtureBlocks("amadeus_cny_adt_chd_inf.txt");
+  app.document.getElementById("maskAll").value = blocks.join("\n\n");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  app.build();
+
+  const pill = app.document.getElementById("confidencePill");
+  assert.equal(pill.hidden, false);
+
+  app.markPreviewDirty();
+  assert.equal(pill.hidden, true);
+  assert.equal(pill.textContent, "");
+  app.close();
+});
+
+// ─── Passo 3: status do segmento sai do e-mail e vira aviso do motor ──────────
+
+const ITIN_AMA_WAITLISTED = [
+  "RP/SAO2R2100/",
+  "  1  LA8113 Y 15JUN 6*GRUMEX HK2  0830 1430  15JUN  E  0 320",
+  "  2  LA8114 Y 25JUN 2*MEXGRU HL1  2300 1020  26JUN  E  0 320"
+].join("\n");
+
+test("classifica status confirmado e lista de espera no Amadeus", () => {
+  const app = createApp();
+  assert.equal(app.detectGDSFromItin(ITIN_AMA_WAITLISTED), "AMA");
+  const segments = app.parseItinerary(ITIN_AMA_WAITLISTED, "AMA", 2026);
+  // Array.from traz o array do realm do jsdom para o do Node (deepStrictEqual compara prototype).
+  assert.deepEqual(Array.from(segments, segment => segment.statusCode), ["HK", "HL"]);
+  assert.deepEqual(Array.from(segments, segment => segment.statusClass), ["confirmed", "waitlisted"]);
+  app.close();
+});
+
+test("status de segmento nao vai para o e-mail do cliente", () => {
+  const app = createApp();
+  app.document.getElementById("itin").value = ITIN_AMA_WAITLISTED;
+  app.document.getElementById("maskADT").value = fixture("amadeus_tarifa_fxp.txt");
+  app.build();
+
+  const preview = app.document.getElementById("preview").textContent;
+  assert.doesNotMatch(preview, /LISTA|CANCELADO|VERIFICAR|AGUARDANDO|VOADO/);
+  // O voo continua aparecendo; so o selo de status saiu.
+  assert.match(preview, /LA\s*8114/);
+  app.close();
+});
+
+test("status nao confirmado gera aviso do motor para o operador", () => {
+  const app = createApp();
+  app.document.getElementById("itin").value = ITIN_AMA_WAITLISTED;
+  app.document.getElementById("maskADT").value = fixture("amadeus_tarifa_fxp.txt");
+  app.build();
+
+  const warnings = app._lastQuote.meta.warnings;
+  assert.ok(warnings.some(w => /LA8114/.test(w) && /MEX-GRU/.test(w) && /lista de espera/i.test(w)));
+  // O segmento confirmado nao deve gerar aviso.
+  assert.equal(warnings.some(w => /LA8113/.test(w)), false);
+  // E o aviso chega ao painel na tela.
+  assert.match(app.document.getElementById("validationSummary").textContent, /LA8114/);
+  app.close();
+});
+
+// ─── Passo 4: alinhamento de bagagem e rota com trecho terrestre (ARNK) ───────
+
+test("interpreta ARNK como trecho de superficie no Amadeus", () => {
+  const app = createApp();
+  const [itinRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  const segments = app.parseItinerary(itinRaw, "AMA", 2026);
+
+  assert.equal(segments.length, 5);
+  assert.equal(segments[2].surface, true);
+  assert.deepEqual(
+    Array.from(segments.filter(segment => !segment.surface), segment => `${segment.org}-${segment.dst}`),
+    ["GRU-MAD", "MAD-VLC", "BIO-MAD", "MAD-GRU"]
+  );
+  app.close();
+});
+
+test("rota ignora o trecho terrestre e preserva o marcador de open jaw", () => {
+  const app = createApp();
+  const [itinRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  const segments = app.parseItinerary(itinRaw, "AMA", 2026);
+  // Antes da correcao saia "GRU-MAD-VLC // --MAD-GRU", com o ARNK contaminando a string.
+  assert.equal(app.buildRouteString(segments), "GRU-MAD-VLC // BIO-MAD-GRU");
+  app.close();
+});
+
+test("alinha bagagem por trecho aereo quando ha ARNK no Amadeus", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = maskRaw;
+  app.build();
+
+  assert.deepEqual(Array.from(app._lastQuote.pricing.ADT.bagSegs), ["2PC", "2PC", "Sem Bag", "1PC"]);
+
+  const rows = Array.from(app.document.querySelectorAll("#preview tr"), tr => tr.textContent.replace(/\s+/g, " "));
+  const bioRow = rows.find(text => /BIO/.test(text));
+  const lastRow = rows.find(text => /MAD . GRU/.test(text));
+  // Antes da correcao o trecho BIO-MAD exibia 1PC, prometendo bagagem que o GDS nao concedeu.
+  assert.match(bioRow, /Sem Bag/);
+  assert.doesNotMatch(bioRow, /1PC/);
+  assert.match(lastRow, /1PC/);
+  app.close();
+});
+
+test("aviso de trecho sem bagagem nomeia o trecho aereo correto", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = maskRaw;
+  app.build();
+
+  const warnings = app._lastQuote.meta.warnings;
+  // Antes da correcao reportava "trecho 3", que era a linha do ARNK.
+  assert.ok(warnings.some(w => /sem bagagem/i.test(w) && /BIO-MAD/.test(w)));
+  assert.equal(warnings.some(w => /sem bagagem/i.test(w) && /trecho 3/.test(w)), false);
+  assert.match(app.document.getElementById("subjectPill").textContent, /GRU-MAD-VLC \/\/ BIO-MAD-GRU/);
+  app.close();
+});
+
+// ─── Passo 5: procedencia de total e taxas ────────────────────────────────────
+
+test("registra procedencia sem alterar os valores lidos", () => {
+  const app = createApp();
+
+  const fxp = app.parsePricingAmadeus(fixture("amadeus_tarifa_fxp.txt"));
+  assert.equal(fxp.totalBRL, 3200);   // inalterado
+  assert.equal(fxp.taxesBRL, 450);    // inalterado
+  assert.equal(fxp.totalSource, "EXPLICIT_TOTAL");
+  assert.equal(fxp.taxesSource, "DERIVED_DIFF_CORROBORATED");
+
+  const cny = app.parsePricingAmadeus(fixtureBlocks("amadeus_cny_adt_chd_inf.txt")[1]);
+  assert.equal(cny.totalBRL, 20513.52);  // inalterado
+  assert.equal(cny.totalSource, "LAST_BRL_LINE");
+  assert.equal(cny.taxesSource, "DERIVED_DIFF_CORROBORATED");
+
+  const sab = app.parsePricingSabre(fixture("sabre_origem_exterior_eur_virada_ano.txt"));
+  assert.equal(sab.taxesBRL, 1217.05);   // inalterado
+  assert.equal(sab.totalSource, "READ_LINE");
+  assert.equal(sab.taxesSource, "READ");
+  app.close();
+});
+
+test("avisa quando o total Amadeus foi inferido pelo maior valor em BRL", () => {
+  const app = createApp();
+  const mask = [
+    "USD 500.00 10JAN27GRU LA MEX NUC500.00END ROE1.00",
+    "BRL 2750.00 END ROE1.00",
+    "BRL 450.00-YQ  BRL 3200.00-XT"
+  ].join("\n");
+
+  const price = app.parsePricingAmadeus(mask);
+  assert.equal(price.totalSource, "MAX_BRL");
+
+  app.document.getElementById("itin").value = fixture("amadeus_pnr_simples.txt");
+  app.document.getElementById("maskADT").value = mask;
+  app.build();
+  assert.ok(app._lastQuote.meta.warnings.some(w => /inferido pelo maior valor/i.test(w)));
+  app.close();
+});
+
+test("avisa quando as taxas saem por diferenca sem linha de taxa para conferir", () => {
+  const app = createApp();
+  // Mascara declara FARE/EQUIV/TOTAL mas nao discrimina taxa alguma:
+  // os 450 saem apenas da subtracao, sem nada para cruzar.
+  const mask = ["FARE     USD     500.00", "EQUIV    BRL    2750.00", "TOTAL    BRL    3200.00"].join("\n");
+  const price = app.parsePricingAmadeus(mask);
+  assert.equal(price.taxesBRL, 450);
+  assert.equal(price.taxesSource, "DERIVED_DIFF");
+
+  app.document.getElementById("itin").value = fixture("amadeus_pnr_simples.txt");
+  app.document.getElementById("maskADT").value = mask;
+  app.build();
+  assert.ok(app._lastQuote.meta.warnings.some(w => /taxas inferidas por diferen[çc]a/i.test(w)));
+  app.close();
+});
+
+test("nao avisa taxa inferida nas mascaras Amadeus reais", () => {
+  for(const name of ["amadeus_cny_adt_chd_inf.txt", "amadeus_fqq_cabecalho_curto_cny.txt", "amadeus_fqq_combinado_eur.txt"]){
+    const app = createApp();
+    app.document.getElementById("maskAll").value = fixtureAll(name);
+    app.applyCombinedPricingInput({ overwrite: true, announce: false });
+    app.build();
+    const warnings = app._lastQuote.meta.warnings;
+    assert.equal(
+      warnings.some(w => /inferid/i.test(w)),
+      false,
+      `${name} nao deveria gerar aviso de valor inferido, mas gerou: ${JSON.stringify(warnings)}`
+    );
+    app.close();
+  }
+});
+
+test("taxa zero sem linha de taxa e leitura coerente, nao suspeita", () => {
+  const app = createApp();
+  // Caso comum de INF isento: equivalente igual ao total e nenhuma linha de taxa.
+  const price = app.parsePricingAmadeus(["BRL  1564.77      CAN221.29NUC300.42END ROE6.823555", "BRL  1564.77"].join("\n"));
+  assert.equal(price.taxesBRL, 0);
+  assert.equal(price.taxesSource, "DERIVED_DIFF_CORROBORATED");
+
+  // Tarifa zero no Sabre tambem nao deve virar aviso.
+  const zero = app.parsePricingSabre("JPY0            BRL0.00                              BRL0.00INF");
+  assert.equal(zero.totalBRL, 0);
+  assert.notEqual(zero.taxesSource, "DERIVED_DIFF");
+  app.close();
+});
+
+// ─── Passo 6: buildEmail puro e totais calculados num unico lugar ─────────────
+
+test("total do grupo no e-mail bate com o KPI e com totals.group", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("qADT").value = "3";
+  app.document.getElementById("qCHD").value = "0";
+  app.document.getElementById("qINF").value = "0";
+  app.refreshPaxUI();
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.document.getElementById("fldRC").value = "10";
+  app.setFxRate(5.1695, { source: "BCB" }, false);
+  app.build();
+
+  // RC de USD 10 a 5,1695 da 51,695: o motor arredonda por passageiro antes de multiplicar.
+  assert.equal(app._lastQuote.totals.group.rcTotal, 155.10);
+  assert.equal(app._lastQuote.totals.group.grandTotal, 44826.60);
+
+  const preview = app.document.getElementById("preview").textContent.replace(/\s+/g, " ");
+  const idx = preview.indexOf("Total estimado do grupo");
+  assert.ok(idx >= 0);
+  const trecho = preview.slice(idx, idx + 50);
+  // Antes da correcao o e-mail mostrava 44.826,58 e a tela 44.826,60.
+  assert.match(trecho, /44\.826,60/);
+  assert.doesNotMatch(trecho, /44\.826,58/);
+  assert.equal(
+    app.document.getElementById("kTotal").textContent,
+    app.moneyBRL(app._lastQuote.totals.group.grandTotal)
+  );
+  app.close();
+});
+
+test("buildEmail nao le o DOM: pagamento viaja pelo modelo", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.document.getElementById("payCartao").checked = true;
+  app.document.getElementById("payParcel").value = "6x";
+  app.build();
+
+  assert.deepEqual(
+    Array.from(app._lastQuote.commercial.payment.methods),
+    ["Cartão de crédito (6x sem juros)"]
+  );
+  assert.match(app.document.getElementById("preview").textContent, /6x sem juros/);
+
+  // Reexecutar buildEmail com o modelo salvo, apos mexer no DOM, deve dar o mesmo HTML
+  // e nao pode escrever na tela.
+  app.document.getElementById("payCartao").checked = false;
+  app.document.getElementById("subjectPill").textContent = "sentinela";
+  const again = app.buildEmail(app._lastQuote);
+  assert.equal(again.html, app.document.getElementById("preview").dataset.html);
+  assert.equal(app.document.getElementById("subjectPill").textContent, "sentinela");
+  app.close();
+});
+
+test("createQuoteModel entrega apenas fareDisplay em totals", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+  // applyTotalsByPax e a unica fonte dos totais; o modelo cru so carrega o rotulo do KPI.
+  assert.match(app._lastQuote.totals.fareDisplay, /\(ADT\)/);
+  assert.ok(app._lastQuote.totals.byType);
+  assert.ok(app._lastQuote.totals.group);
+  app.close();
+});
+
+// ─── Passo 7: Assentos chega ao e-mail ────────────────────────────────────────
+
+test("assentos no modo padrao aparece no bloco de condicoes", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.document.getElementById("fldAssentosMode").value = "padrao";
+  app.build();
+
+  const preview = app.document.getElementById("preview").textContent;
+  assert.match(preview, /Assentos/);
+  assert.match(preview, /Marca[çc][ãa]o antecipada mediante pagamento/);
+  app.close();
+});
+
+test("assentos em texto livre aparece no e-mail", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.document.getElementById("fldAssentosMode").value = "custom";
+  app.document.getElementById("fldAssentosCustom").value = "Corredor confirmado na ida";
+  app.build();
+  assert.match(app.document.getElementById("preview").textContent, /Corredor confirmado na ida/);
+  app.close();
+});
+
+test("assentos nao informado fica fora do e-mail", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.document.getElementById("fldAssentosMode").value = "";
+  app.build();
+  assert.doesNotMatch(app.document.getElementById("preview").textContent, /Assentos/);
+  app.close();
+});
+
+// ─── Passo 8: consulta de cambio BCB ──────────────────────────────────────────
+
+test("prefere o boletim de Fechamento PTAX quando ha boletins intermediarios", async () => {
+  const app = createApp();
+  const fakeFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      value: [
+        { tipoBoletim: "Abertura",        cotacaoCompra: 5.0000, cotacaoVenda: 5.0010 },
+        { tipoBoletim: "Fechamento PTAX", cotacaoCompra: 5.1689, cotacaoVenda: 5.1695 },
+        { tipoBoletim: "Intermediario",   cotacaoCompra: 5.2000, cotacaoVenda: 5.2010 }
+      ]
+    })
+  });
+
+  const quote = await app.fetchBcbUsdRateForUsageDate(new Date(Date.UTC(2026, 5, 9)), fakeFetch);
+  // Sem a preferencia explicita cairia no ultimo item, 5.2010.
+  assert.equal(quote.rate, 5.1695);
+  app.close();
+});
+
+test("usa o ultimo boletim quando nenhum e Fechamento PTAX", async () => {
+  const app = createApp();
+  const fakeFetch = async () => ({
+    ok: true,
+    json: async () => ({ value: [{ cotacaoCompra: 5.1689, cotacaoVenda: 5.1695 }] })
+  });
+  const quote = await app.fetchBcbUsdRateForUsageDate(new Date(Date.UTC(2026, 5, 9)), fakeFetch);
+  assert.equal(quote.rate, 5.1695);
+  app.close();
+});
+
+test("ambiente sem fetch nao quebra a consulta de cambio", async () => {
+  const app = createApp();
+  // jsdom nao expoe window.fetch: a camada com cache deve degradar para null.
+  assert.equal(typeof app.fetch, "undefined");
+  const entry = await app.fetchBcbUsdRateCached();
+  assert.equal(entry, null);
+  // E o autofill nao deve mexer no campo nem lancar.
+  const result = await app.maybeAutofillFx();
+  assert.equal(result, null);
+  assert.equal(app.document.getElementById("fldFX").value, "");
+  app.close();
+});
+
+test("autofill preserva cambio digitado a mao e o vindo da mascara GDS", async () => {
+  const app = createApp();
+  const fx = app.document.getElementById("fldFX");
+
+  // Valor manual precisa sobreviver.
+  fx.value = "5,0000";
+  fx.dataset.source = "MANUAL";
+  assert.equal(await app.maybeAutofillFx(), null);
+  assert.equal(fx.value, "5,0000");
+
+  // Valor lido da mascara GDS tambem.
+  app.setFxRate(5.3333, { source: "GDS" }, false);
+  assert.equal(await app.maybeAutofillFx(), null);
+  assert.equal(fx.dataset.source, "GDS");
+  app.close();
+});
+
+test("cache do cambio guarda e reusa a cotacao do dia", async () => {
+  const app = createApp();
+  const cacheKey = "bcb_fx_cache_v1";
+  const dayKey = app.formatDateForBcb(app.getSaoPauloUsageDate());
+  app.localStorage.setItem(cacheKey, JSON.stringify({
+    USD: { rate: 5.4321, source: "BCB", baseDate: "08/06/2026", usageDate: "09/06/2026", dayKey }
+  }));
+
+  // Mesmo sem fetch disponivel, o cache do dia deve ser aproveitado.
+  const entry = await app.fetchBcbUsdRateCached();
+  assert.ok(entry, "deveria reusar o cache do dia");
+  assert.equal(entry.rate, 5.4321);
+  app.close();
+});
+
+test("cache de outro dia nao e reaproveitado", async () => {
+  const app = createApp();
+  app.localStorage.setItem("bcb_fx_cache_v1", JSON.stringify({
+    USD: { rate: 9.9999, source: "BCB", baseDate: "01/01/2020", usageDate: "02/01/2020", dayKey: "01-01-2020" }
+  }));
+  // Chave de dia diferente: precisa tentar a rede, que nao existe aqui, e devolver null.
+  assert.equal(await app.fetchBcbUsdRateCached(), null);
+  app.close();
+});
+
+// ─── Acabamento visual: câmbio sempre em vírgula decimal ──────────────────────
+
+test("campo de cambio usa virgula decimal, igual ao resto da interface", () => {
+  const app = createApp();
+  app.setFxRate(5.1695, { source: "BCB", baseDate: "03/10/2026", usageDate: "06/10/2026" }, false);
+  const valor = app.document.getElementById("fldFX").value;
+  assert.equal(valor, "5,1695");
+  // E o valor com virgula precisa ser reconhecido de volta pelo parser.
+  assert.equal(app.parseAmountAny(valor), 5.1695);
   app.close();
 });
