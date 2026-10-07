@@ -1949,11 +1949,14 @@ function parseItinerary(itinRaw, gds, year){
     // Arrival date (se explicitamente exibida)
     const arrDate = (t[idx] && /^\d{2}[A-Z]{3}/i.test(t[idx])) ? t[idx] : depDate;
 
-    // ── Equipamento da aeronave (número de 3 dígitos após os demais campos) ─
-    // Manual p.12: "744 Equipamento do vôo"
+    // ── Equipamento da aeronave ─────────────────────────────────────────────
+    // Manual p.12: "744 Equipamento do vôo".
+    // O codigo tem tres caracteres e NAO e so numerico: 32N, 77W, CR9 e E90 sao
+    // todos validos. A versao anterior exigia digitos puros e por isso perdia
+      // 12 dos 29 codigos da tabela, incluindo toda a familia neo e os Embraer.
     let equipment = null;
-    for (let k = idx; k < Math.min(idx+5, t.length); k++) {
-      if (/^\d{3,4}$/.test(t[k]) && parseInt(t[k]) > 100) { equipment = t[k]; break; }
+    for (let k = idx; k < Math.min(idx+6, t.length); k++) {
+      if (pareceEquipamento(t[k])) { equipment = String(t[k]).toUpperCase(); break; }
     }
 
     return {
@@ -2139,6 +2142,76 @@ function parseItinerary(itinRaw, gds, year){
   }
 
   return segs;
+}
+
+// ─── EQUIPAMENTO DA AERONAVE ──────────────────────────────────────────────────
+// Codigo IATA de tres caracteres para nome legivel. Serve para a agencia saber
+// em que aviao o cliente viaja sem precisar decorar codigo.
+//
+// Codigo desconhecido NAO e inventado: aparece cru no e-mail, sinalizado como
+// codigo. Para ampliar, basta acrescentar a entrada aqui.
+const EQUIPAMENTO = {
+  // ── Airbus ────────────────────────────────────────────────────────────────
+  "319": "Airbus A319",
+  "320": "Airbus A320",
+  "321": "Airbus A321",
+  "32A": "Airbus A320 com sharklets",
+  "32N": "Airbus A320neo",
+  "32Q": "Airbus A321neo",
+  "332": "Airbus A330-200",
+  "333": "Airbus A330-300",
+  "339": "Airbus A330-900neo",
+  "351": "Airbus A350-1000",
+  "359": "Airbus A350-900",
+  "388": "Airbus A380-800",
+  // ── Boeing ────────────────────────────────────────────────────────────────
+  "737": "Boeing 737",
+  "738": "Boeing 737-800",
+  "739": "Boeing 737-900",
+  "73J": "Boeing 737 MAX 9",
+  "73M": "Boeing 737 MAX 8",
+  "772": "Boeing 777-200",
+  "773": "Boeing 777-300",
+  "777": "Boeing 777",
+  "77W": "Boeing 777-300ER",
+  "788": "Boeing 787-8 Dreamliner",
+  "789": "Boeing 787-9 Dreamliner",
+  "78X": "Boeing 787-10 Dreamliner",
+  // ── Embraer ───────────────────────────────────────────────────────────────
+  "E29": "Embraer E195-E2",
+  "E90": "Embraer 190",
+  "E95": "Embraer 195",
+  // ── Outros ────────────────────────────────────────────────────────────────
+  "ATR": "ATR 42 ou ATR 72",
+  "CRJ": "Bombardier CRJ"
+};
+
+// Codigos de estado do segmento tem o mesmo formato de alguns equipamentos
+// (HK1 e CR9 sao ambos duas letras e um digito). Esta lista evita confundir
+// os dois caso a ordem dos campos na linha varie.
+const ESTADOS_DE_SEGMENTO = new Set([
+  "HK","HL","HN","HX","XK","UU","KL","GL","PL","LL","PC","PD","PE",
+  "PN","TK","TL","TN","UN","NO","UC","US","LK","NK","KK","RR","DK","PK","GK","SS"
+]);
+
+// Decide se um token e codigo de equipamento.
+// Padroes com digito sao inequivocos nessa posicao da linha. Codigo so com
+// letras e aceito apenas se conhecido, senao confundiria com codigo de
+// refeicao, de servico e outros tokens de tres letras.
+function pareceEquipamento(token){
+  const t = String(token || "").toUpperCase();
+  if(!/^[0-9A-Z]{3}$/.test(t)) return false;
+  if(/^\d{3}$/.test(t)) return true;                 // 319, 737, 359
+  if(/^\d{2}[A-Z]$/.test(t)) return true;            // 32N, 73M, 77W, 32B
+  if(/^[A-Z]\d{2}$/.test(t)) return true;            // E90, E95, E29
+  if(/^[A-Z]{2}\d$/.test(t)) return !ESTADOS_DE_SEGMENTO.has(t.slice(0, 2)); // CR9 sim, HK1 nao
+  return Object.prototype.hasOwnProperty.call(EQUIPAMENTO, t);
+}
+
+// Nome legivel do equipamento, ou null quando o codigo nao esta na tabela.
+function equipmentName(code){
+  const t = String(code || "").toUpperCase().trim();
+  return EQUIPAMENTO[t] || null;
 }
 
 // ─── LOOKUP DE NOMES IATA ─────────────────────────────────────────────────────
@@ -3319,7 +3392,12 @@ function buildEmail(quote) {
       : (s.opName ? escapeHtml(s.opName) : '');
     const subLines = [];
     if (op) subLines.push(`Operado por ${op}`);
-    if (s.equipment) subLines.push(`Equipamento ${escapeHtml(s.equipment)}`);
+    if (s.equipment) {
+      // Nome legivel quando conhecido. Codigo desconhecido aparece cru, mas
+      // rotulado, para a agencia saber que e codigo e nao nome de aviao.
+      const nomeEquip = equipmentName(s.equipment);
+      subLines.push(nomeEquip ? escapeHtml(nomeEquip) : `Equip. ${escapeHtml(s.equipment)}`);
+    }
     let vooCell = `<div style="font-weight:600;">${vooLabel}</div>`;
     vooCell += subLines.map(t => `<div style="font-size:11px; color:${MUTED}; margin-top:2px;">${t}</div>`).join("");
 

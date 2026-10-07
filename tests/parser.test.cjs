@@ -1180,3 +1180,107 @@ test("cor de marca nao substitui cor de estado no e-mail", () => {
   assert.doesNotMatch(html, /Sem Bag<\/td>[\s\S]{0,40}#ed458f/);
   app.close();
 });
+
+// ─── Equipamento da aeronave ─────────────────────────────────────────────────
+
+test("tabela de equipamentos traduz os codigos conhecidos", () => {
+  const app = createApp();
+  const esperado = {
+    "319": "Airbus A319", "320": "Airbus A320", "321": "Airbus A321",
+    "32N": "Airbus A320neo", "32Q": "Airbus A321neo",
+    "332": "Airbus A330-200", "333": "Airbus A330-300", "339": "Airbus A330-900neo",
+    "351": "Airbus A350-1000", "359": "Airbus A350-900", "388": "Airbus A380-800",
+    "738": "Boeing 737-800", "739": "Boeing 737-900",
+    "73M": "Boeing 737 MAX 8", "73J": "Boeing 737 MAX 9",
+    "772": "Boeing 777-200", "773": "Boeing 777-300", "77W": "Boeing 777-300ER",
+    "788": "Boeing 787-8 Dreamliner", "789": "Boeing 787-9 Dreamliner",
+    "78X": "Boeing 787-10 Dreamliner",
+    "E90": "Embraer 190", "E95": "Embraer 195", "E29": "Embraer E195-E2",
+    "CRJ": "Bombardier CRJ"
+  };
+  for (const [codigo, nome] of Object.entries(esperado)) {
+    assert.equal(app.equipmentName(codigo), nome, `codigo ${codigo}`);
+  }
+  // Minuscula e espaco nao devem impedir a consulta.
+  assert.equal(app.equipmentName(" 32n "), "Airbus A320neo");
+  app.close();
+});
+
+test("codigo de equipamento desconhecido nao e inventado", () => {
+  const app = createApp();
+  // CR9 e 32B aparecem nos exemplos reais mas nao estao na tabela oficial.
+  // Devolver null e o correto: o e-mail mostra o codigo cru, rotulado.
+  assert.equal(app.equipmentName("CR9"), null);
+  assert.equal(app.equipmentName("32B"), null);
+  assert.equal(app.equipmentName("XYZ"), null);
+  assert.equal(app.equipmentName(""), null);
+  assert.equal(app.equipmentName(null), null);
+  app.close();
+});
+
+test("deteccao aceita codigo alfanumerico e rejeita estado de segmento", () => {
+  const app = createApp();
+  // Padroes com digito sao inequivocos.
+  for (const ok of ["359", "737", "32N", "73M", "77W", "32B", "E90", "E29", "CR9"]) {
+    assert.equal(app.pareceEquipamento(ok), true, `deveria aceitar ${ok}`);
+  }
+  // Estados de segmento tem o mesmo formato de CR9 e nao podem ser confundidos.
+  for (const nao of ["HK1", "SS2", "DK2", "HL1", "UC1", "TK2"]) {
+    assert.equal(app.pareceEquipamento(nao), false, `nao deveria aceitar ${nao}`);
+  }
+  // So letras: aceita apenas o que esta na tabela.
+  assert.equal(app.pareceEquipamento("CRJ"), true);
+  assert.equal(app.pareceEquipamento("ATR"), true);
+  assert.equal(app.pareceEquipamento("MLS"), false);
+  // Tamanho diferente de tres nunca e equipamento.
+  for (const nao of ["20NOV", "E", "0", "LA/ABC123", "3590"]) {
+    assert.equal(app.pareceEquipamento(nao), false, `nao deveria aceitar ${nao}`);
+  }
+  app.close();
+});
+
+test("le equipamento alfanumerico que antes era perdido", () => {
+  const app = createApp();
+  // Antes da correcao a deteccao exigia digitos puros, entao CR9 saia vazio.
+  const [itinRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  const segs = app.parseItinerary(itinRaw, "AMA", 2026);
+  const aereos = segs.filter(s => !s.surface);
+  assert.deepEqual(Array.from(aereos, s => s.equipment), ["359", "320", "CR9", "359"]);
+  app.close();
+});
+
+test("le 32B nos quatro trechos do exemplo combinado", () => {
+  const app = createApp();
+  // Antes da correcao este exemplo lia apenas 2 dos 4 equipamentos.
+  const itinRaw = fixtureAll("amadeus_fqq_combinado_eur.txt");
+  const segs = app.parseItinerary(itinRaw, "AMA", 2026).filter(s => !s.surface);
+  assert.deepEqual(Array.from(segs, s => s.equipment), ["32B", "359", "359", "32B"]);
+  app.close();
+});
+
+test("itinerario sem equipamento no texto nao inventa equipamento", () => {
+  const app = createApp();
+  // Esta linha termina em "E  LA/ABC123", sem campo de equipamento.
+  const [itinRaw] = fixtureBlocks("amadeus_pnr_simples.txt");
+  const segs = app.parseItinerary(itinRaw, "AMA", 2026);
+  assert.equal(segs.length, 1);
+  assert.equal(segs[0].equipment, null);
+  app.close();
+});
+
+test("e-mail mostra o nome da aeronave e rotula o codigo desconhecido", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("maskADT").value = maskRaw;
+  app.build();
+
+  const preview = app.document.getElementById("preview").textContent;
+  // Codigo conhecido aparece como nome, sem o rotulo de codigo.
+  assert.match(preview, /Airbus A350-900/);
+  assert.match(preview, /Airbus A320/);
+  assert.doesNotMatch(preview, /Equipamento 359/);
+  // Codigo fora da tabela aparece cru, mas rotulado como codigo.
+  assert.match(preview, /Equip\. CR9/);
+  app.close();
+});

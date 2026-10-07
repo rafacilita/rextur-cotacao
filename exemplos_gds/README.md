@@ -83,6 +83,59 @@ O mesmo desalinhamento afetava a rota (`GRU-MAD-VLC // --MAD-GRU`, com o `ARNK` 
 
 Ao mexer em bagagem, rota ou itinerario, rode este exemplo.
 
+## Equipamento da aeronave
+
+O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
+em `EQUIPAMENTO` (dentro do index.html) traduz o codigo para nome legivel, que
+e o que aparece no e-mail da agencia.
+
+Formatos validos, todos cobertos pela deteccao:
+
+```text
+359   tres digitos           Airbus A350-900
+32N   dois digitos + letra   Airbus A320neo
+E90   letra + dois digitos   Embraer 190
+CR9   duas letras + digito   (nao esta na tabela, aparece cru)
+CRJ   tres letras            Bombardier CRJ
+```
+
+A deteccao anterior exigia digitos puros e por isso perdia 12 dos 29 codigos
+oficiais, incluindo toda a familia neo e os Embraer. Medicao nos exemplos deste
+projeto, antes e depois da correcao:
+
+```text
+amadeus_arnk_surface_bio     3/4  ->  4/4   (perdia CR9)
+amadeus_fqq_combinado_eur    2/4  ->  4/4   (perdia 32B, duas vezes)
+```
+
+### Codigo de tres letras exige estar na tabela
+
+Padroes que contem digito sao inequivocos na posicao em que aparecem na linha.
+Codigo so com letras e aceito apenas se estiver na tabela, senao seria
+confundido com codigo de refeicao, de servico e outros tokens de tres letras.
+
+Ha tambem um cuidado com estado de segmento: `HK1` e `CR9` tem o mesmo formato,
+duas letras e um digito. A lista `ESTADOS_DE_SEGMENTO` evita a confusao caso a
+ordem dos campos na linha varie.
+
+### Codigo desconhecido nao e inventado
+
+Codigo fora da tabela aparece cru no e-mail, prefixado por `Equip.`, para a
+agencia saber que e codigo e nao nome de aviao. Dois codigos surgiram nos
+exemplos deste projeto e ainda nao estao na tabela oficial:
+
+- `32B`, visto em `amadeus_fqq_combinado_eur`
+- `CR9`, visto em `amadeus_arnk_surface_bio`
+
+Para incluir, basta acrescentar a entrada em `EQUIPAMENTO`.
+
+### Sabre nao traz equipamento
+
+Os exemplos Sabre deste projeto nao tem campo de equipamento: as linhas terminam
+em `/DCLA /E`. Entao nao ler equipamento no Sabre e leitura correta, nao falha.
+Se aparecer um retorno Sabre que exiba equipamento, vale registrar como exemplo
+novo antes de mexer no parser.
+
 ## Como anonimizar
 
 Antes de salvar qualquer exemplo:
