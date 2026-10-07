@@ -2156,6 +2156,7 @@ const EQUIPAMENTO = {
   "320": "Airbus A320",
   "321": "Airbus A321",
   "32A": "Airbus A320 com sharklets",
+  "32B": "Airbus A321 com sharklets",
   "32N": "Airbus A320neo",
   "32Q": "Airbus A321neo",
   "332": "Airbus A330-200",
@@ -2183,7 +2184,8 @@ const EQUIPAMENTO = {
   "E95": "Embraer 195",
   // ── Outros ────────────────────────────────────────────────────────────────
   "ATR": "ATR 42 ou ATR 72",
-  "CRJ": "Bombardier CRJ"
+  "CRJ": "Bombardier CRJ",
+  "CR9": "Bombardier CRJ-900"
 };
 
 // Codigos de estado do segmento tem o mesmo formato de alguns equipamentos
@@ -2773,6 +2775,61 @@ function parsePricingAmadeus(pricingRaw){
     taxLinesBRL = classified.taxLinesBRL;
   }
   return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource, taxesSource, taxLinesBRL};
+}
+
+// ─── BAGAGEM DIRECIONAL DO SABRE ──────────────────────────────────────────────
+// O PQ do Sabre pode declarar a franquia por COMPONENTE TARIFARIO (ida/volta),
+// nao por trecho fisico: "BAG ALLOWANCE -GRUJFK-01P/AA/..." cobre todo o trecho
+// de GRU até JFK, mesmo que isso sejam dois voos com conexao em MIA.
+//
+// A leitura por linha de segmento numerada (usada em parsePricingSabre abaixo)
+// so encontra franquia no ULTIMO trecho do componente, porque e so ali que a
+// linha numerada carrega o codigo. Quando o PQ nao lista as linhas numeradas de
+// TODOS os trechos (comum quando o PQ mostra so o componente de retorno), essa
+// leitura por linha falha, e padronizar pelo ultimo valor encontrado repete a
+// franquia errada nos trechos anteriores — foi exatamente o defeito relatado.
+//
+// Armadilhas que o regex abaixo precisa recusar, por semelhanca de texto:
+//   CARRY ON ALLOWANCE ... -NNP/CIA         (bagagem de MAO, nao despachada)
+//   nNDCHECKED BAG FEE-ORIGDEST-BRLvalor    (tarifa da bagagem extra, nao franquia)
+// Nenhuma das duas comeca com "BAG ALLOWANCE", entao exigir esse rotulo exato
+// no inicio da linha já as exclui.
+function parseSabreDirectionalBagAllowances(pricingRaw){
+  const out = [];
+  for(const l0 of trimLines(pricingRaw)){
+    const l = String(l0).replace(/[¥¤]/g, " ").trim();
+    const m = l.match(/^BAG\s+ALLOWANCE\s*-\s*([A-Z]{3})([A-Z]{3})\s*-\s*(\d{1,2}P|NIL)\b/i);
+    if(!m) continue;
+    out.push({ from: m[1].toUpperCase(), to: m[2].toUpperCase(), bag: normalizeBagAllowance(m[3]) });
+  }
+  return out;
+}
+
+// Distribui as franquias direcionais pelos trechos AEREOS fisicos, na ordem do
+// itinerario. Cada entrada direcional cobre do seu "from" até o primeiro trecho
+// cuja chegada bate com o "to", podendo abranger mais de um trecho fisico.
+//
+// Se a cadeia nao bater em algum ponto — origem diferente do esperado, destino
+// nunca alcançado, trecho sobrando sem direcional, ou so uma direcional para
+// varios trechos — devolve null. O chamador deve manter a leitura anterior e
+// avisar, nunca adivinhar qual trecho fica com qual franquia.
+function assignDirectionalBagToSegments(direcionais, airSegs){
+  if(!Array.isArray(direcionais) || direcionais.length < 2) return null; // caso simples, nao precisa
+  if(!Array.isArray(airSegs) || !airSegs.length) return null;
+  const resultado = new Array(airSegs.length).fill(null);
+  let pos = 0;
+  for(const dir of direcionais){
+    if(pos >= airSegs.length) return null;                 // sobrou direcional sem trecho
+    if(airSegs[pos].org !== dir.from) return null;          // cadeia nao bate, nao arrisca
+    let achou = false;
+    for(let i = pos; i < airSegs.length; i++){
+      resultado[i] = dir.bag;
+      if(airSegs[i].dst === dir.to){ pos = i + 1; achou = true; break; }
+    }
+    if(!achou) return null;                                 // nunca chegou ao destino esperado
+  }
+  if(pos !== airSegs.length) return null;                   // sobrou trecho sem direcional
+  return resultado;
 }
 
 function parsePricingSabre(pricingRaw){
@@ -3662,6 +3719,29 @@ function build() {
   if (pax.adt > 0 && $("maskADT").value.trim()) prices.ADT = parseFor($("maskADT").value);
   if (pax.chd > 0 && $("maskCHD").value.trim()) prices.CHD = parseFor($("maskCHD").value);
   if (pax.inf > 0 && $("maskINF").value.trim()) prices.INF = parseFor($("maskINF").value);
+
+  // ── bagagem direcional do Sabre ───────────────────────────────────────────
+  // Quando o PQ declara franquia por componente tarifario ("BAG ALLOWANCE
+  // -GRUJFK-01P/..."), a leitura por linha numerada so acerta o ULTIMO trecho
+  // de cada componente. Aqui a franquia é redistribuída pelos trechos aereos
+  // reais do itinerario. Se a cadeia nao bater com confianca, bagSegs
+  // permanece como a leitura original e o aviso generico de bagagem segue
+  // valendo — nunca adivinha qual trecho fica com qual franquia.
+  if (gds === "SAB") {
+    const airSegsBag = segs.filter(s => s && !s.surface);
+    const masksPorTipo = { ADT: $("maskADT").value, CHD: $("maskCHD").value, INF: $("maskINF").value };
+    for (const tipo of ["ADT", "CHD", "INF"]) {
+      const pr = prices[tipo];
+      if (!pr) continue;
+      const direcionais = parseSabreDirectionalBagAllowances(masksPorTipo[tipo]);
+      const corrigido = assignDirectionalBagToSegments(direcionais, airSegsBag);
+      if (corrigido) {
+        pr.bagSegs = corrigido;
+        const uniq = [...new Set(corrigido.filter(Boolean))];
+        pr.bag = uniq.length === 0 ? null : (uniq.length === 1 ? uniq[0] : "VAR");
+      }
+    }
+  }
 
   // ── bagagem manual override (inalterado) ─────────────────────────────────
   function applyBagOverride(typeKey, wrapId, inputId) {

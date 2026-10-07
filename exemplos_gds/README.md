@@ -83,6 +83,46 @@ O mesmo desalinhamento afetava a rota (`GRU-MAD-VLC // --MAD-GRU`, com o `ARNK` 
 
 Ao mexer em bagagem, rota ou itinerario, rode este exemplo.
 
+## Sabre: franquia direcional, por componente tarifario
+
+`sabre_bag_allowance_direcional_aa.txt` existe por causa de um defeito real relatado
+por um usuario: a franquia saia `2PC` nos tres trechos de uma rota GRU-MIA-JFK-GRU,
+quando a correta era `1PC` na ida e `2PC` na volta.
+
+O PQ do Sabre pode declarar a franquia por COMPONENTE TARIFARIO, nao por trecho fisico:
+
+```text
+BAG ALLOWANCE     -GRUJFK-01P/AA/...
+BAG ALLOWANCE     -JFKGRU-02P/AA/...
+```
+
+`GRUJFK` cobre o componente de ida inteiro (GRU-MIA e MIA-JFK, ainda que sejam dois
+voos); `JFKGRU` cobre so o trecho de volta. A leitura por linha de segmento numerada
+so encontra franquia no ULTIMO trecho de cada componente, porque e so ali que a linha
+numerada carrega o codigo. Quando o PQ nao lista as linhas numeradas de todos os
+trechos (comum quando o PQ mostra so o componente de retorno), a leitura por linha
+falhava e o valor do ultimo trecho era repetido para os anteriores.
+
+A correcao distribui cada franquia direcional pelos trechos aereos reais do
+itinerario, caminhando pela cadeia origem/destino até encontrar o destino de cada
+componente. Se a cadeia nao bater com confianca — origem diferente do esperado,
+destino nunca alcancado, trecho sobrando — a funcao devolve `null` e a leitura
+anterior permanece, com o aviso generico de bagagem continuando a valer. Nunca
+adivinha qual trecho fica com qual franquia.
+
+### Armadilhas que o texto real contem
+
+Tres trechos parecem franquia e nao sao, todos presentes neste exemplo:
+
+- `CARRY ON ALLOWANCE` seguido de `GRUMIA MIAJFK JFKGRU-02P/AA`: bagagem de MAO,
+  nao despachada;
+- `2NDCHECKED BAG FEE-GRUJFK-BRL496.98/AA/...`: tarifa da bagagem extra, nao
+  franquia inclusa;
+- `GRUMIA JFKGRU-AA` seguido de restricoes de animais e peso: nao traz franquia.
+
+A deteccao exige o rotulo exato `BAG ALLOWANCE` no inicio da linha, o que já
+exclui as tres armadilhas.
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela

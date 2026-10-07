@@ -1,0 +1,120 @@
+# Exemplo: Sabre com franquia de bagagem DIRECIONAL, diferente na ida e na volta
+
+## ORIGEM DO EXEMPLO
+
+Sabre, itinerario mais PQ lido ate o fim. Rota GRU MIA JFK GRU, 1 ADT, AA.
+
+Este exemplo existe por causa de um defeito real: a franquia verdadeira e 01P na
+ida e 02P na volta, mas o sistema mostrava 02P nos tres trechos, prometendo a
+agencia uma bagagem a mais do que a tarifa concede no trecho de ida.
+
+## ITINERARIO
+
+```text
+NO NAMES
+ 1 AA 930Q 20MAY 4 GRUMIA SS1  2125  0500   21MAY 5 /DCAA /E
+ 2 AA2953Q 30MAY 7 MIAJFK SS1  0830  1139  /DCAA /E
+ 3 AA 951R 05JUN 6 JFKGRU SS1  2020  0655   06JUN 7 /DCAA /E
+```
+
+## PQ
+
+```text
+MD«
+
+    03 O JFK AA 951R 05JUN 2020  RLW9ABF1        31MAY2720MAY28 02P¥
+         GRU
+    FARE SOURCE - ATPC
+    BAG ALLOWANCE     -GRUJFK-01P/AA/EACH PIECE UP TO 50 POUNDS/23
+    KILOGRAMS AND UP TO 62 LINEAR INCHES/158 LINEAR CENTIMETERS
+    2NDCHECKED BAG FEE-GRUJFK-BRL496.98/AA/UP TO 50 POUNDS/23 KILOG
+    RAMS AND UP TO 62 LINEAR INCHES/158 LINEAR CENTIMETERS**
+    BAG ALLOWANCE     -JFKGRU-02P/AA/EACH PIECE UP TO 70 POUNDS/32
+    KILOGRAMS AND UP TO 62 LINEAR INCHES/158 LINEAR CENTIMETERS
+    **BAG FEES APPLY AT EACH CHECK IN LOCATION
+    CARRY ON ALLOWANCE
+    GRUMIA MIAJFK JFKGRU-02P/AA
+    01/UP TO 40 LINEAR INCHES/101 LINEAR CENTIMETERS
+    01/UP TO 45 LINEAR INCHES/115 LINEAR CENTIMETERS
+    ADDITIONAL ALLOWANCES AND/OR DISCOUNTS MAY APPLY DEPENDING ON
+    FLYER-SPECIFIC FACTORS /E.G. FREQUENT FLYER STATUS/MILITARY/
+    CREDIT CARD FORM OF PAYMENT/EARLY PURCHASE OVER INTERNET,ETC./
+    EMBARGOES-APPLY TO EACH PASSENGER                              ¥
+
+MD«
+
+    GRUMIA JFKGRU-AA                                               ¥
+    PET IN CABIN NOT PERMITTED
+    OVER 100 POUNDS/45 KILOGRAMS NOT PERMITTED
+    MIAJFK-AA
+    OVER 100 POUNDS/45 KILOGRAMS NOT PERMITTED
+    2DBH 2DBH *A1A 1433/07OCT26                        PRICE-SYSTEM
+```
+
+## A FRANQUIA E POR COMPONENTE TARIFARIO, NAO POR VOO
+
+Ponto central deste exemplo. As linhas que mandam sao estas duas (ja presentes
+no bloco PQ acima, repetidas aqui so para destaque):
+
+  BAG ALLOWANCE     -GRUJFK-01P/AA/...
+  BAG ALLOWANCE     -JFKGRU-02P/AA/...
+
+`GRUJFK` nao e um voo: e o componente tarifario de ida, que cobre GRU-MIA e
+MIA-JFK. `JFKGRU` e o componente de volta, que cobre JFK-GRU. Entao:
+
+  trecho 1  GRU-MIA   faz parte de GRUJFK   ->  01P
+  trecho 2  MIA-JFK   faz parte de GRUJFK   ->  01P
+  trecho 3  JFK-GRU   faz parte de JFKGRU   ->  02P
+
+A linha de segmento do PQ (`03 O JFK AA 951R ... 02P`) mostra 02P porque ela e do
+trecho 3. Usar esse valor e repeti-lo para os outros trechos e o que produzia o
+erro: os tres saiam 02P.
+
+## ARMADILHAS DESTE RETORNO
+
+Tres trechos do texto parecem franquia e NAO sao:
+
+1. `CARRY ON ALLOWANCE` seguido de `GRUMIA MIAJFK JFKGRU-02P/AA`
+   Isso e bagagem de MAO, nao despachada. Ler como despachada daria 02P para
+   todos os trechos, que e exatamente o valor errado que aparecia antes.
+
+2. `2NDCHECKED BAG FEE-GRUJFK-BRL496.98/AA/...`
+   Isso e a TARIFA da segunda mala, cobrada a parte. Nao e franquia inclusa.
+
+3. `GRUMIA JFKGRU-AA` no segundo bloco, seguido de restricoes de animais e peso.
+   Nao traz franquia alguma.
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Segmentos:
+- 3 voos
+- AA 930, GRU-MIA, 20MAY 21:25 para 21MAY 05:00
+- AA 2953, MIA-JFK, 30MAY 08:30 para 11:39
+- AA 951, JFK-GRU, 05JUN 20:20 para 06JUN 06:55
+
+Bagagem, em ordem de trecho:
+- GRU-MIA: 1PC
+- MIA-JFK: 1PC
+- JFK-GRU: 2PC
+
+Como a franquia muda durante o itinerario, o sistema deve avisar para conferir
+trecho por trecho.
+
+Warnings esperados:
+- Franquia que muda durante o itinerario
+
+Warnings que NAO devem aparecer:
+- Trecho sem bagagem
+
+## OBSERVACOES
+
+Equipamentos confirmados pelo proprio GDS, a partir deste retorno:
+
+  32B  AIRBUS INDUSTRIE A321 SHARKLETS   JET   120-180 STD SEATS
+  CR9  CANADAIR(BOMBARDIER)REGIONAL JET  JET    70-76 STD SEATS
+
+Vale registrar que `32B` e A321, nao A320. A tabela tem `32A` como A320 com
+sharklets, entao os dois codigos sao parecidos e faceis de confundir.

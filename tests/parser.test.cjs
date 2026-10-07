@@ -1208,13 +1208,20 @@ test("tabela de equipamentos traduz os codigos conhecidos", () => {
 
 test("codigo de equipamento desconhecido nao e inventado", () => {
   const app = createApp();
-  // CR9 e 32B aparecem nos exemplos reais mas nao estao na tabela oficial.
-  // Devolver null e o correto: o e-mail mostra o codigo cru, rotulado.
-  assert.equal(app.equipmentName("CR9"), null);
-  assert.equal(app.equipmentName("32B"), null);
+  // Codigo fora da tabela devolve null e o correto: o e-mail mostra o codigo
+  // cru, rotulado, em vez de inventar um nome.
   assert.equal(app.equipmentName("XYZ"), null);
   assert.equal(app.equipmentName(""), null);
   assert.equal(app.equipmentName(null), null);
+  app.close();
+});
+
+test("32B e CR9 confirmados pelo proprio GDS", () => {
+  const app = createApp();
+  // Confirmado por retorno real do Sabre (comando de equipamento da aeronave):
+  // "32B AIRBUS INDUSTRIE A321 SHARKLETS" e "CR9 CANADAIR(BOMBARDIER)REGIONAL JET".
+  assert.equal(app.equipmentName("32B"), "Airbus A321 com sharklets");
+  assert.equal(app.equipmentName("CR9"), "Bombardier CRJ-900");
   app.close();
 });
 
@@ -1268,7 +1275,7 @@ test("itinerario sem equipamento no texto nao inventa equipamento", () => {
   app.close();
 });
 
-test("e-mail mostra o nome da aeronave e rotula o codigo desconhecido", () => {
+test("e-mail mostra o nome da aeronave para codigos conhecidos", () => {
   const app = createApp();
   const [itinRaw, maskRaw] = fixtureBlocks("amadeus_arnk_surface_bio.txt");
   app.document.getElementById("itin").value = itinRaw;
@@ -1276,11 +1283,135 @@ test("e-mail mostra o nome da aeronave e rotula o codigo desconhecido", () => {
   app.build();
 
   const preview = app.document.getElementById("preview").textContent;
-  // Codigo conhecido aparece como nome, sem o rotulo de codigo.
+  // Codigo conhecido aparece como nome, sem o rotulo de codigo nem o numero cru.
   assert.match(preview, /Airbus A350-900/);
   assert.match(preview, /Airbus A320/);
+  // CR9 foi confirmado pelo proprio GDS do usuario e ja tem nome na tabela.
+  assert.match(preview, /Bombardier CRJ-900/);
   assert.doesNotMatch(preview, /Equipamento 359/);
+  assert.doesNotMatch(preview, /Equip\. CR9/);
+  app.close();
+});
+
+test("e-mail rotula codigo de equipamento fora da tabela", () => {
+  const app = createApp();
+  // ZZ1 nao existe na tabela oficial: serve so para provar o fallback.
+  const itin = [
+    "1  IB6830 Q 20SEP 7*GRUMAD HK1  2210 1215  21SEP  E  0 359",
+    "2  IB3100 Q 21SEP 1*MADVLC HK1  1400 1510  21SEP  E  0 ZZ1"
+  ].join("\n");
+  app.document.getElementById("itin").value = itin;
+  app.document.getElementById("maskADT").value = fixture("amadeus_tarifa_fxp.txt");
+  app.build();
+
+  const preview = app.document.getElementById("preview").textContent;
+  assert.match(preview, /Airbus A350-900/);
   // Codigo fora da tabela aparece cru, mas rotulado como codigo.
-  assert.match(preview, /Equip\. CR9/);
+  assert.match(preview, /Equip\. ZZ1/);
+  app.close();
+});
+
+// ─── Bagagem direcional do Sabre ──────────────────────────────────────────────
+// Reportado pelo usuario: o PQ declara franquia por COMPONENTE TARIFARIO
+// ("BAG ALLOWANCE -GRUJFK-01P/..."), nao por trecho fisico. A leitura por linha
+// numerada so acerta o ultimo trecho de cada componente, e repetir esse valor
+// para os demais produzia 2PC nos tres trechos quando o correto era 1PC/1PC/2PC.
+
+test("le franquias direcionais BAG ALLOWANCE, ignorando bagagem de mao e tarifa de bagagem extra", () => {
+  const app = createApp();
+  const raw = fixtureAll("sabre_bag_allowance_direcional_aa.txt");
+  const direcionais = app.parseSabreDirectionalBagAllowances(raw);
+
+  assert.deepEqual(
+    Array.from(direcionais, d => `${d.from}-${d.to}:${d.bag}`),
+    ["GRU-JFK:1PC", "JFK-GRU:2PC"]
+  );
+  // CARRY ON ALLOWANCE e 2NDCHECKED BAG FEE nao podem ser lidos como franquia.
+  assert.equal(direcionais.length, 2);
+  app.close();
+});
+
+test("distribui a franquia direcional pelos trechos aereos corretos", () => {
+  const app = createApp();
+  const raw = fixtureAll("sabre_bag_allowance_direcional_aa.txt");
+  const segs = app.parseItinerary(raw, "SAB", 2026).filter(s => !s.surface);
+  const direcionais = app.parseSabreDirectionalBagAllowances(raw);
+  const resultado = app.assignDirectionalBagToSegments(direcionais, segs);
+
+  // GRUJFK cobre dois trechos fisicos (GRU-MIA e MIA-JFK); JFKGRU cobre so um.
+  assert.deepEqual(Array.from(resultado), ["1PC", "1PC", "2PC"]);
+  app.close();
+});
+
+test("assignDirectionalBagToSegments recusa quando a cadeia nao bate, em vez de adivinhar", () => {
+  const app = createApp();
+  const segs = [{ org: "GRU", dst: "MIA" }, { org: "MIA", dst: "JFK" }, { org: "JFK", dst: "GRU" }];
+
+  // Caso simples (so uma direcional): a funcao nao se aplica, devolve null.
+  assert.equal(app.assignDirectionalBagToSegments([{ from: "GRU", to: "JFK", bag: "1PC" }], segs), null);
+
+  // Origem da primeira direcional nao bate com o primeiro trecho.
+  assert.equal(app.assignDirectionalBagToSegments(
+    [{ from: "MAD", to: "JFK", bag: "1PC" }, { from: "JFK", to: "GRU", bag: "2PC" }], segs
+  ), null);
+
+  // Destino da direcional nunca e alcancado pela cadeia de trechos.
+  assert.equal(app.assignDirectionalBagToSegments(
+    [{ from: "GRU", to: "LHR", bag: "1PC" }, { from: "JFK", to: "GRU", bag: "2PC" }], segs
+  ), null);
+
+  // Sobra trecho sem direcional correspondente.
+  assert.equal(app.assignDirectionalBagToSegments(
+    [{ from: "GRU", to: "MIA", bag: "1PC" }], segs
+  ), null);
+  app.close();
+});
+
+test("gera a cotacao real da AA com a franquia correta por trecho", () => {
+  const app = createApp();
+  const raw = fixtureAll("sabre_bag_allowance_direcional_aa.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+
+  const q = app._lastQuote;
+  // Antes da correcao, bagSegs saia ["2PC"] (so a linha numerada do trecho de
+  // volta), e o preenchimento repetia esse valor nos tres trechos.
+  assert.deepEqual(Array.from(q.pricing.ADT.bagSegs), ["1PC", "1PC", "2PC"]);
+  assert.equal(q.pricing.ADT.bag, "VAR");
+  assert.ok(q.meta.warnings.some(w => /franquia muda durante o itiner[áa]rio/i.test(w)));
+  // Nenhum trecho ficou sem bagagem, entao esse aviso especifico nao deve aparecer.
+  assert.equal(q.meta.warnings.some(w => /sem bagagem/i.test(w)), false);
+
+  const linhas = Array.from(app.document.querySelectorAll("#preview tr"), tr => tr.textContent.replace(/\s+/g, " ").trim());
+  assert.ok(linhas.some(l => /GRU.*MIA/.test(l) && /\b1PC\b/.test(l)));
+  assert.ok(linhas.some(l => /MIA.*JFK/.test(l) && /\b1PC\b/.test(l)));
+  assert.ok(linhas.some(l => /JFK.*GRU/.test(l) && /\b2PC\b/.test(l)));
+  app.close();
+});
+
+test("bagagem manual override continua tendo prioridade sobre a franquia direcional", () => {
+  const app = createApp();
+  const raw = fixtureAll("sabre_bag_allowance_direcional_aa.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.refreshPaxUI();
+  app.document.getElementById("bagOvADT").value = "NIL";
+  app.build();
+
+  // O override manual precisa vencer tanto a leitura simples quanto a direcional.
+  assert.deepEqual(Array.from(app._lastQuote.pricing.ADT.bagSegs), ["Sem Bag"]);
+  app.close();
+});
+
+test("franquia direcional nao afeta Amadeus nem quebra fixtures sem bagagem direcional", () => {
+  const app = createApp();
+  // Fixtures Amadeus e Sabre ja existentes nao devem mudar de comportamento:
+  // a correcao direcional so entra quando ha 2+ linhas BAG ALLOWANCE distintas.
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+  assert.equal(app._lastQuote.meta.gds, "SAB");
   app.close();
 });
