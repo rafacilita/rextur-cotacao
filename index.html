@@ -733,12 +733,21 @@
           </div>
 
           <div id="ndcBlock" style="display:none;">
+            <div class="validationSummary" id="ocrAviso" role="alert" aria-live="polite"></div>
+            <label class="chip" id="ocrConfirmWrap" style="display:none; margin-bottom:12px;">
+              <input type="checkbox" id="ocrConfirmado">Confirmei os números de voo contra a tela do portal
+            </label>
             <div class="subcard" style="margin-top:0;">
               <h3>Colar do portal</h3>
               <div class="field">
                 <label for="ndcPaste">Texto copiado da tela do portal</label>
                 <textarea id="ndcPaste" style="min-height:120px;" placeholder="Cole aqui o itinerário e o bloco de tarifa, na visão de texto do portal"></textarea>
                 <div class="help">Aceita os dois blocos juntos. Os campos abaixo são preenchidos e ficam editáveis para conferência.</div>
+              </div>
+              <div class="field" style="margin-top:12px;">
+                <label for="ndcImagem">Ou leia de uma imagem da tela</label>
+                <input type="file" id="ndcImagem" accept="image/*" />
+                <div class="help">Também aceita colar a imagem com Ctrl+V sobre esta área. Precisa de internet na primeira vez.</div>
               </div>
               <div class="maskCombinedActions">
                 <button id="btnLerPortal" class="secondary" type="button">Ler e preencher</button>
@@ -1975,6 +1984,26 @@ function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
 }
 
 $("btnLerPortal").addEventListener("click", ()=>{ applyElatamPaste({ announce: true }); });
+
+$("ndcImagem").addEventListener("change", (e)=>{
+  const arq = e.target.files && e.target.files[0];
+  if(arq) lerImagemDoPortal(arq);
+});
+
+// Colar imagem direto do print, que e o gesto natural depois do Print Screen.
+$("ndcPaste").addEventListener("paste", (e)=>{
+  const itens = (e.clipboardData && e.clipboardData.items) ? e.clipboardData.items : [];
+  for(const it of itens){
+    if(it.type && it.type.startsWith("image/")){
+      const blob = it.getAsFile();
+      if(blob){ e.preventDefault(); lerImagemDoPortal(blob); return; }
+    }
+  }
+});
+
+// Editar o itinerario a mao invalida a confirmacao anterior.
+$("itin").addEventListener("input", ()=>{ if(itinerarioVeioDeImagem) exigeConfirmacaoDeVoos(true); });
+$("ocrConfirmado").addEventListener("change", ()=>{ markPreviewDirty(); scheduleDraftSave(); });
 $("ndcPaste").addEventListener("input", ()=>{
   const st = $("ndcPasteStatus");
   if(st){ st.textContent = $("ndcPaste").value.trim() ? "Conteúdo pronto para ler" : "Aguardando conteúdo"; st.classList.remove("warn"); }
@@ -2943,6 +2972,152 @@ function parsePricingSabre(pricingRaw){
 // sao do orcamento inteiro; so os quatro valores monetarios variam por tipo.
 // Le o texto colado do portal (visao de texto) e preenche os campos.
 // Devolve um resumo do que conseguiu ler, para o operador saber o que conferir.
+// Versao fixada: e a que foi medida contra as capturas reais.
+const OCR_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
+let ocrCarregando = null;
+
+// Carrega a biblioteca uma unica vez, e so quando o operador realmente usa.
+function carregaOcr(){
+  if(typeof window.Tesseract !== "undefined") return Promise.resolve(window.Tesseract);
+  if(ocrCarregando) return ocrCarregando;
+  ocrCarregando = new Promise((ok, erro) => {
+    // Tempo limite obrigatorio: se o CDN nao responde nem falha, a promessa
+    // ficaria pendente para sempre e o botao travaria em "Lendo...". Numa rede
+    // que engole a requisicao em silencio isso acontece.
+    let encerrado = false;
+    const prazo = setTimeout(() => {
+      if(encerrado) return;
+      encerrado = true;
+      ocrCarregando = null;   // permite nova tentativa depois
+      erro(new Error("o leitor de imagem demorou demais para carregar"));
+    }, 20000);
+    const resolve = (fn, arg) => { if(encerrado) return; encerrado = true; clearTimeout(prazo); fn(arg); };
+
+    const tag = document.createElement("script");
+    tag.src = OCR_CDN;
+    tag.onload = () => (typeof window.Tesseract !== "undefined")
+      ? resolve(ok, window.Tesseract)
+      : resolve(erro, new Error("biblioteca carregada sem expor Tesseract"));
+    tag.onerror = () => { ocrCarregando = null; resolve(erro, new Error("não foi possível baixar o leitor de imagem")); };
+    document.head.appendChild(tag);
+  });
+  return ocrCarregando;
+}
+
+// Amplia a imagem antes de ler. Medido nas capturas reais: a confianca do
+// motor subiu de 43% para 73% com ampliacao de tres vezes, e um horario que
+// saia errado passou a sair certo.
+function ampliaParaOcr(img, escala = 3){
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth * escala;
+  c.height = img.naturalHeight * escala;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Le uma imagem e devolve o texto. Nao lanca: devolve null em qualquer falha,
+// para a leitura por imagem nunca impedir o uso manual.
+async function leImagem(arquivoOuBlob){
+  const Tess = await carregaOcr();
+  const url = URL.createObjectURL(arquivoOuBlob);
+  try{
+    const img = new Image();
+    await new Promise((ok, erro) => { img.onload = ok; img.onerror = erro; img.src = url; });
+    const canvas = ampliaParaOcr(img, 3);
+    const { data } = await Tess.recognize(canvas, "eng");
+    return { texto: data.text || "", confianca: data.confidence || 0 };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Mostra o que a leitura por imagem conseguiu e o que exige conferencia.
+function renderOcrAviso(itens, nivel){
+  const box = $("ocrAviso");
+  if(!box) return;
+  box.innerHTML = "";
+  box.classList.remove("show", "error");
+  if(!itens || !itens.length) return;
+  box.classList.add("show");
+  if(nivel === "error") box.classList.add("error");
+  const titulo = document.createElement("strong");
+  titulo.textContent = "Leitura por imagem";
+  const lista = document.createElement("ul");
+  for(const t of itens){
+    const li = document.createElement("li");
+    li.textContent = t;
+    lista.appendChild(li);
+  }
+  box.append(titulo, lista);
+}
+
+// Marca que o itinerario veio de imagem e por isso precisa de confirmacao.
+// Enquanto nao confirmado, a copia do e-mail fica bloqueada.
+let itinerarioVeioDeImagem = false;
+function exigeConfirmacaoDeVoos(exige){
+  itinerarioVeioDeImagem = !!exige;
+  const wrap = $("ocrConfirmWrap");
+  const chk = $("ocrConfirmado");
+  if(wrap) wrap.style.display = exige ? "" : "none";
+  if(chk && exige) chk.checked = false;
+}
+function voosPendentesDeConfirmacao(){
+  const chk = $("ocrConfirmado");
+  return itinerarioVeioDeImagem && !(chk && chk.checked);
+}
+
+// Orquestra: le a imagem, joga o texto no campo de colagem e reaproveita o
+// parser de texto, que ja e testado. O OCR nao tem parser proprio.
+async function lerImagemDoPortal(arquivo){
+  const botao = $("btnLerImagem");
+  const antes = botao ? botao.textContent : "";
+  if(botao){ botao.disabled = true; botao.textContent = "Lendo..."; }
+  setStatus("Lendo a imagem");
+  renderOcrAviso(["Carregando o leitor e processando a imagem."], null);
+  try{
+    const { texto, confianca } = await leImagem(arquivo);
+    const campo = $("ndcPaste");
+    if(campo) campo.value = (campo.value.trim() ? campo.value.trim() + "\n" : "") + texto;
+    const r = applyElatamPaste({ announce: false });
+
+    const itens = [];
+    itens.push(`Confiança do leitor: ${Math.round(confianca)}%.`);
+    if(r.lidos && r.lidos.length) itens.push("Reconhecido: " + r.lidos.join(", ") + ".");
+
+    const pr = r.pricing || {};
+    if(pr.taxesSource === "READ"){
+      itens.push("As taxas somam exatamente o total impresso, então os valores estão conferidos.");
+    } else if(pr.taxesPrintedBRL != null){
+      itens.push("As taxas NÃO somam o total impresso. Algum número foi lido errado: confira valor por valor.");
+    }
+
+    const temVoos = r.segs && r.segs.length;
+    if(temVoos){
+      itens.push("Os números de voo não têm conta que os verifique, e são o ponto fraco da leitura por imagem. Confira os " + r.segs.length + " voos antes de enviar.");
+      exigeConfirmacaoDeVoos(true);
+    }
+
+    const problema = (pr.taxesPrintedBRL != null && pr.taxesSource !== "READ") || !temVoos;
+    renderOcrAviso(itens, problema ? "error" : null);
+    setStatus(problema ? "Leitura por imagem precisa de conferência" : "Imagem lida, confira os voos", true);
+  }catch(e){
+    console.warn("Leitura por imagem indisponível.", e);
+    renderOcrAviso([
+      "Não foi possível ler a imagem: " + (e && e.message ? e.message : "falha desconhecida") + ".",
+      "A leitura por imagem precisa de internet e só funciona pelo site publicado.",
+      "Você pode colar o texto da tela no campo acima, que funciona sempre."
+    ], "error");
+    setStatus("Leitura por imagem indisponível", true);
+  }finally{
+    if(botao){ botao.disabled = false; botao.textContent = antes; }
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+}
+
 function applyElatamPaste({ announce = true } = {}){
   const raw = ($("ndcPaste") ? $("ndcPaste").value : "").trim();
   const status = $("ndcPasteStatus");
@@ -3025,9 +3200,14 @@ function collectNdcPricing(tipo){
   // A RAV nao tem campo proprio na tela: ela e deduzida do texto colado, quando
   // houver. Recalcular aqui mantem a coluna de RAV coerente apos edicao manual.
   const colado = ($("ndcPaste") ? $("ndcPaste").value : "").trim();
-  const rav = colado ? (parseElatamPricing(colado).ravBRL || 0) : 0;
+  const lido = colado ? parseElatamPricing(colado) : null;
+  // A conferencia aritmetica do texto colado precisa sobreviver ate o modelo:
+  // e ela que autoriza confiar numa leitura por imagem.
   return buildNdcPricing({
-    ravBRL: rav,
+    ravBRL: lido ? (lido.ravBRL || 0) : 0,
+    taxesSource: lido ? lido.taxesSource : null,
+    taxLinesBRL: lido ? lido.taxLinesBRL : null,
+    taxesPrintedBRL: lido ? lido.taxesPrintedBRL : null,
     fareCur:  v("ndcFareCur"),
     fareAmt:  v("ndcFare"  + tipo),
     equivBRL: v("ndcEquiv" + tipo),
@@ -3147,7 +3327,7 @@ function parseNdcItinerary(raw, year){
 // Monta o objeto de precos a partir dos campos transcritos da tela do portal.
 // Procedencia NDC_MANUAL deixa explicito que o valor foi informado pelo operador,
 // e nao lido de uma linha de mascara nem inferido por diferenca.
-function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag, ravBRL }){
+function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag, ravBRL, taxesSource, taxLinesBRL, taxesPrintedBRL }){
   const num = (v) => { const n = parseAmountAny(v); return (n != null && Number.isFinite(n)) ? n : null; };
   const cur = String(fareCur || "").trim().toUpperCase();
   const equiv = num(equivBRL);
@@ -3173,8 +3353,12 @@ function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag, 
     totalSource: total != null ? "NDC_MANUAL" : null,
     // A tela do portal mostra o total de impostos e taxas de forma explicita,
     // entao o valor e lido, nao obtido por subtracao.
-    taxesSource: taxes != null ? "READ" : null,
-    taxLinesBRL: null
+    // Quando o valor veio de um texto conferido, a procedencia vem de fora.
+    // Sem isso uma soma que nao fecha seria marcada como conferida, e o aviso
+    // do motor nunca apareceria.
+    taxesSource: taxesSource || (taxes != null ? "READ" : null),
+    taxLinesBRL: taxLinesBRL != null ? taxLinesBRL : null,
+    taxesPrintedBRL: taxesPrintedBRL != null ? taxesPrintedBRL : null,
   };
 }
 
@@ -3662,6 +3846,14 @@ function applyValidations(q) {
     if (pr.totalSource === 'MAX_BRL') {
       q.meta.warnings.push(`${type}: o total não veio de uma linha TOTAL do GDS. Foi inferido pelo maior valor em BRL da máscara, então confirme o total.`);
     }
+    // Detalhamento lido, mas cuja soma nao fecha com o total impresso. E o sinal
+    // de que algum numero saiu errado, tipicamente numa leitura por imagem.
+    if (pr.taxesSource === 'READ_UNVERIFIED') {
+      const somou = (pr.taxLinesBRL != null) ? ` As taxas discriminadas somam BRL ${pr.taxLinesBRL.toFixed(2)}` : "";
+      const impresso = (pr.taxesPrintedBRL != null) ? ` e o total impresso e BRL ${pr.taxesPrintedBRL.toFixed(2)}.` : ".";
+      q.meta.warnings.push(`${type}: a soma das taxas nao fecha com o total informado.${somou}${impresso} Confira valor por valor antes de enviar.`);
+    }
+
     if (pr.taxesSource === 'DERIVED_DIFF') {
       const det = (pr.taxLinesBRL != null) ? ` (linhas de taxa somam BRL ${pr.taxLinesBRL.toFixed(2)})` : '';
       q.meta.warnings.push(`${type}: taxas inferidas por diferença entre total e equivalente, e não conferem com as linhas de taxa${det}. Confira as taxas no GDS.`);
@@ -4361,6 +4553,14 @@ $("btnCopy").addEventListener("click", async ()=>{
     setStatus("Gere a prévia novamente antes de copiar", true);
     return;
   }
+  // Itinerario lido de imagem sem confirmacao: a medicao mostrou que numeros
+  // de voo saem errados e nao existe conta que os verifique.
+  if(voosPendentesDeConfirmacao()){
+    setStatus("Confirme os números de voo lidos da imagem antes de copiar", true);
+    const chk = $("ocrConfirmado");
+    if(chk) chk.focus();
+    return;
+  }
   const html = $("preview").dataset.html || $("preview").innerHTML || "";
   if(!html.trim()){ setStatus("Nada pra copiar (gere a prévia)", true); return; }
   try{
@@ -4414,6 +4614,9 @@ $("btnClear").addEventListener("click", ()=>{
   $("fldFonte").value="gds";
   ["ndcCarrier","ndcFareCur","ndcRate","ndcBag","ndcPaste"].forEach(id=>{ if($(id)) $(id).value=""; });
   if($("ndcPasteStatus")){ $("ndcPasteStatus").textContent="Aguardando conteúdo"; $("ndcPasteStatus").classList.remove("warn"); }
+  if($("ndcImagem")) $("ndcImagem").value="";
+  exigeConfirmacaoDeVoos(false);
+  renderOcrAviso([], null);
   for(const t of ["ADT","CHD","INF"]) for(const c of ["Fare","Equiv","Taxes","Total"]){
     const el = $("ndc"+c+t); if(el) el.value="";
   }

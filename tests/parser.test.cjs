@@ -1481,3 +1481,106 @@ test("cotacao sem RAV nao ganha coluna de RAV", () => {
   assert.doesNotMatch(app.document.getElementById("preview").textContent, /RAV \(BRL\)/);
   app.close();
 });
+
+// ─── Leitura por imagem: a confirmacao dos voos e obrigatoria ─────────────────
+// Medicao nas capturas reais: o bloco de tarifa saiu 13/13, mas o itinerario
+// perdeu todos os numeros de voo. As taxas tem conta que as verifique; os
+// numeros de voo nao tem. Dai a confirmacao explicita.
+
+test("confirmacao de voos bloqueia a copia e libera ao confirmar", () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+  app.document.getElementById("ndcPaste").value = fixtureAll(FIX_ELATAM);
+  app.applyElatamPaste({ announce: false });
+  app.build();
+
+  // Antes de simular leitura por imagem, nada bloqueia.
+  assert.equal(app.voosPendentesDeConfirmacao(), false);
+
+  // Itinerario vindo de imagem passa a exigir confirmacao.
+  app.exigeConfirmacaoDeVoos(true);
+  assert.equal(app.voosPendentesDeConfirmacao(), true);
+  assert.equal(app.document.getElementById("ocrConfirmWrap").style.display, "");
+
+  // Marcar a confirmacao libera.
+  app.document.getElementById("ocrConfirmado").checked = true;
+  assert.equal(app.voosPendentesDeConfirmacao(), false);
+  app.close();
+});
+
+test("editar o itinerario a mao invalida a confirmacao anterior", () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+  app.exigeConfirmacaoDeVoos(true);
+  app.document.getElementById("ocrConfirmado").checked = true;
+  assert.equal(app.voosPendentesDeConfirmacao(), false);
+
+  // Mexer no itinerario depois de confirmar precisa pedir confirmacao de novo.
+  const itin = app.document.getElementById("itin");
+  itin.value = "LA3065 N CWB CGH 10FEV27 1340 1440";
+  itin.dispatchEvent(new app.Event("input", { bubbles: true }));
+  assert.equal(app.voosPendentesDeConfirmacao(), true);
+  app.close();
+});
+
+test("leitura por imagem indisponivel nao impede o uso manual", async () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+
+  // Motor falso que falha de imediato, simulando CDN bloqueado sem esperar o
+  // tempo limite real de 20 segundos.
+  app.Tesseract = { recognize: () => Promise.reject(new Error("rede bloqueada")) };
+
+  let lancou = false;
+  try {
+    await app.lerImagemDoPortal(new app.Blob(["nao e imagem"], { type: "image/png" }));
+  } catch (e) { lancou = true; }
+  assert.equal(lancou, false, "a falha de OCR nao pode propagar excecao");
+
+  // O aviso precisa explicar o caminho alternativo.
+  const aviso = app.document.getElementById("ocrAviso").textContent;
+  assert.match(aviso, /colar o texto/i);
+
+  // E o caminho manual segue funcionando.
+  app.document.getElementById("ndcPaste").value = fixtureAll(FIX_ELATAM);
+  app.applyElatamPaste({ announce: false });
+  assert.equal(app.document.getElementById("ndcTotalADT").value, "8809.13");
+  app.close();
+});
+
+test("soma de taxas que nao fecha derruba a confiabilidade e avisa", () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+
+  // Mesmo texto do exemplo, com UM digito trocado, como um OCR ruim faria:
+  // 233.34 vira 283.34. A soma passa a dar 1121.02 contra 1071.02 impresso.
+  const corrompido = fixtureAll(FIX_ELATAM).replace("233.34", "283.34");
+  app.document.getElementById("ndcPaste").value = corrompido;
+  app.applyElatamPaste({ announce: false });
+  app.build();
+
+  const avisos = app._lastQuote.meta.warnings;
+  assert.ok(avisos.some(w => /soma das taxas n[ãa]o fecha/i.test(w)),
+    `deveria avisar que a soma nao fecha: ${JSON.stringify(avisos)}`);
+  assert.notEqual(app._lastQuote.meta.confidence, "HIGH",
+    "leitura nao conferida nao pode manter confiabilidade alta");
+  app.close();
+});
+
+test("leitura correta nao dispara o aviso de soma", () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+  app.document.getElementById("ndcPaste").value = fixtureAll(FIX_ELATAM);
+  app.applyElatamPaste({ announce: false });
+  app.build();
+  assert.equal(
+    app._lastQuote.meta.warnings.some(w => /soma das taxas/i.test(w)),
+    false
+  );
+  app.close();
+});
