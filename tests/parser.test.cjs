@@ -1451,3 +1451,128 @@ test("le quatro franquias diferentes por segmento, sem ativar a correcao direcio
   assert.ok(linhas.some(l => /MEX.*GRU/.test(l) && /\b1PC\b/.test(l)));
   app.close();
 });
+
+// ─── ADT + CHD + INF com franquia distinta por tipo (Sabre e Amadeus) ────────
+// Reportado pelo usuario: o INF tem franquia PROPRIA, diferente de ADT/CHD, e
+// isso expos dois defeitos reais no caminho combinado do Sabre, nenhum deles
+// na leitura de bagagem em si.
+
+const FIX_SABRE_3TIPOS = "sabre_adt_chd_inf_bagagem_distinta_am.txt";
+const FIX_AMADEUS_3TIPOS = "amadeus_adt_chd_inf_bagagem_distinta_am.txt";
+
+test("splitSabrePricingMasks nao deixa a secao WP*BAG vazar para o ultimo PQ", () => {
+  const app = createApp();
+  const [, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  // Sem o corte, a secao WP*BAG (rotulada ADT-02) vazava para dentro da
+  // mascara do INF, por ser o ultimo PQ do retorno. Nenhuma mascara deve
+  // conter a secao WP*BAG.
+  for (const tipo of ["ADT", "CHD", "INF"]) {
+    assert.doesNotMatch(split.masks[tipo], /WP\*BAG/, `mascara ${tipo} nao deveria conter WP*BAG`);
+    assert.doesNotMatch(split.masks[tipo], /BAG ALLOWANCE/, `mascara ${tipo} nao deveria conter BAG ALLOWANCE da secao WP`);
+  }
+  app.close();
+});
+
+test("INF tem franquia propria, diferente do ADT e do CHD, no Sabre combinado", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = split.masks.ADT;
+  app.document.getElementById("maskCHD").value = split.masks.CHD;
+  app.document.getElementById("maskINF").value = split.masks.INF;
+  app.build();
+
+  const q = app._lastQuote;
+  // ADT e CHD compartilham o mesmo padrao; o INF tem o seu PROPRIO, distinto.
+  assert.deepEqual(Array.from(q.pricing.ADT.bagSegs), ["Sem Bag", "Sem Bag", "2PC", "1PC"]);
+  assert.deepEqual(Array.from(q.pricing.CHD.bagSegs), ["Sem Bag", "Sem Bag", "2PC", "1PC"]);
+  assert.deepEqual(Array.from(q.pricing.INF.bagSegs), ["1PC", "Sem Bag", "Sem Bag", "1PC"]);
+
+  // O aviso do INF precisa nomear os trechos REAIS (MEX-GDL, GDL-MEX), nunca
+  // um "trecho 6" ou "trecho 7" fantasma vindo da duplicacao de pagina do PQ.
+  const avisosInf = q.meta.warnings.filter(w => w.startsWith("INF:"));
+  assert.ok(avisosInf.some(w => /sem bagagem/i.test(w) && /MEX-GDL/.test(w) && /GDL-MEX/.test(w)));
+  assert.equal(q.meta.warnings.some(w => /trecho \d/i.test(w)), false,
+    `nao deveria haver trecho fantasma: ${JSON.stringify(q.meta.warnings)}`);
+
+  assert.equal(q.pricing.ADT.totalBRL, 13020.83);
+  assert.equal(q.pricing.CHD.totalBRL, 13020.83);
+  assert.equal(q.pricing.INF.totalBRL, 2081.00);
+
+  const linhas = Array.from(app.document.querySelectorAll("#preview tr"), tr => tr.textContent.replace(/\s+/g, " ").trim());
+  const gruMex = linhas.find(l => /GRU.*MEX/.test(l) && /20\/04/.test(l));
+  assert.match(gruMex, /Sem BagSem Bag1PC|Sem Bag\s*Sem Bag\s*1PC/);
+  app.close();
+});
+
+test("bagSegs duplicado por quebra de pagina e cortado para o numero real de trechos", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = split.masks.ADT;
+  app.document.getElementById("maskCHD").value = split.masks.CHD;
+  app.document.getElementById("maskINF").value = split.masks.INF;
+  app.build();
+
+  // O PQ do INF aparece duplicado no texto bruto (artefato de paginacao do
+  // terminal). bagSegs precisa ter exatamente 4 posicoes, uma por trecho
+  // aereo real, nunca 8.
+  assert.equal(app._lastQuote.pricing.INF.bagSegs.length, 4);
+  app.close();
+});
+
+test("Amadeus le a franquia propria do INF a partir dos tres FQQ separados", () => {
+  const app = createApp();
+  const [itinRaw, maskADT, maskCHD, maskINF] = fixtureBlocks(FIX_AMADEUS_3TIPOS);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = maskADT;
+  app.document.getElementById("maskCHD").value = maskCHD;
+  app.document.getElementById("maskINF").value = maskINF;
+  app.build();
+
+  const q = app._lastQuote;
+  assert.deepEqual(Array.from(q.pricing.ADT.bagSegs), ["Sem Bag", "Sem Bag", "2PC", "1PC"]);
+  assert.deepEqual(Array.from(q.pricing.CHD.bagSegs), ["Sem Bag", "Sem Bag", "2PC", "1PC"]);
+  assert.deepEqual(Array.from(q.pricing.INF.bagSegs), ["1PC", "Sem Bag", "Sem Bag", "1PC"]);
+
+  // Mesmos totais do exemplo Sabre equivalente: conferencia cruzada entre GDS.
+  assert.equal(q.pricing.ADT.totalBRL, 13020.83);
+  assert.equal(q.pricing.INF.totalBRL, 2081.00);
+  app.close();
+});
+
+test("deteccao de equipamento aceita o formato digito-letra-digito (7M8, 7M9)", () => {
+  const app = createApp();
+  // Antes desta correcao, 7M8 e 7M9 nao eram reconhecidos como equipamento
+  // em nenhuma forma: o campo saia null, nao so sem traducao de nome.
+  assert.equal(app.pareceEquipamento("7M8"), true);
+  assert.equal(app.pareceEquipamento("7M9"), true);
+  // E o nome continua SEM traducao: nao foi confirmado pelo GDS, so pela
+  // posicao no retorno. Mostrar o codigo cru e o correto aqui.
+  assert.equal(app.equipmentName("7M8"), null);
+  assert.equal(app.equipmentName("7M9"), null);
+
+  const [itinRaw] = fixtureBlocks(FIX_AMADEUS_3TIPOS);
+  const segs = app.parseItinerary(itinRaw, "AMA", 2026).filter(s => !s.surface);
+  assert.deepEqual(Array.from(segs, s => s.equipment), ["789", "7M8", "7M9", "789"]);
+  app.close();
+});

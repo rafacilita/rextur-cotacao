@@ -1698,10 +1698,19 @@ function splitSabrePricingMasks(raw){
     if(/^\s*PQ\s+\d+\s+\S+/i.test(line.replace(/[¥¤]/g, " "))) starts.push(index);
   });
 
+  // Depois do ultimo PQ, o retorno pode trazer uma secao "WP«"/"WP*BAG«" com
+  // franquia por passageiro numerado (ex.: ADT-02), estrutura diferente da do
+  // PQ e que ainda nao sabemos atribuir ao tipo certo com confianca. Sem este
+  // limite, essa secao vazava para dentro do ULTIMO PQ do retorno (em geral o
+  // INF, por ser o ultimo bloco), misturando franquia de um passageiro com a
+  // leitura de outro.
+  const limiteWpIdx = lines.findIndex(line => /^\s*WP\s*«?\s*$|^\s*WP\*BAG\b/i.test(line));
+  const limite = limiteWpIdx >= 0 ? limiteWpIdx : lines.length;
+
   const masks = { ADT: "", CHD: "", INF: "" };
   for(let i = 0; i < starts.length; i++){
     const start = starts[i];
-    const end = i + 1 < starts.length ? starts[i + 1] : lines.length;
+    const end = i + 1 < starts.length ? starts[i + 1] : limite;
     const block = lines.slice(start, end).join("\n").trim();
     const type = classifySabrePricingBlock(block);
     if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
@@ -2207,6 +2216,7 @@ function pareceEquipamento(token){
   if(/^\d{2}[A-Z]$/.test(t)) return true;            // 32N, 73M, 77W, 32B
   if(/^[A-Z]\d{2}$/.test(t)) return true;            // E90, E95, E29
   if(/^[A-Z]{2}\d$/.test(t)) return !ESTADOS_DE_SEGMENTO.has(t.slice(0, 2)); // CR9 sim, HK1 nao
+  if(/^\d[A-Z]\d$/.test(t)) return true;             // 7M8, 7M9 (variante do 737 MAX)
   return Object.prototype.hasOwnProperty.call(EQUIPAMENTO, t);
 }
 
@@ -3719,6 +3729,24 @@ function build() {
   if (pax.adt > 0 && $("maskADT").value.trim()) prices.ADT = parseFor($("maskADT").value);
   if (pax.chd > 0 && $("maskCHD").value.trim()) prices.CHD = parseFor($("maskCHD").value);
   if (pax.inf > 0 && $("maskINF").value.trim()) prices.INF = parseFor($("maskINF").value);
+
+  // ── bagagem com mais valores do que trechos reais ─────────────────────────
+  // O retorno do GDS pode duplicar um PQ inteiro por quebra de pagina do
+  // terminal (visto num caso real: o PQ do INF apareceu duas vezes, identico,
+  // por causa de um "MD«" de paginacao). Isso faz bagSegs sair mais longo que
+  // a quantidade real de trechos aereos. O e-mail ja cortava corretamente ao
+  // renderizar, mas o aviso de "trecho sem bagagem" nao cortava, e citava
+  // trechos fantasmas ("trecho 6", "trecho 7") que nao existem no itinerario.
+  // Cortar aqui, uma vez, corrige o aviso sem precisar de logica nova nele.
+  {
+    const airSegsTotal = segs.filter(s => s && !s.surface).length;
+    for (const tipo of ["ADT", "CHD", "INF"]) {
+      const pr = prices[tipo];
+      if (pr && Array.isArray(pr.bagSegs) && pr.bagSegs.length > airSegsTotal) {
+        pr.bagSegs = pr.bagSegs.slice(0, airSegsTotal);
+      }
+    }
+  }
 
   // ── bagagem direcional do Sabre ───────────────────────────────────────────
   // Quando o PQ declara franquia por componente tarifario ("BAG ALLOWANCE

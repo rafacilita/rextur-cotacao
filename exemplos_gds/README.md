@@ -135,6 +135,45 @@ existia antes da correcao direcional. A fixture serve para travar isso: a
 correcao direcional so ativa com 2 ou mais linhas `BAG ALLOWANCE` distintas, e
 nao pode interferir neste padrao mais simples.
 
+## ADT, CHD e INF com franquia propria (Sabre e Amadeus)
+
+`sabre_adt_chd_inf_bagagem_distinta_am.txt` e
+`amadeus_adt_chd_inf_bagagem_distinta_am.txt` sao o mesmo bilhete GRU-MEX-GDL-MEX-GRU
+pela AM, relatado por um usuario com o alerta: a franquia do INF e DIFERENTE da do
+ADT e do CHD (ADT/CHD: Sem Bag/Sem Bag/2PC/1PC; INF: 1PC/Sem Bag/Sem Bag/1PC). O
+exemplo expos dois defeitos reais, nenhum deles na leitura de bagagem em si.
+
+### Secao WP*BAG vazava para o ultimo PQ do retorno combinado
+
+O retorno Sabre combinado (`WPP1ADT/1CNN/1INF` + tres blocos `PQ`) as vezes traz, depois
+do ultimo `PQ`, uma secao `WP«`/`WP*BAG«` com franquia por passageiro numerado (ex.:
+`ADT-02`), de estrutura diferente da do `PQ`. `splitSabrePricingMasks` cortava os
+blocos `PQ` so pelo inicio do PQ seguinte, e usava o fim literal do texto como limite
+do ULTIMO bloco — neste exemplo, o `PQ 3 PINF`. A secao `WP*BAG` (que na verdade e do
+ADT) ficava colada dentro da mascara do INF.
+
+Isso por si so nao seria grave, mas a correcao de franquia direcional (ver secao
+acima) encontrou ali 4 linhas `BAG ALLOWANCE`, uma por trecho fisico, e — por nao ter
+como saber que vieram de outro passageiro — aplicou-as com confianca sobre o INF,
+sobrescrevendo a leitura correta pela errada.
+
+A correcao limita o ultimo `PQ` a parar antes de `WP«`/`WP*BAG«`, quando essa secao
+existir. A secao continua nao sendo lida (nenhum passageiro e identificado com
+confianca a partir dela), mas tambem deixa de contaminar o passageiro errado.
+
+### PQ duplicado por paginacao inflava `bagSegs` e citava trechos fantasmas
+
+O retorno real trazia o `PQ 3 PINF` inteiro duplicado (quebra de pagina do terminal
+gerando `MD«` + repeticao). Isso fazia `bagSegs` do INF sair com 8 posicoes em vez de
+4. O e-mail ja truncava corretamente na hora de montar a tabela, mas o aviso de
+"trecho sem bagagem" nao truncava, e citava `trecho 6`, `trecho 7` — trechos que nao
+existem no itinerario de 4 voos.
+
+A correcao trunca `bagSegs` de cada tipo para o numero real de trechos aereos uma
+unica vez, logo depois do parse, antes de qualquer logica consumir o array. Isso
+corrige o aviso sem precisar de logica nova nele, e vale tambem se o mesmo tipo de
+duplicacao aparecer em ADT ou CHD no futuro.
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
@@ -180,6 +219,14 @@ exemplos deste projeto e ainda nao estao na tabela oficial:
 - `CR9`, visto em `amadeus_arnk_surface_bio`
 
 Para incluir, basta acrescentar a entrada em `EQUIPAMENTO`.
+
+### Formato digito-letra-digito (variantes do 737 MAX)
+
+`7M8` e `7M9` (vistos em `amadeus_adt_chd_inf_bagagem_distinta_am`) nao se encaixavam
+em nenhum dos formatos acima e eram perdidos por completo (`equipment=null`), nao so
+sem traducao de nome. A deteccao agora aceita o formato `\d[A-Z]\d`. Os dois codigos
+aparecem crus no e-mail (`Equip. 7M8` / `Equip. 7M9`) ate serem confirmados pelo GDS,
+seguindo a mesma politica do `32B`/`CR9`.
 
 ### Sabre nao traz equipamento
 

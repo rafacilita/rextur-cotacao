@@ -1,0 +1,165 @@
+# Exemplo: Amadeus com ADT, CHD e INF, cada um com franquia DIFERENTE
+
+## ORIGEM DO EXEMPLO
+
+Amadeus, retorno combinado com itinerario, resumo PASSENGER/PTC/FARE e tres
+FQQ (FQQ01=ADT, FQQ02=CHD, FQQ03=INF). Mesma reserva do exemplo Sabre
+equivalente (`sabre_adt_chd_inf_bagagem_distinta_am.txt`): rota GRU MEX GDL MEX
+GRU, 1 ADT + 1 CHD + 1 INF, AM. Os totais por tipo sao identicos nos dois GDS,
+o que serve de conferencia cruzada.
+
+Mesmo ponto central: a franquia do INF (coluna BG do FQQ03) e diferente da do
+ADT/CHD (FQQ01/FQQ02).
+
+Este exemplo tambem traz equipamento num formato NOVO, ainda nao coberto pela
+deteccao: `7M8` e `7M9` (digito-letra-digito). O codigo `789` (tres digitos)
+ja e lido normalmente. `7M8`/`7M9` nao devem ser traduzidos sem confirmacao do
+proprio GDS — ficam registrados aqui so para decidir se a FORMA do codigo
+(digito-letra-digito) precisa ser reconhecida pela deteccao, mesmo que o NOME
+continue sem tradução.
+
+## ITINERARIO
+
+```text
+RP/SAO2R2100/
+  1.SILVA/JOAO(INF/PEDRO MSTR)   2.SILVA/MARIA(CHD)
+  3  AM 015 V 20APR 2 GRUMEX DK2  0940 1620  20APR  E  0 789 HC
+     010 G3 3800  WS 6296
+     SEE RTSVC
+  4  AM 228 V 25APR 7 MEXGDL DK2  1250 1420  25APR  E  0 7M8 RC
+     010 DL 8073
+     SEE RTSVC
+  5  AM 225 I 30APR 5 GDLMEX DK2  1227 1355  30APR  E  0 7M9 R
+     010 AF 8143  DL 7975  LA 7547
+     SEE RTSVC
+  6  AM 014 I 05MAY 3 MEXGRU DK2  1845 0730  06MAY  E  0 789 HC
+     010 G3 3801  WS 6297
+     SEE RTSVC
+```
+
+## MASCARA ADT (FQQ01)
+
+```text
+FQQ01
+
+01 SILVA/JOAO
+NO REBOOKING REQUIRED FOR LOWEST AVAILABLE FARE
+LAST TKT DTE 07OCT26/18:01 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ SAO
+ MEX AM    15 V  V 20APR 0940  RNNH26EU                   0P
+ GDL AM   228 V  V 25APR 1250  RNNH26EU                   0P
+ MEX AM   225 I  I 30APR 1227  ILWSQ93I                   2P
+ SAO AM    14 I  I 05MAY 1845  ILWSQ93I        27APR      1P
+
+USD  2397.00      20APR27SAO AM MEX AM GDL257.00AM MEX AM
+BRL 11912.61      SAO2020.00 2S120.00NUC2397.00END ROE1.00
+BRL    68.61-BR   XT BRL 284.52-UK BRL 325.07-XD BRL 363.03
+BRL    66.99-S1   -XV
+BRL   972.62-XT
+BRL 13020.83
+RATE USED 1USD=4.9698BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+```
+
+## MASCARA CHD (FQQ02)
+
+```text
+FQQ02
+
+02 SILVA/MARIA
+NO REBOOKING REQUIRED FOR LOWEST AVAILABLE FARE
+LAST TKT DTE 07OCT26/18:01 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ SAO
+ MEX AM    15 V  V 20APR 0940  RNNH26EU/CH00              0P
+ GDL AM   228 V  V 25APR 1250  RNNH26EU/CH00              0P
+ MEX AM   225 I  I 30APR 1227  ILWSQ93I/CH00              2P
+ SAO AM    14 I  I 05MAY 1845  ILWSQ93I/CH00   27APR      1P
+
+USD  2397.00      20APR27SAO AM MEX AM GDL257.00AM MEX AM
+BRL 11912.61      SAO2020.00 2S120.00NUC2397.00END ROE1.00
+BRL    68.61-BR   XT BRL 284.52-UK BRL 325.07-XD BRL 363.03
+BRL    66.99-S1   -XV
+BRL   972.62-XT
+BRL 13020.83
+RATE USED 1USD=4.9698BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+```
+
+## MASCARA INF (FQQ03)
+
+```text
+FQQ03
+
+03
+NO REBOOKING REQUIRED FOR LOWEST AVAILABLE FARE
+LAST TKT DTE 07OCT26/18:01 LT in POS - SEE ADV PURCHASE
+------------------------------------------------------------
+     AL FLGT  BK T DATE  TIME  FARE BASIS      NVB  NVA   BG
+ SAO
+ MEX AM    15 V  V 20APR 0940  RNNH26EU/IN90              1P
+ GDL AM   228 V  V 25APR 1250  RNNH26EU/IN90              0P
+ MEX AM   225 I  I 30APR 1227  ILWSQ93I/IN90              0P
+ SAO AM    14 I  I 05MAY 1845  ILWSQ93I/IN90   27APR      1P
+
+USD   348.00      20APR27SAO AM MEX AM GDL25.70AM MEX AM SAO
+BRL  1729.49      202.00 2S120.00NUC347.70END ROE1.00
+BRL    66.99-S1
+BRL   284.52-UK
+
+BRL  2081.00
+RATE USED 1USD=4.9698BRL
+NO BAG INCLUDED FOR AT LEAST ONE FLIGHT
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Amadeus
+
+Passageiros:
+- ADT: SILVA/JOAO, CHD: SILVA/MARIA, INF: SILVA/PEDRO (nome vem do bloco
+  `(INF/PEDRO MSTR)` embutido no nome do adulto, no itinerario)
+
+Equipamento:
+- 789 (segmentos 1 e 4): deve ser lido e traduzido, ja esta na tabela
+- 7M8 (segmento 2) e 7M9 (segmento 3): formato digito-letra-digito, ainda
+  nao reconhecido pela deteccao atual. Nao inventar nome sem confirmacao do
+  GDS; o importante aqui e nao deixar o codigo se perder silenciosamente.
+
+Bagagem por trecho, ADT e CHD (coluna BG do FQQ, mesmo padrao dos dois):
+- GRU-MEX: 0P -> Sem Bag
+- MEX-GDL: 0P -> Sem Bag
+- GDL-MEX: 2P -> 2PC
+- MEX-GRU: 1P -> 1PC
+
+Bagagem por trecho, INF (padrao PROPRIO):
+- GRU-MEX: 1P -> 1PC
+- MEX-GDL: 0P -> Sem Bag
+- GDL-MEX: 0P -> Sem Bag
+- MEX-GRU: 1P -> 1PC
+
+Valores por tipo, idênticos ao exemplo Sabre equivalente:
+- ADT: USD 2397.00, equiv BRL 11912.61, taxas BRL 1108.22 (972.62 + algo?
+  ver observacao), total BRL 13020.83
+- CHD: mesmos valores do ADT
+- INF: USD 348.00, equiv BRL 1729.49, taxas BRL 351.51, total BRL 2081.00
+
+Warnings esperados:
+- Franquia que muda durante o itinerario, para os tres tipos
+
+## OBSERVACOES
+
+A linha `BRL   972.62-XT` e um subtotal do detalhamento de taxas que NAO deve
+ser somado junto com os quatro codigos individuais (BR/UK/XD/S1 e XV), senao
+duplicaria o valor. Confirmar que o parser existente ja trata isso (ele usa
+so a PRIMEIRA coluna de cada linha para evitar dupla contagem).
+
+As linhas `010 G3 3800  WS 6296` apos cada segmento parecem referencia de
+codigos de voo em interline/codeshare de outras companhias (G3=GOL, WS=
+WestJet, DL=Delta, AF=Air France, LA=LATAM), mas sem o texto `OPERATED BY`
+que o parser usa para extrair operadora. Nao devem ser confundidas com
+franquia de bagagem nem com equipamento.
