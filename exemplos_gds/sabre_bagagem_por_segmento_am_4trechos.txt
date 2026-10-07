@@ -1,0 +1,95 @@
+# Exemplo: Sabre com franquia DIFERENTE em cada um dos quatro trechos
+
+## ORIGEM DO EXEMPLO
+
+Sabre, itinerario mais PQ lido ate o fim. Rota GRU MEX GDL MEX GRU, 1 ADT, AM.
+
+Este exemplo e o contraponto do caso `sabre_bag_allowance_direcional_aa.txt`.
+Enquanto aquele PQ so tinha UMA linha numerada e a franquia era declarada por
+componente tarifario (BAG ALLOWANCE cobrindo varios trechos), este PQ trata
+cada trecho como seu proprio componente: ha quatro linhas numeradas, cada uma
+ja com seu proprio codigo de bagagem. A leitura correta aqui e a leitura
+simples por linha numerada, SEM a correcao direcional, que nem deve ativar
+porque nao ha nenhuma linha BAG ALLOWANCE neste retorno.
+
+Serve para travar que a correcao direcional nao interfere no caso simples.
+
+## ITINERARIO
+
+```text
+1 AM  15V 20APR 2 GRUMEX SS1  0940  1620  /DCAM /E
+ 2 AM 228V 25APR 7 MEXGDL SS1  1250  1420  /DCAM /E
+ 3 AM 225I 30APR 5 GDLMEX SS1  1227  1355  /DCAM /E
+ 4 AM  14I 05MAY 3 MEXGRU SS1  1845  0730   06MAY 4 /DCAM /E
+```
+
+## PQ
+
+```text
+PQ 1
+
+BASE FARE       EQUIV AMT     TAXES/FEES/CHARGES          TOTAL
+USD2397.00      BRL11912.61     1108.22XT        BRL13020.83ADT
+XT BREAKDOWN
+        68.61BR        325.07XD        363.03XV        284.52UK
+        66.99S1
+ADT-01  RNNH26EU ILWSQ93I
+LAST DAY TO PURCHASE 07OCT/1756
+SAO AM MEX AM GDL257.00AM MEX AM SAO2020.00 2S120.00NUC2397.00E
+ND ROE1.00
+VALIDATING CARRIER - AM
+CAT 15 SALES RESTRICTIONS FREE TEXT FOUND - VERIFY RULES
+NONEND/NONREF/NO CHGS/NO REISSUE/
+01 O GRU AM  15V 20APR  940  RNNH26EU        20APR2720APR27 NIL¥
+MD
+02 O MEX AM 228V 25APR 1250  RNNH26EU        25APR2725APR27 NIL¥
+03 O GDL AM 225I 30APR 1227  ILWSQ93I        30APR2730APR27 02P
+04 O MEX AM  14I 05MAY 1845  ILWSQ93I        05MAY2705MAY27 01P
+     GRU
+FARE SOURCE - ATPC
+2DBH 2DBH *A1A 1656/07OCT26                        PRICE-SYSTEM
+```
+
+## RESULTADO ESPERADO
+
+GDS:
+Sabre
+
+Segmentos:
+- 4 voos
+- AM 15, GRU-MEX, 20APR 09:40 para 16:20
+- AM 228, MEX-GDL, 25APR 12:50 para 14:20
+- AM 225, GDL-MEX, 30APR 12:27 para 13:55
+- AM 14, MEX-GRU, 05MAY 18:45 para 06MAY 07:30
+
+Bagagem, em ordem de trecho:
+- GRU-MEX: Sem Bag
+- MEX-GDL: Sem Bag
+- GDL-MEX: 2PC
+- MEX-GRU: 1PC
+
+Nenhuma linha BAG ALLOWANCE existe neste retorno, entao a correcao direcional
+nao deve ativar: cada codigo vem direto da linha numerada do proprio trecho.
+
+Valores:
+- Moeda da tarifa: USD
+- Tarifa: 2397.00
+- Equivalente BRL: 11912.61
+- Taxas BRL: 1108.22
+- Total BRL: 13020.83
+
+A soma das cinco taxas XT confere com o total de taxas:
+68.61 + 325.07 + 363.03 + 284.52 + 66.99 = 1108.22
+
+Warnings esperados:
+- Franquia que muda durante o itinerario
+- Trecho sem bagagem em GRU-MEX, MEX-GDL (os dois trechos juntos, nao so um)
+
+## OBSERVACOES
+
+A linha solta `MD` entre os trechos 02 e 03 e so uma quebra de pagina do
+terminal Sabre. Ela nao comeca com dois digitos, entao e ignorada pela
+leitura de bagagem sem precisar de tratamento especial.
+
+Os voos nao trazem codigo de equipamento (as linhas terminam em `/DCAM /E`),
+mesma situacao ja documentada para outros exemplos AM/Sabre.

@@ -1415,3 +1415,39 @@ test("franquia direcional nao afeta Amadeus nem quebra fixtures sem bagagem dire
   assert.equal(app._lastQuote.meta.gds, "SAB");
   app.close();
 });
+
+// Contraponto do caso AA: aqui cada trecho e seu proprio componente tarifario,
+// com quatro linhas numeradas e cada uma ja com seu codigo de bagagem. Trava
+// que a correcao direcional nao interfere no caso simples por segmento.
+test("le quatro franquias diferentes por segmento, sem ativar a correcao direcional", () => {
+  const app = createApp();
+  const raw = fixtureAll("sabre_bagagem_por_segmento_am_4trechos.txt");
+
+  // Nao ha nenhuma linha BAG ALLOWANCE neste retorno.
+  assert.deepEqual(Array.from(app.parseSabreDirectionalBagAllowances(raw)), []);
+
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+
+  const q = app._lastQuote;
+  assert.deepEqual(Array.from(q.pricing.ADT.bagSegs), ["Sem Bag", "Sem Bag", "2PC", "1PC"]);
+  assert.equal(q.pricing.ADT.bag, "VAR");
+
+  assert.equal(q.pricing.ADT.fareCur, "USD");
+  assert.equal(q.pricing.ADT.fareAmt, 2397);
+  assert.equal(q.pricing.ADT.equivBRL, 11912.61);
+  assert.equal(q.pricing.ADT.taxesBRL, 1108.22);
+  assert.equal(q.pricing.ADT.totalBRL, 13020.83);
+
+  assert.ok(q.meta.warnings.some(w => /franquia muda durante o itiner[áa]rio/i.test(w)));
+  // Os DOIS trechos sem bagagem precisam ser citados juntos, nao so o primeiro.
+  assert.ok(q.meta.warnings.some(w => /sem bagagem/i.test(w) && /GRU-MEX/.test(w) && /MEX-GDL/.test(w)));
+
+  const linhas = Array.from(app.document.querySelectorAll("#preview tr"), tr => tr.textContent.replace(/\s+/g, " ").trim());
+  assert.ok(linhas.some(l => /GRU.*MEX/.test(l) && /Sem Bag/.test(l)));
+  assert.ok(linhas.some(l => /MEX.*GDL/.test(l) && /Sem Bag/.test(l)));
+  assert.ok(linhas.some(l => /GDL.*MEX/.test(l) && /\b2PC\b/.test(l)));
+  assert.ok(linhas.some(l => /MEX.*GRU/.test(l) && /\b1PC\b/.test(l)));
+  app.close();
+});

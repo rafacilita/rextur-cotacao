@@ -123,6 +123,18 @@ Tres trechos parecem franquia e nao sao, todos presentes neste exemplo:
 A deteccao exige o rotulo exato `BAG ALLOWANCE` no inicio da linha, o que já
 exclui as tres armadilhas.
 
+## Sabre: franquia diferente por segmento, sem linha BAG ALLOWANCE
+
+`sabre_bagagem_por_segmento_am_4trechos.txt` e o contraponto do caso direcional
+acima. Aqui o PQ trata CADA trecho como seu proprio componente tarifario: ha
+quatro linhas numeradas e cada uma ja carrega seu proprio codigo de bagagem
+(`NIL`, `NIL`, `02P`, `01P`). Nao existe nenhuma linha `BAG ALLOWANCE`.
+
+Este caso ja era lido corretamente pela leitura simples por linha numerada, que
+existia antes da correcao direcional. A fixture serve para travar isso: a
+correcao direcional so ativa com 2 ou mais linhas `BAG ALLOWANCE` distintas, e
+nao pode interferir neste padrao mais simples.
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
