@@ -1341,3 +1341,143 @@ test("modo GDS segue exigindo mascara", () => {
     "o modo GDS precisa continuar cobrando a mascara do ADT");
   app.close();
 });
+
+// ─── eLATAM em modo texto, com RAV embutida como DU ──────────────────────────
+
+const FIX_ELATAM = "elatam_texto_la_cwb_mia_rav_du.txt";
+
+test("le itinerario do eLATAM em modo texto", () => {
+  const app = createApp();
+  const [itinRaw] = fixtureBlocks(FIX_ELATAM);
+  const segs = app.parseElatamItinerary(itinRaw, 2027);
+
+  assert.equal(segs.length, 4);
+  assert.deepEqual(
+    Array.from(segs, s => `${s.airline}${s.flight} ${s.rbd} ${s.org}-${s.dst}`),
+    ["LA3065 N CWB-CGH", "LA8190 N GRU-MIA", "LA8191 N MIA-GRU", "LA4538 N GRU-CWB"]
+  );
+  // Chegada em data diferente da partida equivale a offset de um dia.
+  assert.equal(segs[1].arrDayOffset, 1);
+  assert.equal(segs[1].depTimeFmt, "23:00");
+  assert.equal(segs[1].arrTimeFmt, "05:25");
+  assert.equal(segs[0].arrDayOffset, 0);
+  // A linha de continuacao da a companhia operadora.
+  assert.equal(segs[0].opName, "LATAM AIRLINES BRASIL");
+  app.close();
+});
+
+test("rota do eLATAM marca a troca de aeroporto em Sao Paulo", () => {
+  const app = createApp();
+  const [itinRaw] = fixtureBlocks(FIX_ELATAM);
+  const segs = app.parseElatamItinerary(itinRaw, 2027);
+  // Chega em CGH e parte de GRU: uma descontinuidade. O ultimo trecho parte de
+  // onde o anterior chegou, entao e continuo.
+  assert.equal(app.buildRouteString(segs), "CWB-CGH // GRU-MIA-GRU-CWB");
+  app.close();
+});
+
+test("separa a RAV das taxas usando o codigo DU", () => {
+  const app = createApp();
+  const [, tarifaRaw] = fixtureBlocks(FIX_ELATAM);
+  const pr = app.parseElatamPricing(tarifaRaw);
+
+  assert.equal(pr.fareCur, "USD");
+  assert.equal(pr.fareAmt, 1552);
+  assert.equal(pr.equivBRL, 7738.11);
+  assert.equal(pr.totalBRL, 8809.13);
+
+  // O portal imprime 1071.02 de taxas, dos quais 541.66 sao RAV (DU).
+  assert.equal(pr.taxesPrintedBRL, 1071.02);
+  assert.equal(pr.ravBRL, 541.66);
+  assert.equal(pr.taxesBRL, 529.36);
+
+  // O total que o cliente paga nao muda com a separacao.
+  assert.equal(+(pr.equivBRL + pr.taxesBRL + pr.ravBRL).toFixed(2), pr.totalBRL);
+  app.close();
+});
+
+test("conferencia do detalhamento de taxas prova a leitura", () => {
+  const app = createApp();
+  const [, tarifaRaw] = fixtureBlocks(FIX_ELATAM);
+  const pr = app.parseElatamPricing(tarifaRaw);
+
+  assert.equal(pr.taxBreakdown.length, 9);
+  assert.equal(pr.taxLinesBRL, 1071.02);
+  // A soma dos nove codigos fecha com o total impresso, entao a leitura confere.
+  assert.equal(pr.taxesSource, "READ");
+  assert.equal(pr.bag, "1PC");
+  app.close();
+});
+
+test("detalhamento que nao fecha marca a leitura como nao conferida", () => {
+  const app = createApp();
+  // Um digito alterado no XT faz a soma divergir do total impresso.
+  const ruim = [
+    "1-  1552.00USD  7738.11BRL                   1071.02                8809.13BRL",
+    "XT          84.38BR 68.61BR 541.66DU 999.99US"
+  ].join("\n");
+  const pr = app.parseElatamPricing(ruim);
+  assert.equal(pr.taxesSource, "READ_UNVERIFIED");
+  app.close();
+});
+
+test("ano e deduzido como viagem futura quando o texto nao traz ano", () => {
+  const app = createApp();
+  // Em outubro de 2026, um voo de fevereiro pertence a 2027.
+  const outubro = new Date(2026, 9, 6);
+  assert.equal(app.anoParaDataSemAno("10FEV", outubro), 2027);
+  assert.equal(app.anoParaDataSemAno("20DEZ", outubro), 2026);
+  // Data de hoje nao deve ser empurrada para o ano seguinte.
+  assert.equal(app.anoParaDataSemAno("06OUT", outubro), 2026);
+  app.close();
+});
+
+test("colar o texto do portal preenche os campos e a RAV chega ao e-mail", () => {
+  const app = createApp();
+  app.document.getElementById("fldFonte").value = "ndc";
+  app.refreshSourceUI();
+  app.document.getElementById("ndcPaste").value = fixtureAll(FIX_ELATAM);
+  app.applyElatamPaste({ announce: false });
+
+  // Itinerario reescrito no formato de uma linha por voo.
+  const linhas = app.document.getElementById("itin").value.split("\n");
+  assert.equal(linhas.length, 4);
+  assert.match(linhas[0], /^LA3065 N CWB CGH \d{2}FEV\d{2} 1340 1440$/);
+  assert.match(linhas[1], /0525\+1$/);
+
+  // Campos de valor preenchidos, com a RAV ja descontada das taxas.
+  assert.equal(app.document.getElementById("ndcFareCur").value, "USD");
+  assert.equal(app.document.getElementById("ndcTaxesADT").value, "529.36");
+  assert.equal(app.document.getElementById("ndcTotalADT").value, "8809.13");
+  // Cambio implicito: equivalente dividido pela tarifa em USD.
+  assert.equal(app.document.getElementById("ndcRate").value, "4,9859");
+
+  app.document.getElementById("ndcCarrier").value = "LA";
+  app.build();
+
+  const bt = app._lastQuote.totals.byType.ADT;
+  assert.equal(bt.taxesPerPax, 529.36);
+  assert.equal(bt.ravPerPax, 541.66);
+  assert.equal(bt.totalPerPax, 8809.13);
+  assert.equal(app._lastQuote.totals.group.ravTotal, 541.66);
+
+  // A separacao nao pode gerar aviso de total que nao fecha.
+  assert.deepEqual(Array.from(app._lastQuote.meta.warnings), []);
+  assert.equal(app._lastQuote.meta.confidence, "HIGH");
+
+  // E a RAV aparece em coluna propria no e-mail.
+  const preview = app.document.getElementById("preview").textContent;
+  assert.match(preview, /RAV \(BRL\)/);
+  assert.match(preview, /A RAV está destacada das taxas/);
+  app.close();
+});
+
+test("cotacao sem RAV nao ganha coluna de RAV", () => {
+  const app = createApp();
+  const raw = fixture("sabre_origem_exterior_eur_virada_ano.txt");
+  app.document.getElementById("itin").value = raw;
+  app.document.getElementById("maskADT").value = raw;
+  app.build();
+  assert.doesNotMatch(app.document.getElementById("preview").textContent, /RAV \(BRL\)/);
+  app.close();
+});

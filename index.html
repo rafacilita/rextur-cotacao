@@ -733,6 +733,19 @@
           </div>
 
           <div id="ndcBlock" style="display:none;">
+            <div class="subcard" style="margin-top:0;">
+              <h3>Colar do portal</h3>
+              <div class="field">
+                <label for="ndcPaste">Texto copiado da tela do portal</label>
+                <textarea id="ndcPaste" style="min-height:120px;" placeholder="Cole aqui o itinerário e o bloco de tarifa, na visão de texto do portal"></textarea>
+                <div class="help">Aceita os dois blocos juntos. Os campos abaixo são preenchidos e ficam editáveis para conferência.</div>
+              </div>
+              <div class="maskCombinedActions">
+                <button id="btnLerPortal" class="secondary" type="button">Ler e preencher</button>
+                <div class="status" id="ndcPasteStatus" role="status" aria-live="polite">Aguardando conteúdo</div>
+              </div>
+            </div>
+
             <div class="row3">
               <div class="field">
                 <label for="ndcCarrier">Companhia validadora</label>
@@ -1961,6 +1974,11 @@ function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
   return result;
 }
 
+$("btnLerPortal").addEventListener("click", ()=>{ applyElatamPaste({ announce: true }); });
+$("ndcPaste").addEventListener("input", ()=>{
+  const st = $("ndcPasteStatus");
+  if(st){ st.textContent = $("ndcPaste").value.trim() ? "Conteúdo pronto para ler" : "Aguardando conteúdo"; st.classList.remove("warn"); }
+});
 $("fldFonte").addEventListener("change", ()=>{
   refreshSourceUI();
   const g = fonteAtiva() === "ndc" ? "NDC" : detectGDSFromItin($("itin").value || "");
@@ -2923,11 +2941,93 @@ function parsePricingSabre(pricingRaw){
 
 // Monta os precos do portal para um tipo de passageiro. Moeda, cambio e bagagem
 // sao do orcamento inteiro; so os quatro valores monetarios variam por tipo.
+// Le o texto colado do portal (visao de texto) e preenche os campos.
+// Devolve um resumo do que conseguiu ler, para o operador saber o que conferir.
+function applyElatamPaste({ announce = true } = {}){
+  const raw = ($("ndcPaste") ? $("ndcPaste").value : "").trim();
+  const status = $("ndcPasteStatus");
+  if(!raw){
+    if(status){ status.textContent = "Aguardando conteúdo"; status.classList.remove("warn"); }
+    return { lidos: [], faltando: [] };
+  }
+
+  // O portal nao imprime ano. Deduz pelo primeiro voo, assumindo viagem futura.
+  const primeiraData = (String(raw).match(/\b(\d{2}[A-Z]{3})\b/i) || [])[1];
+  const ano = primeiraData ? anoParaDataSemAno(primeiraData) : inferYearFromText(raw);
+  const segs = parseElatamItinerary(raw, ano);
+  const pr = parseElatamPricing(raw);
+
+  const lidos = [], faltando = [];
+
+  // Itinerario: vai para o campo comum, no formato de uma linha por voo.
+  if(segs.length){
+    const linhas = segs.map(sg => {
+      const data = sg.depDateFmt.replace(/^(\d{2})\/(\d{2})\/\d{2}(\d{2})$/, (m, d, mm, yy) => {
+        const MES = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+        return d + MES[parseInt(mm, 10) - 1] + yy;
+      });
+      const hhmm = (t) => String(t || "").replace(":", "");
+      return [sg.airline + sg.flight, sg.rbd, sg.org, sg.dst, data,
+              hhmm(sg.depTimeFmt), hhmm(sg.arrTimeFmt) + (sg.arrDayOffset ? "+" + sg.arrDayOffset : "")
+             ].join(" ");
+    });
+    $("itin").value = linhas.join("\n");
+    lidos.push(segs.length + (segs.length === 1 ? " voo" : " voos"));
+  } else {
+    faltando.push("itinerário");
+  }
+
+  // Valores: so preenche o que foi efetivamente lido.
+  const põe = (id, v) => { const el = $(id); if(el && v != null) el.value = String(v); };
+  if(pr.fareCur){ põe("ndcFareCur", pr.fareCur); lidos.push("moeda " + pr.fareCur); }
+  else faltando.push("moeda");
+
+  if(pr.fareAmt != null) põe("ndcFareADT", pr.fareAmt.toFixed(2));
+  if(pr.equivBRL != null) põe("ndcEquivADT", pr.equivBRL.toFixed(2));
+  if(pr.taxesBRL != null) põe("ndcTaxesADT", pr.taxesBRL.toFixed(2));
+  if(pr.totalBRL != null) põe("ndcTotalADT", pr.totalBRL.toFixed(2));
+  if(pr.totalBRL != null) lidos.push("valores do adulto");
+  else faltando.push("valores");
+
+  if(pr.bag){ põe("ndcBag", pr.bag); }
+  if(pr.ravBRL > 0) lidos.push("RAV de BRL " + pr.ravBRL.toFixed(2));
+
+  // Cambio implicito: equivalente dividido pela tarifa. Entra apenas quando a
+  // tarifa e em USD, pela mesma razao do caso THB.
+  if(pr.fareCur === "USD" && pr.fareAmt > 0 && pr.equivBRL != null){
+    põe("ndcRate", (pr.equivBRL / pr.fareAmt).toFixed(4).replace(".", ","));
+  }
+
+  // A conferencia das taxas e o que autoriza confiar numa leitura por imagem.
+  const confere = pr.taxesSource === "READ";
+  if(pr.taxesPrintedBRL != null && !confere) faltando.push("conferência das taxas");
+
+  if(status){
+    status.textContent = lidos.length
+      ? "Lido: " + lidos.join(", ") + (faltando.length ? ". Confira: " + faltando.join(", ") : "")
+      : "Não reconheci o formato do texto colado";
+    status.classList.toggle("warn", !lidos.length || faltando.length > 0);
+  }
+
+  refreshSourceUI();
+  if(announce){
+    setStatus(lidos.length ? "Dados do portal preenchidos para revisão" : "Não foi possível ler o texto do portal", !lidos.length);
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+  return { lidos, faltando, segs, pricing: pr };
+}
+
 function collectNdcPricing(tipo){
   const v = (id) => { const el = $(id); return el ? el.value.trim() : ""; };
   const temValor = ["Fare", "Equiv", "Taxes", "Total"].some(c => v("ndc" + c + tipo));
   if(!temValor) return null;
+  // A RAV nao tem campo proprio na tela: ela e deduzida do texto colado, quando
+  // houver. Recalcular aqui mantem a coluna de RAV coerente apos edicao manual.
+  const colado = ($("ndcPaste") ? $("ndcPaste").value : "").trim();
+  const rav = colado ? (parseElatamPricing(colado).ravBRL || 0) : 0;
   return buildNdcPricing({
+    ravBRL: rav,
     fareCur:  v("ndcFareCur"),
     fareAmt:  v("ndcFare"  + tipo),
     equivBRL: v("ndcEquiv" + tipo),
@@ -3047,7 +3147,7 @@ function parseNdcItinerary(raw, year){
 // Monta o objeto de precos a partir dos campos transcritos da tela do portal.
 // Procedencia NDC_MANUAL deixa explicito que o valor foi informado pelo operador,
 // e nao lido de uma linha de mascara nem inferido por diferenca.
-function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag }){
+function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag, ravBRL }){
   const num = (v) => { const n = parseAmountAny(v); return (n != null && Number.isFinite(n)) ? n : null; };
   const cur = String(fareCur || "").trim().toUpperCase();
   const equiv = num(equivBRL);
@@ -3065,6 +3165,7 @@ function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag }
     equivBRL: equiv,
     taxesBRL: taxes,
     totalBRL: total,
+    ravBRL: (ravBRL != null && ravBRL > 0) ? +Number(ravBRL).toFixed(2) : 0,
     bag: franquia,
     bagSegs: franquia ? [franquia] : [],
     fareFamily: null,
@@ -3074,6 +3175,165 @@ function buildNdcPricing({ fareCur, fareAmt, equivBRL, taxesBRL, totalBRL, bag }
     // entao o valor e lido, nao obtido por subtracao.
     taxesSource: taxes != null ? "READ" : null,
     taxLinesBRL: null
+  };
+}
+
+// ── Formato texto do eLATAM ──────────────────────────────────────────────────
+// A visao de texto do portal lembra um retorno de GDS e por isso e legivel por
+// parser, diferente da tabela HTML colorida da outra tela.
+
+// Codigos de taxa que NAO sao imposto e sim remuneracao da agencia.
+// Na LATAM o DU e a RAV: vem somado dentro do bloco de taxas, mas precisa ser
+// apresentado separado, porque imposto e comissao sao coisas diferentes para
+// quem le a cotacao. Mantido como mapa para aceitar outros codigos no futuro.
+const CODIGOS_RAV = { DU: "RAV" };
+
+// Le o itinerario em modo texto. Uma linha por voo, com o par de cidades
+// separado por hifen, e linhas de continuacao com OPERATED BY.
+// O texto do portal NAO traz o ano. Como esta calculadora e de nova emissao, a
+// viagem e sempre futura: uma data ja passada neste ano pertence ao ano seguinte.
+// Sem isso, um voo de fevereiro cotado em outubro sairia datado no passado.
+function anoParaDataSemAno(ddMMM, hoje = new Date()){
+  const MES = { JAN:0, FEV:1, FEB:1, MAR:2, ABR:3, APR:3, MAI:4, MAY:4, JUN:5,
+                JUL:6, AGO:7, AUG:7, SET:8, SEP:8, OUT:9, OCT:9, NOV:10, DEZ:11, DEC:11 };
+  const m = String(ddMMM || '').match(/^(\d{2})([A-Z]{3})$/i);
+  if(!m) return hoje.getFullYear();
+  const mes = MES[m[2].toUpperCase()];
+  if(mes == null) return hoje.getFullYear();
+  const candidato = new Date(hoje.getFullYear(), mes, parseInt(m[1], 10));
+  // Margem de tres dias, para nao empurrar indevidamente uma data de hoje.
+  const limite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 3);
+  return candidato < limite ? hoje.getFullYear() + 1 : hoje.getFullYear();
+}
+
+function parseElatamItinerary(raw, year){
+  const linhas = trimLines(raw);
+  const segs = [];
+
+  // 1  LA 3065  N  CWB - CGH*  10FEB 1340-1440  0  SS01 /E
+  // 2  LA 8190  N  GRU - MIA*  10FEB 2300-0525 11FEB  0  SS01 /E
+  const RE_VOO = new RegExp(
+    "^\\s*\\d+\\s+" +                       // numero do segmento
+    "([A-Z0-9]{2})\\s*(\\d{1,4})\\s+" +     // companhia e voo
+    "([A-Z])\\s+" +                            // classe
+    "([A-Z]{3})\\s*-\\s*([A-Z]{3})\\*?\\s+" + // origem - destino, com * opcional
+    "(\\d{2}[A-Z]{3})\\s+" +                 // data de partida
+    "(\\d{4})\\s*-\\s*(\\d{4})" +        // saida-chegada
+    "(?:\\s+(\\d{2}[A-Z]{3}))?" +            // data de chegada, quando difere
+    "(?:\\s+(\\d+))?" +                      // paradas
+    "(?:\\s+([A-Z]{2})(\\d+))?",             // status, ex SS01
+    "i");
+
+  for(let i = 0; i < linhas.length; i++){
+    const m = String(linhas[i]).match(RE_VOO);
+    if(!m) continue;
+
+    const dep = m[6].toUpperCase();
+    const arr = (m[9] || m[6]).toUpperCase();
+    const scode = m[12] ? m[11].toUpperCase() : "";
+
+    const seg = {
+      org: m[4].toUpperCase(),
+      dst: m[5].toUpperCase(),
+      airline: m[1].toUpperCase(),
+      flight: m[2],
+      rbd: m[3].toUpperCase(),
+      depDateFmt: fmtDate(dep, year),
+      arrDateFmt: fmtDate(arr, year),
+      depTimeFmt: fmtTime(m[7]),
+      arrTimeFmt: fmtTime(m[8]),
+      // Chegada em data diferente da partida equivale ao offset de dia.
+      arrDayOffset: (m[9] && m[9].toUpperCase() !== dep) ? 1 : 0,
+      statusCode: scode,
+      statusClass: scode ? (scode === "SS" ? "confirmed" : "unknown") : "confirmed",
+      paxCount: m[12] ? parseInt(m[12], 10) : null,
+      equipment: null,
+      opCarrier: null, opFlight: null, opName: null
+    };
+
+    // Linhas de continuacao ate o proximo voo: a de OPERATED BY da a operadora.
+    for(let j = i + 1; j < linhas.length; j++){
+      if(RE_VOO.test(String(linhas[j]))) break;
+      const op = String(linhas[j]).match(/OPERATED\s+BY\s+(.+?)\s*$/i);
+      if(op) seg.opName = op[1].trim().toUpperCase();
+    }
+
+    segs.push(seg);
+  }
+
+  return segs;
+}
+
+// Le o bloco de tarifa em modo texto e SEPARA a RAV das taxas.
+// Devolve o mesmo formato dos outros parsers, mais ravBRL e taxBreakdown.
+function parseElatamPricing(raw){
+  const linhas = trimLines(raw);
+  let fareCur = null, fareAmt = null, equiv = null, taxasImpressas = null, total = null;
+
+  // 1-  1552.00USD  7738.11BRL   1071.02   8809.13BRL
+  for(const l of linhas){
+    const m = String(l).match(
+      /^\s*\d+-\s+([0-9][0-9.,]*)\s*([A-Z]{3})\s+([0-9][0-9.,]*)\s*BRL\s+([0-9][0-9.,]*)\s+([0-9][0-9.,]*)\s*BRL/i);
+    if(m){
+      fareAmt = parseAmountAny(m[1]);
+      fareCur = m[2].toUpperCase();
+      equiv = parseAmountAny(m[3]);
+      taxasImpressas = parseAmountAny(m[4]);
+      total = parseAmountAny(m[5]);
+      break;
+    }
+  }
+
+  // Detalhamento: linhas XT com pares valor+codigo, varios por linha.
+  const taxBreakdown = [];
+  for(const l of linhas){
+    const linha = String(l);
+    if(!/^\s*XT\b/i.test(linha)) continue;
+    for(const m of linha.matchAll(/([0-9]+(?:[.,][0-9]+)?)\s*([A-Z]{2})\b/g)){
+      const valor = parseAmountAny(m[1]);
+      if(valor != null) taxBreakdown.push({ code: m[2].toUpperCase(), value: valor });
+    }
+  }
+
+  const somaDetalhe = taxBreakdown.length
+    ? +taxBreakdown.reduce((a, t) => a + t.value, 0).toFixed(2)
+    : null;
+  const ravBRL = taxBreakdown.length
+    ? +taxBreakdown.filter(t => CODIGOS_RAV[t.code]).reduce((a, t) => a + t.value, 0).toFixed(2)
+    : 0;
+
+  // Taxas apresentadas ja sem a RAV. O total que o cliente paga nao muda.
+  let taxesBRL = taxasImpressas;
+  if(taxesBRL != null && ravBRL > 0) taxesBRL = +(taxesBRL - ravBRL).toFixed(2);
+
+  // Bagagem: BAG ALLOWANCE -CWBMIA-01P/LA/EACH PIECE UP TO 50 POUNDS/23
+  let bag = null;
+  for(const l of linhas){
+    const m = String(l).match(/BAG\s+ALLOWANCE\b[^\n]*?-\s*([0-9]{1,2}\s*P(?:C)?|NIL)\b/i);
+    if(m){ bag = normalizeBagAllowance(m[1].replace(/\s+/g, "")); break; }
+  }
+
+  // A soma do detalhamento conferindo com o total impresso e o que prova a
+  // leitura. E essa conferencia que torna seguro ler esse bloco por imagem.
+  const confere = (somaDetalhe != null && taxasImpressas != null)
+    ? Math.abs(somaDetalhe - taxasImpressas) <= 0.02
+    : false;
+
+  return {
+    fareCur, fareAmt,
+    equivBRL: equiv,
+    taxesBRL,
+    totalBRL: total,
+    ravBRL,
+    taxBreakdown,
+    taxesPrintedBRL: taxasImpressas,
+    bag,
+    bagSegs: bag ? [bag] : [],
+    fareFamily: null,
+    fareFamilies: [],
+    totalSource: total != null ? "READ_LINE" : null,
+    taxesSource: taxasImpressas != null ? (confere ? "READ" : "READ_UNVERIFIED") : null,
+    taxLinesBRL: somaDetalhe
   };
 }
 
@@ -3229,6 +3489,7 @@ function applyTotalsByPax(q) {
   let groupFareTotal  = 0;
   let groupTaxesTotal = 0;
   let groupRCTotal    = 0;
+  let groupRavTotal   = 0;
   let groupGrandTotal = 0;
 
   const paxOrder = [
@@ -3260,6 +3521,10 @@ function applyTotalsByPax(q) {
     const fareTotal  = pr.equivBRL != null ? +(pr.equivBRL * qty).toFixed(2) : null;
     const taxesTotal = pr.taxesBRL != null ? +(pr.taxesBRL * qty).toFixed(2) : null;
     const rcTotal    = +(rcBRL * qty).toFixed(2);
+    // RAV vem separada das taxas, mas ja esta dentro do total que o portal
+    // imprime. Entra aqui para aparecer em coluna propria, sem alterar o total.
+    const ravPerPax  = (pr.ravBRL != null && pr.ravBRL > 0) ? pr.ravBRL : null;
+    const ravTotal   = ravPerPax != null ? +(ravPerPax * qty).toFixed(2) : null;
     const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + rcBRL) * qty).toFixed(2) : null;
 
     byType[type] = {
@@ -3269,6 +3534,8 @@ function applyTotalsByPax(q) {
       equivPerPax:  pr.equivBRL ?? null,
       taxesPerPax:  pr.taxesBRL ?? null,
       rcPerPax:     rcBRL,
+      ravPerPax,
+      ravTotal,
       totalPerPax:  pr.totalBRL != null ? +(pr.totalBRL + rcBRL).toFixed(2) : null,
       fareTotal,
       taxesTotal,
@@ -3280,6 +3547,7 @@ function applyTotalsByPax(q) {
     if (fareTotal  != null) groupFareTotal  += fareTotal;
     if (taxesTotal != null) groupTaxesTotal += taxesTotal;
     groupRCTotal    += rcTotal;
+    if (ravTotal != null) groupRavTotal += ravTotal;
     if (grandTotal != null) groupGrandTotal += grandTotal;
   }
 
@@ -3289,6 +3557,7 @@ function applyTotalsByPax(q) {
       fareTotal:  +groupFareTotal.toFixed(2),
       taxesTotal: +groupTaxesTotal.toFixed(2),
       rcTotal:    +groupRCTotal.toFixed(2),
+      ravTotal:   +groupRavTotal.toFixed(2),
       grandTotal: +groupGrandTotal.toFixed(2),
       currency:   'BRL'
     },
@@ -3399,11 +3668,14 @@ function applyValidations(q) {
     }
 
     if (pr.equivBRL != null && pr.taxesBRL != null && pr.totalBRL != null) {
-      const expected = +(pr.equivBRL + pr.taxesBRL).toFixed(2);
+      // A RAV foi retirada das taxas, mas continua dentro do total impresso.
+      // Somar ela de volta e o que faz a conferencia fechar.
+      const rav = (pr.ravBRL != null && pr.ravBRL > 0) ? pr.ravBRL : 0;
+      const expected = +(pr.equivBRL + pr.taxesBRL + rav).toFixed(2);
       const diff     = Math.abs(expected - pr.totalBRL);
       if (diff > 1.00) {
         q.meta.warnings.push(
-          `${type}: o total da máscara (BRL ${pr.totalBRL.toFixed(2)}) não fecha com tarifa mais taxas (BRL ${expected.toFixed(2)}). Diferença de BRL ${diff.toFixed(2)}.`
+          `${type}: o total da máscara (BRL ${pr.totalBRL.toFixed(2)}) não fecha com tarifa mais taxas${rav ? " mais RAV" : ""} (BRL ${expected.toFixed(2)}). Diferença de BRL ${diff.toFixed(2)}.`
         );
       }
     }
@@ -3725,7 +3997,9 @@ function buildEmail(quote) {
   const subject = `Cotação INTER – ${route} – ${carrier}${loc ? " – LOC "+loc : ""}`;
 
   const includeRC = (parseAmountAny(rcUSD)!=null && parseAmountAny(rcUSD)>0 && fxRate!=null && fxRate>0);
-  const valuesColspan = 5 + (includeRC ? 1 : 0);
+  // Coluna de RAV aparece so quando ha RAV lida, para nao poluir cotacao sem ela.
+  const temRav = rows.some(r => r.ravPerPax != null && r.ravPerPax > 0);
+  const valuesColspan = 5 + (includeRC ? 1 : 0) + (temRav ? 1 : 0);
 
   const valuesHead = `
       <tr>
@@ -3733,6 +4007,7 @@ function buildEmail(quote) {
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (moeda)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (BRL)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Taxas (BRL)</th>
+        ${temRav ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RAV (BRL)</th>` : ``}
         ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Total (BRL)</th>
       </tr>`;
@@ -3750,6 +4025,7 @@ function buildEmail(quote) {
       <td style="${cell}">${(r.fareCurrency && r.farePerPax!=null) ? escapeHtml(moneyCurrency(r.farePerPax, r.fareCurrency)) : "—"}</td>
       <td style="${cell}">${r.equivPerPax!=null ? moneyBRL(r.equivPerPax) : "—"}</td>
       <td style="${cell}">${r.taxesPerPax!=null ? moneyBRL(r.taxesPerPax) : "—"}</td>
+      ${temRav ? `<td style="${cell}">${r.ravPerPax != null ? moneyBRL(r.ravPerPax) : "—"}</td>` : ``}
       ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}
       <td style="${cell} font-weight:700;">${finalTotal!=null ? moneyBRL(finalTotal) : "—"}</td>
     </tr>
@@ -3834,6 +4110,7 @@ function buildEmail(quote) {
       ${valuesHead}
       ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
+    ${temRav ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">A RAV está destacada das taxas e <b>já faz parte</b> do total apresentado.</div>` : ``}
     ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}
 
     <div style="margin-top:14px; font-size:13px;">
@@ -4135,7 +4412,8 @@ $("btnClear").addEventListener("click", ()=>{
   ["source","baseDate","usageDate"].forEach(key => { delete $("fldFX").dataset[key]; });
   renderFxHint();
   $("fldFonte").value="gds";
-  ["ndcCarrier","ndcFareCur","ndcRate","ndcBag"].forEach(id=>{ if($(id)) $(id).value=""; });
+  ["ndcCarrier","ndcFareCur","ndcRate","ndcBag","ndcPaste"].forEach(id=>{ if($(id)) $(id).value=""; });
+  if($("ndcPasteStatus")){ $("ndcPasteStatus").textContent="Aguardando conteúdo"; $("ndcPasteStatus").classList.remove("warn"); }
   for(const t of ["ADT","CHD","INF"]) for(const c of ["Fare","Equiv","Taxes","Total"]){
     const el = $("ndc"+c+t); if(el) el.value="";
   }
