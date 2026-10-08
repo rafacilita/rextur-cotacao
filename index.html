@@ -1517,9 +1517,11 @@ function parsePaxFromItin(raw) {
     return s.trim();
   }
 
-  // Classifica tipo pelo marcador Sabre (I/) ou pelo título do nome
-  function classify(infMarker, title) {
+  // Classifica tipo pelo marcador Sabre (I/), por marcador solto entre
+  // parenteses ("(CHD)", sem bloco INF) ou pelo titulo do nome.
+  function classify(infMarker, title, bareType) {
     if (infMarker) return 'INF';
+    if (bareType) return String(bareType).toUpperCase();
     const t = (title || '').toUpperCase();
     if (t === 'MR' || t === 'MRS')    return 'ADT';
     if (t === 'MISS' || t === 'MSTR') return 'CHD';
@@ -1573,6 +1575,26 @@ function parsePaxFromItin(raw) {
     return { surname: parts[0], given: parts[1] };
   }
 
+  // ── CASO 2 (compartilhado) ──────────────────────────────────────────────────
+  // Captura padrões: "1. NOME/DADO TITULO", "1.I/1NOME/DADO" (INF Sabre) e
+  // "2.NOME/DADO(CHD)" (marcador solto entre parenteses, sem bloco INF nem
+  // titulo MISS/MSTR). Usado tanto para linhas sem bloco INF quanto para o
+  // restante de uma linha apos o primeiro bloco (INF...) ja processado no
+  // CASO 1 — uma linha pode trazer o ADT+INF e, na sequencia, outro
+  // passageiro (ex.: um CHD) que o CASO 1 sozinho nao cobria.
+  function scanSimplePassengers(text) {
+    const re = /\b(\d+)\.\s*(I\/\d+)?\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(?:\((ADT|CHD|INF)\))?\s*(MISS|MSTR|MRS|MR)?/gi;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const infMarker = m[2] || null;
+      const bareType  = m[4] || null;
+      const title     = m[5] || '';
+      const name      = normalizeName(m[3] + (title ? ' ' + title : ''));
+      const type      = classify(infMarker, title, bareType);
+      push(type, name);
+    }
+  }
+
   // ── Loop principal ─────────────────────────────────────────────────────────
 
   for (const line of lines) {
@@ -1586,11 +1608,14 @@ function parsePaxFromItin(raw) {
       // Tudo antes do primeiro '(' é o candidato ao nome do ADT
       const beforeParen = L.split('(')[0].trim();
 
-      // Coleta todos os blocos (...) da linha para processar INFs múltiplos
-      const blocks = [];
+      // Posicao do PRIMEIRO bloco (INF...): usada depois para isolar o
+      // restante da linha, que pode trazer outros passageiros.
       const reBlock = /\(([^)]*)\)/g;
+      let firstInfBlockEnd = -1;
       let bm;
-      while ((bm = reBlock.exec(L)) !== null) blocks.push(bm[1]);
+      while ((bm = reBlock.exec(L)) !== null) {
+        if (/^INF/i.test(bm[1].trim())) { firstInfBlockEnd = reBlock.lastIndex; break; }
+      }
 
       // Identifica o nome do ADT na parte anterior ao parêntese
       // Títulos em ordem longa-primeiro para evitar MR engolir MRS
@@ -1598,7 +1623,7 @@ function parsePaxFromItin(raw) {
         /\b\d+\.\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(MISS|MSTR|MRS|MR)?\s*$/i
       );
 
-      if (adtMatch) {
+      if (adtMatch && firstInfBlockEnd >= 0) {
         // ADT: nome limpo, sem qualquer rastro do bloco INF
         const adtName  = normalizeName(adtMatch[1] + (adtMatch[2] ? ' ' + adtMatch[2] : ''));
         const adtTitle = (adtMatch[2] || '').toUpperCase();
@@ -1609,29 +1634,22 @@ function parsePaxFromItin(raw) {
         const adtSurname = adtName.split('/')[0]
           .replace(/\s+(MISS|MSTR|MRS|MR)$/i, '').trim();
 
-        // Processa cada bloco — ignora blocos que não começam com INF
-        for (const block of blocks) {
-          if (!/^INF/i.test(block.trim())) continue;
-          const inf = extractInfBlock(block, adtSurname);
-          if (inf && inf.surname && inf.given) {
-            push('INF', normalizeName(`${inf.surname}/${inf.given}`));
-          }
+        const infBlockMatch = L.slice(0, firstInfBlockEnd).match(/\(([^)]*)\)\s*$/);
+        const inf = infBlockMatch ? extractInfBlock(infBlockMatch[1], adtSurname) : null;
+        if (inf && inf.surname && inf.given) {
+          push('INF', normalizeName(`${inf.surname}/${inf.given}`));
         }
+
+        // Resto da linha, depois do bloco INF ja processado: pode trazer
+        // outro passageiro (ex.: "2.SILVA/MARIA(CHD)"), que o CASO 1 por si
+        // so nao cobre porque so olha o texto ANTES do primeiro parêntese.
+        scanSimplePassengers(L.slice(firstInfBlockEnd));
 
         continue; // linha totalmente processada
       }
     }
 
-    // ── CASO 2: Sabre e Amadeus sem bloco INF ───────────────────────────────
-    // Captura padrões: "1. NOME/DADO TITULO" e "1.I/1NOME/DADO" (INF Sabre)
-    const re = /\b(\d+)\.\s*(I\/\d+)?\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(MISS|MSTR|MRS|MR)?/gi;
-    let m;
-    while ((m = re.exec(L)) !== null) {
-      const infMarker = m[2] || null;
-      const name      = normalizeName(m[3] + (m[4] ? ' ' + m[4] : ''));
-      const type      = classify(infMarker, m[4] || '');
-      push(type, name);
-    }
+    scanSimplePassengers(L);
   }
 
   return out;

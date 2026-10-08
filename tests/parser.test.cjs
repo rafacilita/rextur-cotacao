@@ -452,6 +452,24 @@ test("classifica ADT CHD e INF no Sabre", () => {
   app.close();
 });
 
+test("classifica CHD mesmo quando compartilha linha com um ADT que tem bloco (INF...)", () => {
+  const app = createApp();
+  // Bug relatado: "1.SILVA/JOAO(INF/PEDRO MSTR)   2.SILVA/MARIA(CHD)" perdia o
+  // CHD por completo. A deteccao de bloco (INF...) olhava so o texto ANTES do
+  // primeiro parêntese para o ADT e so processava blocos que comecavam com
+  // "INF", descartando o "(CHD)" do segundo passageiro e nunca revisitando o
+  // "2.SILVA/MARIA" que ficava preso entre os dois parenteses.
+  const [itinRaw] = fixtureBlocks(FIX_AMADEUS_3TIPOS);
+  const pax = app.parsePaxFromItin(itinRaw);
+  // Array nasce no realm do jsdom; [...pax] reconstroi no realm deste arquivo
+  // para o deepEqual nao falhar por prototype mismatch cross-realm.
+  assert.deepEqual(
+    [...pax].map(p => `${p.type}:${p.name}`).sort(),
+    ["ADT:SILVA/JOAO", "CHD:SILVA/MARIA", "INF:SILVA/PEDRO MSTR"].sort()
+  );
+  app.close();
+});
+
 test("interpreta Sabre complexo sem transformar VOID em voo", () => {
   const app = createApp();
   const raw = fixture("sabre_ib_adt_chd_inf_stop_mad_surface_vlc_bio.txt");
