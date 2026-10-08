@@ -1212,7 +1212,8 @@ function saveDraft(){
       version: 1,
       savedAt: new Date().toISOString(),
       controls: collectDraftControls(),
-      fxMeta: readFxMeta()
+      fxMeta: readFxMeta(),
+      cabineSource: $("fldCabine") ? ($("fldCabine").dataset.source || "") : ""
     };
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
     updateDraftPill("Salvo " + new Date(payload.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}));
@@ -1271,6 +1272,10 @@ function restoreDraft(){
     $("fldFX").dataset.usageDate = payload.fxMeta.usageDate || "";
   } else if($("fldFX").value.trim()){
     $("fldFX").dataset.source = "MANUAL";
+  }
+  if($("fldCabine")){
+    if(payload.cabineSource) $("fldCabine").dataset.source = payload.cabineSource;
+    else delete $("fldCabine").dataset.source;
   }
   if($("maskAll")) $("maskAll").value = "";
   renderFxHint();
@@ -2224,6 +2229,43 @@ function pareceEquipamento(token){
 function equipmentName(code){
   const t = String(code || "").toUpperCase().trim();
   return EQUIPAMENTO[t] || null;
+}
+
+// ─── CABINE PELA CLASSE DE RESERVA (RBD) ──────────────────────────────────────
+// Convencao IATA ampla, nao especifica de companhia. Deliberadamente
+// conservadora: letras ambiguas entre companhias (W, E, O, R, X e qualquer
+// letra fora da lista) ficam de fora, para nunca inferir cabine errada por
+// excesso de confianca. "Premium Economy" nunca e inferida por esta tabela.
+const CABINE_POR_RBD = {
+  F:"Primeira Classe", A:"Primeira Classe", P:"Primeira Classe",
+  J:"Executiva", C:"Executiva", D:"Executiva", Z:"Executiva",
+  Y:"Econômica", B:"Econômica", M:"Econômica", H:"Econômica", Q:"Econômica",
+  K:"Econômica", L:"Econômica", V:"Econômica", S:"Econômica", N:"Econômica",
+  G:"Econômica", T:"Econômica", U:"Econômica"
+  // "I" fora de proposito: um exemplo real da AM (BASICA/PREMIERONB, cabine
+  // Economica confirmada pelo operador) usa "I" para tarifa economica com
+  // desconto, nao executiva. Deixar de fora e mais seguro do que adivinhar.
+};
+function cabinePorRBD(rbd){
+  const t = String(rbd || "").toUpperCase().trim();
+  return CABINE_POR_RBD[t] || null;
+}
+
+// Olha so os trechos aereos (ignora ARNK/superficie e RBD vazio ou fora da
+// tabela). Se todos os trechos com RBD confiavel concordam, devolve a
+// cabine. Se ha RBDs confiaveis discordando entre si (ida e volta em cabines
+// diferentes), devolve mista:true e cabine:null -- o campo so aceita um
+// valor, nao da pra escolher por ele.
+function inferirCabineItinerario(segments){
+  const cabines = new Set();
+  (segments || []).forEach(s => {
+    if (!s || s.surface) return;
+    const c = cabinePorRBD(s.rbd);
+    if (c) cabines.add(c);
+  });
+  if (cabines.size === 0) return { cabine: null, mista: false };
+  if (cabines.size > 1) return { cabine: null, mista: true };
+  return { cabine: Array.from(cabines)[0], mista: false };
 }
 
 // ─── LOOKUP DE NOMES IATA ─────────────────────────────────────────────────────
@@ -3258,6 +3300,14 @@ function applyValidations(q) {
     q.meta.warnings.push(`Segmento ${voo} ${rota}${code} ${alert.label}. ${alert.hint}`);
   });
 
+  // Cabine inferida pela RBD: nunca vai pro e-mail, so avisa o operador para confirmar.
+  if (q.commercial && q.commercial.cabineSource === 'RBD') {
+    q.meta.warnings.push(`Cabine (${q.commercial.cabine}) inferida automaticamente pela classe de reserva (RBD) do GDS. Confirme antes de enviar.`);
+  }
+  if (q.commercial && q.commercial.cabineMista) {
+    q.meta.warnings.push('Itinerário com cabines diferentes por trecho (RBD distintos entre ida e volta). O campo Cabine aceita só um valor — confira e preencha manualmente.');
+  }
+
   // INF sem ADT ou mais INF do que ADT
   const cntINF = q.passengers.counts.inf;
   const cntADT = q.passengers.counts.adt;
@@ -3702,6 +3752,18 @@ function build() {
   );
   const segs = parseItinerary(itin, gds, year);
 
+  // ── cabine inferida pela classe de reserva (RBD) ──────────────────────────
+  // So preenche quando o campo nunca foi editado a mao ou quando o valor
+  // atual veio desta mesma inferencia (dataset.source="RBD"); edicao manual
+  // do operador trava o campo ate o "Limpar" (handler perto da linha 4021).
+  const fldCabineEl = $("fldCabine");
+  const canFillCabine = !fldCabineEl.dataset.source || fldCabineEl.dataset.source === "RBD";
+  const inferCabine = inferirCabineItinerario(segs);
+  if (canFillCabine && inferCabine.cabine) {
+    fldCabineEl.value = inferCabine.cabine;
+    fldCabineEl.dataset.source = "RBD";
+  }
+
   // ── coleta campos de configuração (inalterado) ────────────────────────────
   const cabine       = $("fldCabine").value || "";
   const csel         = $("fldCondicao").value;
@@ -3815,6 +3877,8 @@ function build() {
   // Agrega os dados já parseados em uma estrutura única e tipada.
   const commercial = {
     cabine,
+    cabineSource: fldCabineEl.dataset.source || "",
+    cabineMista: inferCabine.mista,
     condicao,
     rcUSD,
     assentosText,
@@ -3985,6 +4049,7 @@ $("btnClear").addEventListener("click", ()=>{
   ["source","baseDate","usageDate"].forEach(key => { delete $("fldFX").dataset[key]; });
   renderFxHint();
   $("fldCabine").value="Econômica";
+  delete $("fldCabine").dataset.source;
   $("fldCondicao").value="Incluir a RAV";
   $("fldAssentosMode").value="";
   $("fldOpenTicket").value="";
@@ -4034,6 +4099,9 @@ document.querySelector("main").addEventListener("input", (event)=>{
 });
 document.querySelector("main").addEventListener("change", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.id === "fldCabine"){
+    event.target.dataset.source = "MANUAL";
+  }
   scheduleDraftSave();
   markPreviewDirty();
   if(validationActivated) renderValidation(validateQuoteInput());

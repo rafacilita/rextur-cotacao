@@ -830,10 +830,12 @@ test("nao avisa taxa inferida nas mascaras Amadeus reais", () => {
     app.applyCombinedPricingInput({ overwrite: true, announce: false });
     app.build();
     const warnings = app._lastQuote.meta.warnings;
+    // Regex restrita a taxa/total inferido: RBD das fixtures pode inferir
+    // cabine com confianca, e esse aviso e esperado, nao um bug de taxa.
     assert.equal(
-      warnings.some(w => /inferid/i.test(w)),
+      warnings.some(w => /taxas inferidas|o total não veio de uma linha/i.test(w)),
       false,
-      `${name} nao deveria gerar aviso de valor inferido, mas gerou: ${JSON.stringify(warnings)}`
+      `${name} nao deveria gerar aviso de taxa ou total inferido, mas gerou: ${JSON.stringify(warnings)}`
     );
     app.close();
   }
@@ -1114,8 +1116,10 @@ test("conferencia de taxas reconhece o formato TXnnn", () => {
   app2.document.getElementById("maskADT").value = fixture("amadeus_thb_origem_bkk_tst.txt");
   app2.build();
   const avisos = app2._lastQuote.meta.warnings;
-  assert.equal(avisos.some(w => /inferid/i.test(w)), false,
-    `nao deveria avisar sobre valor inferido: ${JSON.stringify(avisos)}`);
+  // Regex restrita a taxa/total inferido (nao "inferid" generico): o fixture
+  // tem RBD que infere cabine com confianca, e esse aviso e esperado, nao um bug.
+  assert.equal(avisos.some(w => /taxas inferidas|o total não veio de uma linha/i.test(w)), false,
+    `nao deveria avisar sobre taxa ou total inferido: ${JSON.stringify(avisos)}`);
   assert.equal(avisos.some(w => /moeda da tarifa/i.test(w)), false,
     `nao deveria avisar sobre moeda: ${JSON.stringify(avisos)}`);
   app.close();
@@ -1574,5 +1578,147 @@ test("deteccao de equipamento aceita o formato digito-letra-digito (7M8, 7M9)", 
   const [itinRaw] = fixtureBlocks(FIX_AMADEUS_3TIPOS);
   const segs = app.parseItinerary(itinRaw, "AMA", 2026).filter(s => !s.surface);
   assert.deepEqual(Array.from(segs, s => s.equipment), ["789", "7M8", "7M9", "789"]);
+  app.close();
+});
+
+// ─── Cabine inferida pela classe de reserva (RBD) ────────────────────────────
+// O campo Cabine era 100% manual. A inferencia usa a letra RBD que o parser
+// ja extraia (campo .rbd) e nunca usava, com uma tabela deliberadamente
+// conservadora: so confirma cabine quando ha alta confianca, nunca adivinha.
+
+test("cabinePorRBD mapeia letras confiaveis e deixa as ambiguas de fora", () => {
+  const app = createApp();
+  assert.equal(app.cabinePorRBD("F"), "Primeira Classe");
+  assert.equal(app.cabinePorRBD("J"), "Executiva");
+  assert.equal(app.cabinePorRBD("y"), "Econômica");
+  // Ambiguas entre companhias: nao estao na tabela, nunca inventadas.
+  assert.equal(app.cabinePorRBD("W"), null);
+  assert.equal(app.cabinePorRBD("R"), null);
+  assert.equal(app.cabinePorRBD("E"), null);
+  assert.equal(app.cabinePorRBD("O"), null);
+  assert.equal(app.cabinePorRBD("X"), null);
+  // "I" foi deliberadamente excluida: um exemplo real da AM usa "I" para
+  // tarifa economica com desconto, nao executiva (ver sabre_adt_chd_inf...).
+  assert.equal(app.cabinePorRBD("I"), null);
+  app.close();
+});
+
+test("inferirCabineItinerario concorda, discorda ou nao tem RBD confiavel", () => {
+  const app = createApp();
+  // deepEqual nao serve aqui: o objeto retornado nasce no realm do jsdom, com
+  // um Object.prototype diferente do deste arquivo de teste. Conferir campo a campo.
+  const uniforme = [
+    { org: "GRU", dst: "MEX", rbd: "Y" },
+    { org: "MEX", dst: "GRU", rbd: "H" }
+  ];
+  const r1 = app.inferirCabineItinerario(uniforme);
+  assert.equal(r1.cabine, "Econômica");
+  assert.equal(r1.mista, false);
+
+  const mista = [
+    { org: "GRU", dst: "MIA", rbd: "Y" },
+    { org: "MIA", dst: "GRU", rbd: "J" }
+  ];
+  const r2 = app.inferirCabineItinerario(mista);
+  assert.equal(r2.cabine, null);
+  assert.equal(r2.mista, true);
+
+  const semConfianca = [
+    { org: "GRU", dst: "MEX", rbd: "I" },
+    { org: "MEX", dst: "GRU", rbd: "" }
+  ];
+  const r3 = app.inferirCabineItinerario(semConfianca);
+  assert.equal(r3.cabine, null);
+  assert.equal(r3.mista, false);
+
+  // Trecho de superficie (ARNK) e ignorado mesmo que tenha algo em .rbd.
+  const comSuperficie = [
+    { org: "GRU", dst: "MAD", rbd: "Y" },
+    { org: "BIO", dst: "MAD", rbd: "J", surface: true }
+  ];
+  const r4 = app.inferirCabineItinerario(comSuperficie);
+  assert.equal(r4.cabine, "Econômica");
+  assert.equal(r4.mista, false);
+  app.close();
+});
+
+test("Cabine e autopreenchida pela RBD e o motor avisa para confirmar", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = split.masks.ADT;
+  app.document.getElementById("maskCHD").value = split.masks.CHD;
+  app.document.getElementById("maskINF").value = split.masks.INF;
+  app.build();
+
+  // Os trechos GDL-MEX/MEX-GRU usam RBD "I" (fora da tabela confiavel) e os
+  // trechos GRU-MEX/MEX-GDL usam "V" (Economica) -- unico voto confiavel,
+  // entao a cabine inferida e Economica, batendo com o exemplo real.
+  const fldCabine = app.document.getElementById("fldCabine");
+  assert.equal(fldCabine.value, "Econômica");
+  assert.equal(fldCabine.dataset.source, "RBD");
+  assert.ok(app._lastQuote.meta.warnings.some(w => /Cabine \(Econômica\) inferida automaticamente/.test(w)));
+  app.close();
+});
+
+test("edicao manual da cabine trava o autopreenchimento e silencia o aviso", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = split.masks.ADT;
+  app.document.getElementById("maskCHD").value = split.masks.CHD;
+  app.document.getElementById("maskINF").value = split.masks.INF;
+
+  const fldCabine = app.document.getElementById("fldCabine");
+  fldCabine.value = "Executiva";
+  fldCabine.dataset.source = "MANUAL"; // o handler de "change" real faz este stamp
+
+  app.build();
+
+  assert.equal(fldCabine.value, "Executiva", "nao deveria sobrescrever escolha manual");
+  assert.equal(
+    app._lastQuote.meta.warnings.some(w => /inferida automaticamente/.test(w)),
+    false,
+    "nao deveria avisar sobre inferencia quando a cabine foi escolhida a mao"
+  );
+  app.close();
+});
+
+test("itinerario com cabine mista por trecho avisa e nao autopreenche", () => {
+  const app = createApp();
+  const itinMista = [
+    "RTABC123",
+    "1.TESTE/JOAO MR",
+    "2  LA 8113 Y 15JUN 6 GRUMIA HK1  0830 1430 15JUN  E  LA/ABC123",
+    "3  LA 8114 J 20JUN 4 MIAGRU HK1  0930 2030 20JUN  E  LA/ABC123"
+  ].join("\n");
+  app.document.getElementById("itin").value = itinMista;
+  app.build();
+
+  const fldCabine = app.document.getElementById("fldCabine");
+  assert.notEqual(fldCabine.dataset.source, "RBD", "cabine mista nao deveria ser autopreenchida");
+  assert.ok(app._lastQuote.meta.warnings.some(w => /cabines diferentes por trecho/i.test(w)));
+  app.close();
+});
+
+test("Limpar reseta a origem da cabine, permitindo nova inferencia", () => {
+  const app = createApp();
+  const fldCabine = app.document.getElementById("fldCabine");
+  fldCabine.dataset.source = "RBD";
+  app.document.getElementById("btnClear").dispatchEvent(new app.MouseEvent("click", { bubbles: true }));
+  assert.equal(fldCabine.value, "Econômica");
+  assert.equal(fldCabine.dataset.source, undefined);
   app.close();
 });

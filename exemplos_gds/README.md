@@ -174,6 +174,57 @@ unica vez, logo depois do parse, antes de qualquer logica consumir o array. Isso
 corrige o aviso sem precisar de logica nova nele, e vale tambem se o mesmo tipo de
 duplicacao aparecer em ADT ou CHD no futuro.
 
+## Cabine inferida pela classe de reserva (RBD)
+
+O campo Cabine (Economica/Executiva/Primeira Classe/Premium Economy) era 100% manual.
+A letra de classe de reserva (RBD) que ja vem em cada linha de segmento do GDS — e que
+o parser ja extraia no campo `.rbd`, sem usar para nada — e o sinal correto para
+sugerir a cabine, bem mais confiavel do que o nome da familia tarifaria (`BASICA`,
+`PREMIERONB` etc. sao marca comercial, nao cabine).
+
+A tabela `CABINE_POR_RBD` (dentro do index.html) e deliberadamente conservadora: so
+mapeia letras com alta confianca entre companhias. Letras ambiguas (`W`, `E`, `O`, `R`,
+`X` e qualquer letra fora da tabela) ficam de fora e nunca entram no palpite.
+"Premium Economy" nunca e inferida — nao ha letra confiavel o bastante entre
+companhias para esse nivel ainda.
+
+### Por que "I" nao esta na tabela
+
+`sabre_adt_chd_inf_bagagem_distinta_am.txt` (ver secao acima) usa RBD `I` nos trechos
+GDL-MEX e MEX-GRU, e a cabine real confirmada pelo operador para esse bilhete e
+Economica (familias `BASICA`/`PREMIERONB`, nada de executivo). Convenções de RBD variam
+bastante entre companhias: a mesma letra que em uma e classe executiva, em outra e so
+uma tarifa economica com desconto. Como esse exemplo real contradiz `I`=executiva, a
+letra foi deixada de fora da tabela — o principio aqui e o mesmo de sempre: na duvida,
+nao inferir, deixar o operador confirmar manualmente.
+
+### Autopreenchimento e aviso, nunca bloqueio
+
+Quando todos os trechos aereos do itinerario concordam numa cabine confiavel, o campo
+`#fldCabine` e preenchido automaticamente e o motor empurra um aviso no painel de
+confiabilidade ("Cabine (Economica) inferida automaticamente pela classe de reserva
+(RBD) do GDS. Confirme antes de enviar."), que baixa a pilula de confianca mas NUNCA
+bloqueia copiar ou gerar o e-mail — mesma filosofia ja usada para bagagem, status de
+segmento e equipamento desconhecido. O texto do e-mail ao cliente continua limpo, sem
+nenhum aviso: a confirmacao e so para o operador, antes de enviar.
+
+Assim que o operador edita o campo manualmente, o sistema para de sobrescrever (campo
+`dataset.source`, igual ao padrao ja usado no campo de cambio BCB) e o aviso de
+inferencia desaparece. O botao "Limpar" reseta essa trava, permitindo nova inferencia
+na proxima colagem.
+
+Quando o itinerario tem RBDs confiaveis discordando entre ida e volta (cabine mista),
+o campo nao e tocado e um aviso proprio avisa que o campo so aceita um valor.
+
+### Refinar por companhia exige evidencia do GDS
+
+A tabela usa convencao IATA ampla, nao uma tabela por companhia. Para refinar uma letra
+especifica de uma companhia (como aconteceu com `32B`/`CR9` em equipamento), a fonte
+certa e a tela de disponibilidade do proprio GDS (Sabre `1` / Amadeus `AN`), que mostra
+a RBD ja agrupada por cabine para aquele voo especifico, ou o portal de agente da
+companhia (igual a matriz de brands da LATAM referenciada mais abaixo). Entra conforme
+casos reais aparecerem, nunca especulativamente.
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
