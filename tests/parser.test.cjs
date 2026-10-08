@@ -1590,6 +1590,7 @@ test("cabinePorRBD mapeia letras confiaveis e deixa as ambiguas de fora", () => 
   const app = createApp();
   assert.equal(app.cabinePorRBD("F"), "Primeira Classe");
   assert.equal(app.cabinePorRBD("J"), "Executiva");
+  assert.equal(app.cabinePorRBD("I"), "Executiva");
   assert.equal(app.cabinePorRBD("y"), "Econômica");
   // Ambiguas entre companhias: nao estao na tabela, nunca inventadas.
   assert.equal(app.cabinePorRBD("W"), null);
@@ -1597,9 +1598,6 @@ test("cabinePorRBD mapeia letras confiaveis e deixa as ambiguas de fora", () => 
   assert.equal(app.cabinePorRBD("E"), null);
   assert.equal(app.cabinePorRBD("O"), null);
   assert.equal(app.cabinePorRBD("X"), null);
-  // "I" foi deliberadamente excluida: um exemplo real da AM usa "I" para
-  // tarifa economica com desconto, nao executiva (ver sabre_adt_chd_inf...).
-  assert.equal(app.cabinePorRBD("I"), null);
   app.close();
 });
 
@@ -1624,7 +1622,7 @@ test("inferirCabineItinerario concorda, discorda ou nao tem RBD confiavel", () =
   assert.equal(r2.mista, true);
 
   const semConfianca = [
-    { org: "GRU", dst: "MEX", rbd: "I" },
+    { org: "GRU", dst: "MEX", rbd: "O" },
     { org: "MEX", dst: "GRU", rbd: "" }
   ];
   const r3 = app.inferirCabineItinerario(semConfianca);
@@ -1644,6 +1642,25 @@ test("inferirCabineItinerario concorda, discorda ou nao tem RBD confiavel", () =
 
 test("Cabine e autopreenchida pela RBD e o motor avisa para confirmar", () => {
   const app = createApp();
+  const itinUniforme = [
+    "RTABC123",
+    "1.TESTE/JOAO MR",
+    "2  AM 15 V 20APR 2 GRUMEX HK1  0940 1620 20APR  E  AM/ABC123",
+    "3  AM 228 V 25APR 7 MEXGDL HK1  1250 1420 25APR  E  AM/ABC123"
+  ].join("\n");
+  app.document.getElementById("itin").value = itinUniforme;
+  app.build();
+
+  // Os dois trechos usam RBD "V" (Economica), unico voto confiavel e unanime.
+  const fldCabine = app.document.getElementById("fldCabine");
+  assert.equal(fldCabine.value, "Econômica");
+  assert.equal(fldCabine.dataset.source, "RBD");
+  assert.ok(app._lastQuote.meta.warnings.some(w => /Cabine \(Econômica\) inferida automaticamente/.test(w)));
+  app.close();
+});
+
+test("exemplo real AM com RBD V na ida e I na volta acende aviso de cabine mista", () => {
+  const app = createApp();
   const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
   const split = app.splitSabrePricingMasks(maskRaw);
 
@@ -1657,13 +1674,13 @@ test("Cabine e autopreenchida pela RBD e o motor avisa para confirmar", () => {
   app.document.getElementById("maskINF").value = split.masks.INF;
   app.build();
 
-  // Os trechos GDL-MEX/MEX-GRU usam RBD "I" (fora da tabela confiavel) e os
-  // trechos GRU-MEX/MEX-GDL usam "V" (Economica) -- unico voto confiavel,
-  // entao a cabine inferida e Economica, batendo com o exemplo real.
+  // GRU-MEX/MEX-GDL usam RBD "V" (Economica); GDL-MEX/MEX-GRU usam "I", que o
+  // operador confirmou ser geralmente Executiva. Os dois sao confiaveis e
+  // discordam entre si, entao o campo nao e tocado e o aviso de cabine mista
+  // aparece, em vez de um palpite unico que poderia estar errado.
   const fldCabine = app.document.getElementById("fldCabine");
-  assert.equal(fldCabine.value, "Econômica");
-  assert.equal(fldCabine.dataset.source, "RBD");
-  assert.ok(app._lastQuote.meta.warnings.some(w => /Cabine \(Econômica\) inferida automaticamente/.test(w)));
+  assert.notEqual(fldCabine.dataset.source, "RBD");
+  assert.ok(app._lastQuote.meta.warnings.some(w => /cabines diferentes por trecho/i.test(w)));
   app.close();
 });
 

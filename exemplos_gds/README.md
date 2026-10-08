@@ -188,15 +188,18 @@ mapeia letras com alta confianca entre companhias. Letras ambiguas (`W`, `E`, `O
 "Premium Economy" nunca e inferida — nao ha letra confiavel o bastante entre
 companhias para esse nivel ainda.
 
-### Por que "I" nao esta na tabela
+### "I" e Executiva, confirmado pelo operador
 
-`sabre_adt_chd_inf_bagagem_distinta_am.txt` (ver secao acima) usa RBD `I` nos trechos
-GDL-MEX e MEX-GRU, e a cabine real confirmada pelo operador para esse bilhete e
-Economica (familias `BASICA`/`PREMIERONB`, nada de executivo). Convenções de RBD variam
-bastante entre companhias: a mesma letra que em uma e classe executiva, em outra e so
-uma tarifa economica com desconto. Como esse exemplo real contradiz `I`=executiva, a
-letra foi deixada de fora da tabela — o principio aqui e o mesmo de sempre: na duvida,
-nao inferir, deixar o operador confirmar manualmente.
+`sabre_adt_chd_inf_bagagem_distinta_am.txt` (ver secao acima) usa RBD `V` nos trechos
+GRU-MEX/MEX-GDL e `I` nos trechos GDL-MEX/MEX-GRU. A primeira versao desta tabela
+deixou `I` de fora, assumindo (errado) que o "Cabine: Economica" visto na tela desse
+bilhete era a verdade do GDS — mas esse campo ainda era 100% manual nessa epoca, era
+so o valor padrao, nunca confirmado. O operador confirmou diretamente que `I`
+geralmente E executiva, e a tabela foi corrigida.
+
+Com a correcao, esse mesmo exemplo passa a acender o aviso de **cabine mista** (`V` na
+ida, `I` na volta sao confiaveis e discordam), em vez de inferir Economica sozinho — o
+que é o comportamento certo quando as classes realmente divergem entre os trechos.
 
 ### Autopreenchimento e aviso, nunca bloqueio
 

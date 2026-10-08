@@ -2238,13 +2238,10 @@ function equipmentName(code){
 // excesso de confianca. "Premium Economy" nunca e inferida por esta tabela.
 const CABINE_POR_RBD = {
   F:"Primeira Classe", A:"Primeira Classe", P:"Primeira Classe",
-  J:"Executiva", C:"Executiva", D:"Executiva", Z:"Executiva",
+  J:"Executiva", C:"Executiva", D:"Executiva", Z:"Executiva", I:"Executiva",
   Y:"Econômica", B:"Econômica", M:"Econômica", H:"Econômica", Q:"Econômica",
   K:"Econômica", L:"Econômica", V:"Econômica", S:"Econômica", N:"Econômica",
   G:"Econômica", T:"Econômica", U:"Econômica"
-  // "I" fora de proposito: um exemplo real da AM (BASICA/PREMIERONB, cabine
-  // Economica confirmada pelo operador) usa "I" para tarifa economica com
-  // desconto, nao executiva. Deixar de fora e mais seguro do que adivinhar.
 };
 function cabinePorRBD(rbd){
   const t = String(rbd || "").toUpperCase().trim();
