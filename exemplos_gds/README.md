@@ -297,6 +297,25 @@ introduzia um `<tr>` cujo `textContent` e o e-mail inteiro, e os testes que faze
 (ex.: `rows.find(text => /BIO/.test(text))`) passavam a casar esse `<tr>` gigante em vez
 da linha especifica do trecho, quebrando a asserção.
 
+### Texto do cabecalho: `<td>` sobrevive a colagem, `<div style>` nao
+
+O titulo do cabecalho ("RexturAdvance" / "Cotação INTER — Nova emissão") usava `<div
+style="...">` com `letter-spacing`, `text-transform:uppercase` e `color:rgba(255,255,255,.72)`
+dentro do `<td>` de fundo azul-marinho. Ao colar o e-mail no Outlook PWA (o fluxo real de
+uso: copiar o HTML gerado e colar no corpo da mensagem), esse texto aparecia preto, em
+fonte generica — o `<td style="background-color:...">` sobrevivia, mas o `<div style="...">`
+aninhado dentro dele era descartado pelo sanitizador de colagem do editor.
+
+A causa provavel: o normalizador de colar-como-HTML de editores ricos (contenteditable)
+so reconhece um conjunto basico de propriedades CSS (cor solida, familia de fonte, peso,
+tamanho) — `rgba()` com canal alfa, `letter-spacing` e `text-transform` nao fazem parte
+desse conjunto e podem descartar o `style` inteiro do elemento, nao so a propriedade
+problematica. A correcao: o texto do titulo deixou de ser `<div>` e passou a ser uma
+tabela de duas linhas, cada `<td>` com so cor solida (hex, sem alfa), familia de fonte,
+peso e tamanho — nenhuma propriedade fora do conjunto basico. O nome ja vem escrito
+"RexturAdvance" no texto (sem depender de `text-transform:uppercase` pra exibir em
+caixa alta).
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
