@@ -1757,3 +1757,58 @@ test("Limpar reseta a origem da cabine, permitindo nova inferencia", () => {
   assert.equal(fldCabine.dataset.source, undefined);
   app.close();
 });
+
+test("buildEmail usa a cabine confirmada no popup, nao a RBD crua, na coluna Classe", () => {
+  const app = createApp();
+  const itinUniforme = [
+    "RTABC123",
+    "1.TESTE/JOAO MR",
+    "2  AM 15 V 20APR 2 GRUMEX HK1  0940 1620 20APR  E  AM/ABC123",
+    "3  AM 228 V 25APR 7 MEXGDL HK1  1250 1420 25APR  E  AM/ABC123"
+  ].join("\n");
+  app.document.getElementById("itin").value = itinUniforme;
+  app.build();
+
+  // Simula o que o popup gravaria: o operador corrigiu o primeiro trecho
+  // (RBD "V" = Economica) para Executiva.
+  app._lastQuote.itinerary[0].cabinConfirmed = "Executiva";
+  const { html } = app.buildEmail(app._lastQuote);
+  assert.match(html, /Executiva/);
+  app.close();
+});
+
+test("buildEmail sem cabine confirmada continua mostrando a RBD crua (fallback)", () => {
+  const app = createApp();
+  const itinUniforme = [
+    "RTABC123",
+    "1.TESTE/JOAO MR",
+    "2  AM 15 V 20APR 2 GRUMEX HK1  0940 1620 20APR  E  AM/ABC123",
+    "3  AM 228 V 25APR 7 MEXGDL HK1  1250 1420 25APR  E  AM/ABC123"
+  ].join("\n");
+  app.document.getElementById("itin").value = itinUniforme;
+  app.build();
+
+  assert.ok(app._lastQuote.itinerary.every(s => !s.cabinConfirmed));
+  const { html } = app.buildEmail(app._lastQuote);
+  assert.match(html, />V</);
+  app.close();
+});
+
+test("build() chamado direto (sem o popup rodar) nunca seta cabinConfirmed", () => {
+  const app = createApp();
+  const [itinRaw, maskRaw] = fixtureBlocks(FIX_SABRE_3TIPOS);
+  const split = app.splitSabrePricingMasks(maskRaw);
+
+  app.document.getElementById("itin").value = itinRaw;
+  app.document.getElementById("qADT").value = "1";
+  app.document.getElementById("qCHD").value = "1";
+  app.document.getElementById("qINF").value = "1";
+  app.refreshPaxUI();
+  app.document.getElementById("maskADT").value = split.masks.ADT;
+  app.document.getElementById("maskCHD").value = split.masks.CHD;
+  app.document.getElementById("maskINF").value = split.masks.INF;
+  app.build();
+
+  assert.ok(app._lastQuote.itinerary.every(s => s.cabinConfirmed === undefined));
+  app.close();
+});

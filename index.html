@@ -532,6 +532,38 @@
       color:var(--err);
     }
 
+    /* ── Popup de confirmacao de cabine por trecho ───────────────────────── */
+
+    .cabinModal{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:20px 22px;
+      max-width:480px;
+      width:90vw;
+      background:var(--surface);
+      color:var(--ink);
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+    }
+    .cabinModal::backdrop{background:rgba(0,0,0,.45)}
+    .cabinModal h3{margin:0 0 12px; font-size:14px; font-weight:600}
+    .cabinModalRow{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:8px 0;
+      border-bottom:1px solid var(--line);
+      font-size:13px;
+    }
+    .cabinModalRow:last-of-type{border-bottom:none}
+    .cabinModalRow select{min-height:30px; padding:4px 8px; width:auto}
+    .cabinModalActions{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      margin-top:16px;
+    }
+
     /* ── Indicadores de valor ────────────────────────────────────────────── */
 
     .kpis{
@@ -920,6 +952,17 @@
   </div>
 </main>
 
+<dialog id="cabinModal" class="cabinModal">
+  <form method="dialog">
+    <h3>Confirme a cabine de cada trecho</h3>
+    <div id="cabinModalRows"></div>
+    <div class="cabinModalActions">
+      <button type="button" class="ghost" id="cabinModalCancel">Cancelar</button>
+      <button type="submit" value="confirm">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 const $ = (id) => document.getElementById(id);
 
@@ -1012,6 +1055,7 @@ const DRAFT_STORAGE_KEY = "cotacao_inter_draft_v1";
 let draftSaveTimer = null;
 let validationActivated = false;
 let previewDirty = false;
+let cabinConfirmState = null; // { itinText, cabins: [...] } | null
 
 function getSaoPauloUsageDate(now = new Date()){
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -2281,6 +2325,46 @@ function inferirCabineItinerario(segments){
   if (cabines.size === 0) return { cabine: null, mista: false };
   if (cabines.size > 1) return { cabine: null, mista: true };
   return { cabine: Array.from(cabines)[0], mista: false };
+}
+
+// Popup bloqueante: um <select> por trecho aereo, pre-preenchido com o
+// palpite de cabinePorRBD. Resolve com o array de cabines escolhidas (uma
+// por trecho, na mesma ordem de airSegs) ao confirmar, ou null ao cancelar.
+function openCabinModal(airSegs){
+  return new Promise(resolve => {
+    const dlg  = $("cabinModal");
+    const rows = $("cabinModalRows");
+    rows.innerHTML = "";
+    airSegs.forEach((s, i) => {
+      const guess = cabinePorRBD(s.rbd) || "Econômica";
+      const row = document.createElement("div");
+      row.className = "cabinModalRow";
+      row.innerHTML = `
+        <span>${escapeHtml(s.airline||"")}${escapeHtml(s.flight||"")} ${escapeHtml(s.org||"")}-${escapeHtml(s.dst||"")}</span>
+        <select data-idx="${i}">
+          <option>Econômica</option><option>Premium Economy</option>
+          <option>Executiva</option><option>Primeira Classe</option>
+        </select>`;
+      row.querySelector("select").value = guess;
+      rows.appendChild(row);
+    });
+
+    const cancelBtn = $("cabinModalCancel");
+    function onCancel(){ dlg.close("cancel"); }
+    function onClose(){
+      dlg.removeEventListener("close", onClose);
+      cancelBtn.removeEventListener("click", onCancel);
+      if (dlg.returnValue === "confirm") {
+        resolve(Array.from(rows.querySelectorAll("select")).map(sel => sel.value));
+      } else {
+        resolve(null);
+      }
+    }
+
+    dlg.addEventListener("close", onClose);
+    cancelBtn.addEventListener("click", onCancel);
+    dlg.showModal();
+  });
 }
 
 // ─── LOOKUP DE NOMES IATA ─────────────────────────────────────────────────────
@@ -3574,7 +3658,7 @@ function buildEmail(quote) {
     return `
     <tr>
       <td style="${cell}">${vooCell}</td>
-      <td style="${cell}">${escapeHtml(s.rbd||"—")}</td>
+      <td style="${cell}">${escapeHtml(s.cabinConfirmed || s.rbd || "—")}</td>
       <td style="${cell}">${trechoCell}</td>
       <td style="${cell}">${escapeHtml(s.depDateFmt)} ${escapeHtml(s.depTimeFmt)}</td>
       <td style="${cell}">${chegadaDisplay}</td>
@@ -3766,6 +3850,20 @@ function build() {
     itin + "\n" + $("maskADT").value + "\n" + $("maskCHD").value + "\n" + $("maskINF").value
   );
   const segs = parseItinerary(itin, gds, year);
+
+  // Cabine confirmada por trecho (popup). So aplica se a confirmacao for
+  // deste MESMO texto de itinerario -- se build() for chamado sem o popup ter
+  // rodado (ex.: os testes chamam build() direto, sem nenhuma interacao de UI),
+  // cabinConfirmState fica null/desatualizado e a coluna Classe cai no
+  // fallback de sempre (RBD cru), sem quebrar nada.
+  if (cabinConfirmState && cabinConfirmState.itinText === itin) {
+    let ai = 0;
+    for (const s of segs) {
+      if (s.surface) continue;
+      s.cabinConfirmed = cabinConfirmState.cabins[ai] || null;
+      ai++;
+    }
+  }
 
   // ── cabine inferida pela classe de reserva (RBD) ──────────────────────────
   // So preenche quando o campo nunca foi editado a mao ou quando o valor
@@ -3978,7 +4076,7 @@ $("btnSplitMasks").addEventListener("click", ()=>{
   applyCombinedPricingInput({ overwrite: true, announce: true });
 });
 
-$("btnBuild").addEventListener("click", ()=>{
+$("btnBuild").addEventListener("click", async ()=>{
   validationActivated = true;
   const issues = validateQuoteInput();
   renderValidation(issues);
@@ -3989,6 +4087,21 @@ $("btnBuild").addEventListener("click", ()=>{
     if(first) first.focus();
     return;
   }
+
+  const itinText = $("itin").value;
+  const gdsPreview  = detectGDSFromItin(itinText);
+  const yearPreview = inferYearFromText(itinText);
+  const airSegsPreview = parseItinerary(itinText, gdsPreview, yearPreview).filter(s => s && !s.surface);
+
+  const precisaConfirmar = airSegsPreview.length > 0
+    && (!cabinConfirmState || cabinConfirmState.itinText !== itinText);
+
+  if (precisaConfirmar) {
+    const cabins = await openCabinModal(airSegsPreview);
+    if (!cabins) { setStatus("Geração cancelada: confirme a cabine de cada trecho.", true); return; }
+    cabinConfirmState = { itinText, cabins };
+  }
+
   try{
     clearError();
     setStatus("Gerando prévia");

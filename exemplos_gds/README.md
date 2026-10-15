@@ -219,6 +219,33 @@ na proxima colagem.
 Quando o itinerario tem RBDs confiaveis discordando entre ida e volta (cabine mista),
 o campo nao e tocado e um aviso proprio avisa que o campo so aceita um valor.
 
+### Popup de confirmacao de cabine por trecho (coluna "Classe" do e-mail)
+
+O campo unico `#fldCabine` acima resume a cabine em CONDICOES, mas a tabela do
+itinerario no e-mail tinha uma coluna "Classe" que so mostrava a letra RBD crua — util
+pro operador, inutil pro cliente. Ao clicar em "Gerar previa", se o itinerario tem
+algum trecho aereo, um popup bloqueante (`<dialog id="cabinModal">`) lista cada trecho
+com a cabine ja sugerida por `cabinePorRBD` (editavel por `<select>`); o operador
+confirma ou corrige trecho a trecho, e o valor confirmado passa a aparecer na coluna
+"Classe" daquele trecho especifico, em vez da RBD.
+
+O popup so aparece quando o itinerario **mudou** desde a ultima confirmacao
+(`cabinConfirmState.itinText !== itinText` no handler de clique) — gerar a previa de
+novo sem editar nada reaproveita a confirmacao anterior, sem popup repetido. Cancelar o
+popup aborta a geracao (nenhuma previa sai sem a confirmacao).
+
+Esse recurso e **aditivo** ao campo `#fldCabine`: o campo continua existindo exatamente
+como estava, autopreenchimento e aviso incluidos. O popup e so para a coluna "Classe"
+de cada trecho na tabela do e-mail.
+
+Importante pra quem for tocar em `build()`: o popup roda inteiramente no handler de
+clique do botao, nunca dentro de `build()` — os 98+ testes em `tests/parser.test.cjs`
+chamam `build()` direto via jsdom, sem nenhuma interacao de DOM, e travariam esperando
+uma confirmacao que nunca vem se o popup estivesse ali dentro. `build()` so le
+`cabinConfirmState` se o texto do itinerario bater exatamente com o que foi confirmado;
+caso contrario (como nos testes, que nunca passam pelo popup), a coluna "Classe" cai no
+fallback de sempre — a RBD crua.
+
 ### Refinar por companhia exige evidencia do GDS
 
 A tabela usa convencao IATA ampla, nao uma tabela por companhia. Para refinar uma letra
