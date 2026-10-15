@@ -273,6 +273,30 @@ a RBD ja agrupada por cabine para aquele voo especifico, ou o portal de agente d
 companhia (igual a matriz de brands da LATAM referenciada mais abaixo). Entra conforme
 casos reais aparecerem, nunca especulativamente.
 
+## Largura fixa do e-mail e compatibilidade com Outlook
+
+O e-mail gerado (`buildEmail`, dentro de `index.html`) e colado como HTML em clientes de
+e-mail de verdade, nao visualizado num browser comum — e cada cliente tem seu proprio
+motor de renderizacao, com bugs e regras proprias. Dois ajustes:
+
+- **Largura fixa (680px)**: o conteudo todo fica dentro de uma `<div style="width:680px;
+  max-width:680px;">`, em vez de `width:100%` solto. Sem isso, ao colar o e-mail dentro
+  de uma janela de composicao larga (Outlook PWA, Gmail em tela grande), a cotacao
+  esticava borda a borda, em vez de ficar como um cartao de largura fixa.
+- **Atributo HTML `width` em toda `<table>`, alem do CSS**: alguns clientes (sobretudo
+  variantes do Outlook) ignoram `width:100%` via CSS em tabelas aninhadas e so respeitam
+  o atributo HTML `width="100%"`. Sem o atributo, a tabela do cabecalho (fundo azul-marinho
+  "RexturAdvance") podia renderizar mais estreita que o resto do e-mail. Tambem foi adicionado
+  `mso-table-lspace:0pt; mso-table-rspace:0pt;` (reset classico do Outlook/Word) pra evitar
+  espaco fantasma entre celulas.
+
+Cuidado se for tocar nessa estrutura: o wrapper de largura fixa e um `<div>`, nao uma
+`<table>` extra. Uma `<table><tr><td>` envolvendo tudo foi tentada e descartada —
+introduzia um `<tr>` cujo `textContent` e o e-mail inteiro, e os testes que fazem
+`document.querySelectorAll("#preview tr")` e pegam a primeira linha que bate um regex
+(ex.: `rows.find(text => /BIO/.test(text))`) passavam a casar esse `<tr>` gigante em vez
+da linha especifica do trecho, quebrando a asserção.
+
 ## Equipamento da aeronave
 
 O codigo IATA de equipamento tem tres caracteres e NAO e so numerico. A tabela
