@@ -2327,6 +2327,21 @@ function inferirCabineItinerario(segments){
   return { cabine: Array.from(cabines)[0], mista: false };
 }
 
+// Mesma logica de inferirCabineItinerario, mas usando a cabine CONFIRMADA no
+// popup (s.cabinConfirmed) quando houver, em vez de so a RBD crua -- usado no
+// e-mail para decidir se mostra a coluna "Classe" por trecho (so quando os
+// trechos realmente divergem) e se mostra o campo unico "Cabine" em
+// CONDICOES (so quando NAO divergem, senao um unico valor seria enganoso).
+function effectiveCabinMista(segments){
+  const cabines = new Set();
+  (segments || []).forEach(s => {
+    if (!s || s.surface) return;
+    const c = s.cabinConfirmed || cabinePorRBD(s.rbd);
+    if (c) cabines.add(c);
+  });
+  return cabines.size > 1;
+}
+
 // Popup bloqueante: um <select> por trecho aereo, pre-preenchido com o
 // palpite de cabinePorRBD. Resolve com o array de cabines escolhidas (uma
 // por trecho, na mesma ordem de airSegs) ao confirmar, ou null ao cancelar.
@@ -3518,6 +3533,13 @@ function buildEmail(quote) {
   const prices          = quote.pricing;
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // Cabines divergem entre trechos (pos-confirmacao do popup, com fallback na
+  // RBD crua): mostra a coluna "Classe" por trecho so quando ha divergencia;
+  // caso contrario a coluna e redundante com o campo unico "Cabine" em
+  // CONDICOES. Quando divergem, o campo unico de CONDICOES vira enganoso (so
+  // aceita um valor) e e omitido em favor da coluna por trecho.
+  const cabineMista = effectiveCabinMista(itinSegs);
+
   // Paleta do documento, igual a do app (ver :root em <style>), para a cotação
   // na tela e o e-mail enviado lerem como o mesmo produto.
   //
@@ -3589,7 +3611,7 @@ function buildEmail(quote) {
       : typesPresent.map(t => `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Bagagem ${t}</th>`).join("")
   );
 
-  const itinColspan = 5 + (!typesPresent.length ? 0 : (bagSameAcrossTypes ? 1 : typesPresent.length));
+  const itinColspan = (cabineMista ? 5 : 4) + (!typesPresent.length ? 0 : (bagSameAcrossTypes ? 1 : typesPresent.length));
 
   const itinRows = itinSegs.map((s, idx) => {
     // Trecho terrestre (ARNK): o cliente troca de aeroporto por terra, sem voo.
@@ -3658,7 +3680,7 @@ function buildEmail(quote) {
     return `
     <tr>
       <td style="${cell}">${vooCell}</td>
-      <td style="${cell}">${escapeHtml(s.cabinConfirmed || s.rbd || "—")}</td>
+      ${cabineMista ? `<td style="${cell}">${escapeHtml(s.cabinConfirmed || s.rbd || "—")}</td>` : ""}
       <td style="${cell}">${trechoCell}</td>
       <td style="${cell}">${escapeHtml(s.depDateFmt)} ${escapeHtml(s.depTimeFmt)}</td>
       <td style="${cell}">${chegadaDisplay}</td>
@@ -3700,7 +3722,7 @@ function buildEmail(quote) {
     });
   }
   if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
-  if(cabine) optItems.push(["Cabine", escapeHtml(cabine)]);
+  if(cabine && !cabineMista) optItems.push(["Cabine", escapeHtml(cabine)]);
   if(pay.methods.length) optItems.push(["Forma de pagamento", escapeHtml(pay.methods.join(", ")) + (pay.link ? ` — link: ${escapeHtml(pay.link)}` : "")]);
   if(condicao) optItems.push(["Condição", escapeHtml(condicao)]);
   if(assentosText) optItems.push(["Assentos", escapeHtml(assentosText)]);
@@ -3806,7 +3828,7 @@ function buildEmail(quote) {
     <table style="border-collapse:collapse; width:100%; font-size:13px; margin-bottom:4px; border-top:none;">
       <tr>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Voo</th>
-        <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Classe</th>
+        ${cabineMista ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Classe</th>` : ""}
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Trecho</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Saída</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Chegada</th>

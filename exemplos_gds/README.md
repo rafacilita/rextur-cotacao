@@ -246,6 +246,24 @@ uma confirmacao que nunca vem se o popup estivesse ali dentro. `build()` so le
 caso contrario (como nos testes, que nunca passam pelo popup), a coluna "Classe" cai no
 fallback de sempre — a RBD crua.
 
+### Campo "Cabine" (CONDICOES) e coluna "Classe" (itinerario) sao mutuamente exclusivos
+
+Mostrar os dois ao mesmo tempo e redundante quando concordam e enganoso quando
+discordam, entao o e-mail (`buildEmail`, funcao `effectiveCabinMista`) escolhe um dos
+dois, nunca os dois:
+
+- **Trechos com a mesma cabine** (confirmada no popup, ou por fallback na RBD quando o
+  popup nao rodou): a coluna "Classe" e omitida da tabela do itinerario — repetiria o
+  mesmo valor em toda linha, sem necessidade — e o campo unico "Cabine" aparece em
+  CONDICOES, como sempre apareceu.
+- **Trechos com cabines diferentes**: o campo "Cabine" em CONDICOES e omitido — mostrar
+  um unico valor seria enganoso quando ida e volta sao cabines diferentes — e a coluna
+  "Classe" aparece na tabela do itinerario, com o valor confirmado de cada trecho.
+
+`effectiveCabinMista` decide isso usando `s.cabinConfirmed` quando o popup rodou,
+caindo para `cabinePorRBD(s.rbd)` quando nao (mesma logica de `inferirCabineItinerario`,
+mas sensivel a correcao do operador no popup).
+
 ### Refinar por companhia exige evidencia do GDS
 
 A tabela usa convencao IATA ampla, nao uma tabela por companhia. Para refinar uma letra

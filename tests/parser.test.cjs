@@ -1777,7 +1777,7 @@ test("buildEmail usa a cabine confirmada no popup, nao a RBD crua, na coluna Cla
   app.close();
 });
 
-test("buildEmail sem cabine confirmada continua mostrando a RBD crua (fallback)", () => {
+test("cabines iguais em todos os trechos: coluna Classe some, campo Cabine fica em CONDICOES", () => {
   const app = createApp();
   const itinUniforme = [
     "RTABC123",
@@ -1790,7 +1790,28 @@ test("buildEmail sem cabine confirmada continua mostrando a RBD crua (fallback)"
 
   assert.ok(app._lastQuote.itinerary.every(s => !s.cabinConfirmed));
   const { html } = app.buildEmail(app._lastQuote);
-  assert.match(html, />V</);
+  assert.doesNotMatch(html, />Classe</);
+  assert.match(html, /<b>Cabine<\/b>.*Econômica/s);
+  app.close();
+});
+
+test("cabines diferentes entre trechos: coluna Classe aparece, campo Cabine sai de CONDICOES", () => {
+  const app = createApp();
+  const itinUniforme = [
+    "RTABC123",
+    "1.TESTE/JOAO MR",
+    "2  AM 15 V 20APR 2 GRUMEX HK1  0940 1620 20APR  E  AM/ABC123",
+    "3  AM 228 V 25APR 7 MEXGDL HK1  1250 1420 25APR  E  AM/ABC123"
+  ].join("\n");
+  app.document.getElementById("itin").value = itinUniforme;
+  app.build();
+
+  // Simula o operador corrigindo o primeiro trecho via popup (RBD "V" era
+  // Economica para os dois, mas o operador sabe que o primeiro e Executiva).
+  app._lastQuote.itinerary[0].cabinConfirmed = "Executiva";
+  const { html } = app.buildEmail(app._lastQuote);
+  assert.match(html, />Classe</);
+  assert.doesNotMatch(html, /<b>Cabine<\/b>/);
   app.close();
 });
 
