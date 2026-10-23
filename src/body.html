@@ -1,0 +1,318 @@
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logoBox">
+      <img src="logo-rextur.png" alt="RexturAdvance" />
+    </div>
+    <div class="title">
+      <h1>Calculadora de Cotação INTER</h1>
+      <p>Leitura do GDS, revisão e e-mail pronto para a agência.</p>
+    </div>
+  </div>
+
+  <div class="pillrow">
+    <div class="pill" title="Detectado do Itinerário">
+      <span class="dot"></span>
+      <label>GDS:</label>
+      <b id="gdsDetected" style="font-size:12px;">—</b>
+    </div>
+
+    <div class="pill">
+      <label for="themeSel">Tema</label>
+      <select id="themeSel">
+        <option value="light">Claro</option>
+        <option value="dark">Escuro</option>
+      </select>
+    </div>
+    
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card">
+      <div class="hd">
+        <h2>Cotação</h2>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="status" id="draftPill">Rascunho local</div>
+          <div class="status" id="statusPill" role="status" aria-live="polite">Pronto</div>
+        </div>
+      </div>
+
+      <div class="bd">
+        <div class="subcard paxBlock">
+          <h3>Passageiros</h3>
+          <div class="row3">
+            <div class="field">
+              <label for="qADT">Adultos</label>
+              <input id="qADT" type="number" min="0" value="1" />
+            </div>
+            <div class="field">
+              <label for="qCHD">Crianças</label>
+              <input id="qCHD" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label for="qINF">Bebês</label>
+              <input id="qINF" type="number" min="0" value="0" />
+            </div>
+          </div>
+
+
+          <div class="row1" style="margin-top:10px;">
+            <label class="chip" style="width:max-content;">
+              <input type="checkbox" id="chkNomes">Informar nomes dos passageiros
+            </label>
+          </div>
+
+          <div id="autoPaxSuggest" class="status warn" style="display:none; margin-top:10px;">
+            Detectei nomes no itinerário. <button id="btnAutoPax" type="button" class="secondary" style="padding:6px 10px; border-radius:12px; margin-left:8px;">Preencher automaticamente</button>
+          </div>
+
+          <div id="paxCard" class="subcard" style="display:none; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <h3 style="margin:0;">Nomes dos passageiros</h3>
+              <div class="status" id="paxTotalPill">Total: 0</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div id="paxAdultosWrap">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Adultos</div>
+                <div class="status">ADT</div>
+              </div>
+              <div id="paxAdultosList" class="row2" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="divider" id="divChdSep" style="display:none;"></div>
+
+            <div id="paxCriancasWrap" style="display:none;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Crianças</div>
+                <div class="status">CHD</div>
+              </div>
+              <div id="paxCriancasList" class="row2" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="divider" id="divInfSep" style="display:none;"></div>
+
+            <div id="paxInfantsWrap" style="display:none;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800;">Infants</div>
+                <div class="status">INF</div>
+              </div>
+              <div id="paxInfantsList" class="row2" style="margin-top:10px;"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="sourceBlock">
+          <div class="textareas">
+            <div class="field">
+              <label for="itin">Itinerário</label>
+              <textarea id="itin" placeholder="Cole o itinerário do Sabre ou Amadeus"></textarea>
+              <div class="help">O GDS é identificado pelo formato do itinerário colado.</div>
+            </div>
+            <div class="field">
+              <label>Máscaras por passageiro</label>
+              <textarea id="maskAll" hidden aria-hidden="true"></textarea>
+              <button id="btnSplitMasks" class="secondary" type="button" hidden>Identificar máscaras</button>
+              <div class="status" id="maskSplitStatus" role="status" aria-live="polite" hidden>Aguardando conteúdo</div>
+              <div class="maskReview maskReviewStatic" id="maskReview">
+                <div class="subcard" id="maskADTWrap">
+                  <h3>Máscara do ADT</h3>
+                  <textarea id="maskADT" style="min-height:160px;" placeholder="Cole a máscara de valores do ADT"></textarea>
+                  <div class="field" id="bagOvADTWrap" style="display:none; margin-top:10px;">
+                    <label for="bagOvADT">Bagagem do ADT, se não for detectada</label>
+                    <input id="bagOvADT" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
+                </div>
+
+                <div class="subcard" id="maskCHDWrap" style="display:none;">
+                  <h3>Máscara do CHD</h3>
+                  <textarea id="maskCHD" style="min-height:160px;" placeholder="Cole a máscara de valores do CHD"></textarea>
+                  <div class="field" id="bagOvCHDWrap" style="display:none; margin-top:10px;">
+                    <label for="bagOvCHD">Bagagem do CHD, se não for detectada</label>
+                    <input id="bagOvCHD" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
+                </div>
+
+                <div class="subcard" id="maskINFWrap" style="display:none;">
+                  <h3>Máscara do INF</h3>
+                  <textarea id="maskINF" style="min-height:160px;" placeholder="Cole a máscara de valores do INF"></textarea>
+                  <div class="field" id="bagOvINFWrap" style="display:none; margin-top:10px;">
+                    <label for="bagOvINF">Bagagem do INF, se não for detectada</label>
+                    <input id="bagOvINF" placeholder="Ex.: 02P / 1PC / NIL" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="help">Cole a máscara de cada tipo de passageiro no campo correspondente.</div>
+            </div>
+          </div>
+
+          <div class="btnrow">
+            <button id="btnBuild" type="button">Gerar prévia</button>
+            <button id="btnCopy" class="secondary" type="button">Copiar HTML (Outlook)</button>
+            <button id="btnClear" class="ghost" type="button">Limpar</button>
+          </div>
+          <details id="errDetails" style="display:none; margin-top:10px; padding:10px; border:1px solid rgba(148,163,184,.6); border-radius:12px; background:rgba(255,255,255,.6);">
+            <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
+            <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
+          </details>
+          <div id="confidencePill" class="confidencePill" role="status" aria-live="polite" hidden></div>
+          <div id="validationSummary" class="validationSummary" role="alert" aria-live="polite"></div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="k">Tarifa do ADT</div><div class="v" id="kFare">—</div></div>
+            <div class="kpi"><div class="k">Tarifa do grupo</div><div class="v" id="kEquiv">—</div></div>
+            <div class="kpi"><div class="k">Taxas do grupo</div><div class="v" id="kTaxes">—</div></div>
+            <div class="kpi"><div class="k">Total do grupo</div><div class="v" id="kTotal">—</div></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="subcard">
+          <h3>Valores e câmbio</h3>
+          <div class="row2">
+            <div class="field">
+              <label for="fldRC">RC por passageiro (USD)</label>
+              <input id="fldRC" inputmode="decimal" placeholder="Ex.: 25,00" />
+            </div>
+            <div class="field">
+              <label id="lblFX" for="fldFX">Câmbio do RC (USD para BRL)</label>
+              <div class="fxControl">
+                <input id="fldFX" inputmode="decimal" placeholder="Ex.: 5,1695" />
+                <button id="btnFetchFX" class="secondary" type="button">Consultar BCB</button>
+              </div>
+            </div>
+          </div>
+          <div class="hint" id="fxHint">
+            Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.
+          </div>
+        </div>
+
+        <div class="subcard">
+          <h3>Forma de pagamento</h3>
+          <div class="switches">
+            <label class="chip"><input type="checkbox" id="payFaturado">Faturado</label>
+            <label class="chip"><input type="checkbox" id="payCartao">Cartão de crédito</label>
+            <label class="chip"><input type="checkbox" id="payDeposito">Transferência bancária</label>
+          </div>
+          <div class="row2" style="margin-top:12px;">
+            <div class="field" id="payLinkWrap" style="display:none;">
+              <label for="payLink">Link de pagamento</label>
+              <input id="payLink" placeholder="Cole o link de pagamento" />
+            </div>
+            <div class="field" id="payParcelWrap" style="display:none;">
+              <label for="payParcel">Parcelamento sem juros</label>
+              <select id="payParcel">
+                <option value="1x">1x</option><option value="2x">2x</option><option value="3x">3x</option><option value="4x">4x</option>
+                <option value="5x">5x</option><option value="6x">6x</option><option value="7x">7x</option><option value="8x">8x</option>
+                <option value="9x">9x</option><option value="10x">10x</option><option value="11x">11x</option><option value="12x">12x</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="subcard">
+          <h3>Condições comerciais</h3>
+          <div class="row3">
+            <div class="field">
+              <label for="fldCabine">Cabine</label>
+              <select id="fldCabine">
+                <option value="Econômica">Econômica</option>
+                <option value="Premium Economy">Premium Economy</option>
+                <option value="Executiva">Executiva</option>
+                <option value="Primeira Classe">Primeira Classe</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fldCondicao">Condição</label>
+              <select id="fldCondicao">
+                <option value="Incluir a RAV">Incluir a RAV</option>
+                <option value="Outro">Escrever outra condição</option>
+                <option value="">Não informar</option>
+              </select>
+            </div>
+            <div class="field" id="fldCondOutroWrap" style="display:none;">
+              <label for="fldCondOutro">Qual condição</label>
+              <input id="fldCondOutro" placeholder="Descreva a condição" />
+            </div>
+          </div>
+
+          <div class="row2" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldAssentosMode">Assentos</label>
+              <select id="fldAssentosMode">
+                <option value="">Não informar</option>
+                <option value="padrao">Marcação antecipada mediante pagamento</option>
+                <option value="custom">Escrever outro texto</option>
+              </select>
+            </div>
+            <div class="field" id="fldAssentosCustomWrap" style="display:none;">
+              <label for="fldAssentosCustom">Texto dos assentos</label>
+              <input id="fldAssentosCustom" placeholder="Descreva a regra de assentos" />
+            </div>
+          </div>
+
+          <div class="row2" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldMultaReembolso">Multa de reembolso</label>
+              <input id="fldMultaReembolso" placeholder="Ex.: USD 250 mais diferença tarifária" />
+            </div>
+            <div class="field">
+              <label for="fldMultaRemarcacao">Multa de remarcação</label>
+              <input id="fldMultaRemarcacao" placeholder="Ex.: USD 150 mais diferença tarifária" />
+            </div>
+          </div>
+
+          <div class="row3" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldOpenTicket">Permite bilhete em aberto</label>
+              <select id="fldOpenTicket">
+                <option value="">Não informar</option>
+                <option value="Sim">Sim</option>
+                <option value="Não">Não</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fldLOC">Localizador</label>
+              <input id="fldLOC" placeholder="Ex.: AY9RIP" />
+            </div>
+          </div>
+
+          <div class="hint" id="hintOptional">Campo em branco não entra no e-mail.</div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd">
+        <h2>E-mail para agência</h2>
+        <div class="status" id="subjectPill">Assunto: —</div>
+      </div>
+      <div class="bd">
+        <div class="previewWrap">
+          <div id="preview" style="padding:14px;"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<dialog id="cabinModal" class="cabinModal">
+  <form method="dialog">
+    <h3>Confirme a cabine de cada trecho</h3>
+    <div id="cabinModalRows"></div>
+    <div class="cabinModalActions">
+      <button type="button" class="ghost" id="cabinModalCancel">Cancelar</button>
+      <button type="submit" value="confirm">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>

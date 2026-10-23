@@ -1,0 +1,8 @@
+{
+  "head": "src/head.html",
+  "body": "src/body.html",
+  "script": [
+    "src/script/tudo.js"
+  ],
+  "foot": "src/foot.html"
+}

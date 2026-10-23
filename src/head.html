@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculadora de Cotação INTER – Nova Emissão</title>
+  <link rel="icon" href="icone.jpg" />
+  <style>
+    /* ─────────────────────────────────────────────────────────────────────────
+       Sistema visual da calculadora de cotacao.
+
+       Escala unica, para o conjunto parecer uma ferramenta e nao uma colagem:
+         raio      4px em controles, 8px em cartoes
+         peso      400 / 500 / 600 / 700
+         tamanho   11 / 12 / 13 / 14 / 15 / 20 px
+         espaco    4 / 8 / 12 / 16 / 20 / 24 px
+         sombra    uma, discreta, apenas em cartao
+         acento    um, reservado para a acao principal
+
+       Sem gradiente, sem vidro fosco e sem sombra difusa: e uma ferramenta
+       operacional de uso repetitivo, nao uma vitrine.
+       ───────────────────────────────────────────────────────────────────────── */
+
+    :root{
+      --canvas:#eef1f5;
+      --surface:#ffffff;
+      --surface-2:#f7f9fb;
+      --ink:#1a2433;
+      --ink-2:#5a6a7d;
+      --ink-3:#7d8b9c;
+      --line:#d7dee7;
+      --line-strong:#bcc7d4;
+      /* Navy da marca, lido direto do logo (fundo exato do arquivo). */
+      --brand:#002554;
+      /* Cores do laco do logo. Servem como assinatura, nao como cor funcional:
+         aparecem apenas no filete sob a barra superior. */
+      --brand-magenta:#ed458f;
+      --brand-purple:#8c4593;
+      --brand-cyan:#04a8db;
+      --brand-orange:#f2a75e;
+      --accent:#002554;
+      --accent-hover:#0d3a70;
+      --accent-ink:#ffffff;
+      --focus:rgba(0,37,84,.18);
+      --ok:#0f6f49;
+      --ok-line:#a9d4bf;
+      --ok-bg:#f1f8f4;
+      --warn:#8a5a06;
+      --warn-line:#e3c37f;
+      --warn-bg:#fdf7ea;
+      --err:#a8321f;
+      --err-line:#e3ada3;
+      --err-bg:#fdf4f2;
+      --paper:#ffffff;
+      --radius:8px;
+      --radius-sm:4px;
+      --shadow:0 1px 2px rgba(16,24,40,.05);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body[data-theme="dark"]{
+      --canvas:#13171f;
+      --surface:#1b212b;
+      --surface-2:#161b24;
+      --ink:#e7edf4;
+      --ink-2:#97a4b5;
+      --ink-3:#7a8798;
+      --line:#2b3440;
+      --line-strong:#3c4856;
+      /* O navy puro nao tem contraste suficiente sobre fundo escuro, entao o
+         tema escuro usa um degrau mais claro do MESMO tom da marca. */
+      --accent:#2d6cb0;
+      --accent-hover:#3a7cc4;
+      --accent-ink:#ffffff;
+      --focus:rgba(45,108,176,.26);
+      --ok:#5ec49a;
+      --ok-line:#2f5a49;
+      --ok-bg:#16241f;
+      --warn:#e0b259;
+      --warn-line:#5c4620;
+      --warn-bg:#241e12;
+      --err:#e8897a;
+      --err-line:#5e2f28;
+      --err-bg:#251715;
+      --shadow:0 1px 2px rgba(0,0,0,.2);
+    }
+
+    *{box-sizing:border-box}
+    html{overflow-x:hidden}
+
+    body{
+      margin:0;
+      font-family:var(--sans);
+      font-size:13px;
+      line-height:1.45;
+      background:var(--canvas);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* ── Cabecalho ───────────────────────────────────────────────────────── */
+
+    /* A barra superior e o lugar da identidade: navy da marca nos dois temas,
+       com o filete do laco logo abaixo. O resto da tela continua neutro para
+       nao competir com os dados da cotacao. */
+    .topbar{
+      background:var(--brand);
+      border-bottom:0;
+      position:relative;
+    }
+    .topbar::after{
+      content:"";
+      position:absolute;
+      left:0; right:0; bottom:0;
+      height:3px;
+      background:linear-gradient(90deg,
+        var(--brand-magenta) 0%,
+        var(--brand-purple) 34%,
+        var(--brand-cyan) 72%,
+        var(--brand-orange) 100%);
+    }
+    header{
+      max-width:1600px;
+      margin:0 auto;
+      padding:12px 24px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+    .brand{display:flex; align-items:center; gap:12px}
+    /* Sem moldura: o fundo do arquivo do logo e o mesmo navy da barra, entao
+       ele se funde. Uma caixa branca aqui faria o logo parecer adesivo colado. */
+    .logoBox{
+      display:flex;
+      align-items:center;
+      flex:0 0 auto;
+    }
+    .logoBox img{height:38px; width:auto; display:block}
+    .title{display:flex; flex-direction:column; gap:1px; min-width:0}
+    .title h1{
+      margin:0;
+      font-size:15px;
+      font-weight:600;
+      letter-spacing:0;
+      line-height:1.3;
+      color:#ffffff;
+    }
+    .title p{margin:0; color:rgba(255,255,255,.70); font-size:12px}
+
+    .pillrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-height:32px;
+      padding:4px 10px;
+      border:1px solid rgba(255,255,255,.20);
+      border-radius:var(--radius-sm);
+      background:rgba(255,255,255,.10);
+      font-size:12px;
+      color:rgba(255,255,255,.78);
+    }
+    .pill .dot{
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      background:rgba(255,255,255,.45);
+      flex:0 0 auto;
+    }
+    .pill label{color:rgba(255,255,255,.78); font-size:12px}
+    .pill b{color:#ffffff; font-weight:600}
+    /* O seletor fica claro de proposito: sobre o navy ele precisa continuar
+       parecendo um campo editavel, nao um rotulo. */
+    .pill select{
+      width:auto;
+      min-width:92px;
+      min-height:26px;
+      padding:2px 6px;
+      border-radius:var(--radius-sm);
+      font-size:12px;
+      background:var(--surface);
+      border-color:transparent;
+      color:var(--ink);
+    }
+    .pill select:focus{
+      border-color:var(--brand-cyan);
+      box-shadow:0 0 0 3px rgba(4,168,219,.30);
+    }
+
+    /* ── Estrutura ───────────────────────────────────────────────────────── */
+
+    main{
+      max-width:1600px;
+      margin:0 auto;
+      padding:20px 24px 32px;
+    }
+
+    /* Uma coluna enquanto nao ha previa: o formulario usa a largura toda.
+       A segunda coluna entra apenas quando existe e-mail para mostrar. */
+    .grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr);
+      gap:20px;
+      align-items:start;
+    }
+    body.has-preview .grid{
+      grid-template-columns:minmax(0,1.05fr) minmax(430px,.95fr);
+    }
+    .grid > section:nth-child(2){display:none}
+    body.has-preview .grid > section:nth-child(2){
+      display:block;
+      position:sticky;
+      top:16px;
+    }
+
+    .card{
+      background:var(--surface);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      min-width:0;
+    }
+    .card .hd{
+      padding:12px 16px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .card .hd h2{
+      margin:0;
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:0;
+    }
+    .card .bd{padding:16px}
+
+    .divider{
+      height:1px;
+      background:var(--line);
+      margin:20px 0;
+      border:0;
+    }
+
+    /* ── Campos ──────────────────────────────────────────────────────────── */
+
+    .row1{display:grid; grid-template-columns:minmax(0,1fr); gap:12px}
+    .row2{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+    .row3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+    .row4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+
+    .field{min-width:0; display:flex; flex-direction:column}
+    .field label{
+      display:block;
+      font-size:12px;
+      font-weight:500;
+      color:var(--ink-2);
+      margin:0 0 5px;
+    }
+
+    select, input, textarea, button{font-family:inherit}
+
+    select, input{
+      width:100%;
+      min-width:0;
+      min-height:34px;
+      padding:7px 10px;
+      background:var(--surface);
+      border:1px solid var(--line-strong);
+      border-radius:var(--radius-sm);
+      color:var(--ink);
+      font-size:13px;
+      outline:none;
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    select{
+      cursor:pointer;
+      /* seta propria: evita o recorte do texto da opcao que havia antes */
+      appearance:none;
+      background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+      background-position:calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+      background-size:5px 5px, 5px 5px;
+      background-repeat:no-repeat;
+      padding-right:30px;
+    }
+    textarea{
+      width:100%;
+      padding:10px 11px;
+      background:var(--surface);
+      border:1px solid var(--line-strong);
+      border-radius:var(--radius-sm);
+      color:var(--ink);
+      font-family:var(--mono);
+      font-size:12px;
+      line-height:1.5;
+      resize:vertical;
+      outline:none;
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    body[data-theme="dark"] textarea,
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] input{background:var(--surface-2)}
+
+    select:focus, input:focus, textarea:focus{
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px var(--focus);
+    }
+    input::placeholder, textarea::placeholder{color:var(--ink-3)}
+
+    input[type="checkbox"]{
+      width:15px;
+      height:15px;
+      min-height:0;
+      padding:0;
+      border-radius:3px;
+      accent-color:var(--accent);
+      flex:0 0 auto;
+      cursor:pointer;
+    }
+
+    .help, .hint, .inlineNote{
+      color:var(--ink-2);
+      font-size:12px;
+      overflow-wrap:anywhere;
+    }
+    .help{margin-top:6px}
+    .hint{margin-top:6px}
+    .inlineNote{line-height:1.4}
+
+    /* ── Blocos internos ─────────────────────────────────────────────────── */
+
+    .subcard{
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:14px 16px;
+      margin-top:16px;
+    }
+    .subcard h3{
+      margin:0 0 12px;
+      font-size:12px;
+      font-weight:600;
+      color:var(--ink);
+      letter-spacing:0;
+    }
+    .subcard > h3:first-child{margin-top:0}
+
+    .paxBlock{margin-top:0; margin-bottom:16px}
+    .paxBlock .row3{max-width:420px}
+
+    .sourceBlock{
+      margin-bottom:16px;
+      padding:14px 16px;
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+    }
+    .textareas{
+      display:grid;
+      grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+      gap:16px;
+      align-items:start;
+    }
+    .sourceBlock textarea{background:var(--surface)}
+    body[data-theme="dark"] .sourceBlock textarea{background:var(--surface)}
+    #itin{min-height:260px}
+    #maskADT, #maskCHD, #maskINF{min-height:150px}
+    .sourceBlock .subcard{background:var(--surface); margin-top:0}
+    .sourceBlock .subcard + .subcard{margin-top:12px}
+
+    .maskReview{margin:0}
+    .maskReview summary{
+      cursor:pointer;
+      color:var(--ink-2);
+      font-size:12px;
+      font-weight:500;
+    }
+
+    /* ── Caixas de marcacao ──────────────────────────────────────────────── */
+
+    .switches{display:flex; gap:4px; flex-wrap:wrap; align-items:center}
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:30px;
+      padding:4px 8px;
+      border:1px solid transparent;
+      border-radius:var(--radius-sm);
+      background:transparent;
+      font-size:13px;
+      color:var(--ink);
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip:hover{background:var(--canvas)}
+    body[data-theme="dark"] .chip:hover{background:var(--surface-2)}
+
+    /* ── Botoes ──────────────────────────────────────────────────────────── */
+
+    .btnrow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-top:16px;
+    }
+    button{
+      min-height:34px;
+      padding:7px 14px;
+      border:1px solid var(--accent);
+      border-radius:var(--radius-sm);
+      background:var(--accent);
+      color:var(--accent-ink);
+      font-size:13px;
+      font-weight:500;
+      cursor:pointer;
+      transition:background-color .12s ease;
+    }
+    button:hover{background:var(--accent-hover); border-color:var(--accent-hover)}
+    button.secondary{
+      background:var(--surface);
+      border-color:var(--line-strong);
+      color:var(--ink);
+    }
+    button.secondary:hover{background:var(--surface-2); border-color:var(--line-strong)}
+    button.ghost{
+      background:transparent;
+      border-color:transparent;
+      color:var(--ink-2);
+    }
+    button.ghost:hover{background:var(--canvas); color:var(--ink)}
+    body[data-theme="dark"] button.ghost:hover{background:var(--surface-2)}
+    button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+    button:disabled{opacity:.55; cursor:default}
+    button:disabled:hover{background:var(--accent); border-color:var(--accent)}
+
+    .fxControl{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px}
+    .fxControl button{white-space:nowrap; padding:7px 12px}
+
+    /* ── Estado e avisos ─────────────────────────────────────────────────── */
+
+    .status{
+      font-size:12px;
+      color:var(--ink-2);
+      padding:3px 8px;
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      white-space:nowrap;
+    }
+    .status.warn{
+      color:var(--warn);
+      border-color:var(--warn-line);
+      background:var(--warn-bg);
+    }
+
+    .validationSummary{
+      display:none;
+      margin-top:16px;
+      padding:12px 14px;
+      border:1px solid var(--warn-line);
+      border-left-width:3px;
+      border-radius:var(--radius-sm);
+      background:var(--warn-bg);
+      color:var(--ink);
+      font-size:12px;
+      line-height:1.5;
+    }
+    .validationSummary.show{display:block}
+    .validationSummary.error{
+      border-color:var(--err-line);
+      background:var(--err-bg);
+    }
+    .validationSummary strong{
+      display:block;
+      margin-bottom:4px;
+      font-size:12px;
+      font-weight:600;
+    }
+    .validationSummary ul{margin:0 0 12px; padding-left:18px}
+    .validationSummary ul:last-child{margin-bottom:0}
+    .validationSummary li{margin:2px 0}
+
+    select.is-invalid, input.is-invalid, textarea.is-invalid{
+      border-color:var(--err) !important;
+      box-shadow:0 0 0 3px var(--err-bg) !important;
+    }
+    select.is-warning, input.is-warning, textarea.is-warning{
+      border-color:var(--warn-line) !important;
+      box-shadow:0 0 0 3px var(--warn-bg) !important;
+    }
+
+    /* Confiabilidade da leitura: barra lateral colorida em vez de caixa inteira,
+       para nao competir com a lista de avisos logo abaixo. */
+    .confidencePill{
+      display:none;
+      margin-top:16px;
+      padding:10px 14px;
+      border:1px solid var(--line);
+      border-left:3px solid var(--ink-3);
+      border-radius:var(--radius-sm);
+      background:var(--surface-2);
+      font-size:12px;
+      font-weight:500;
+      line-height:1.45;
+    }
+    .confidencePill.show{display:block}
+    .confidencePill strong{font-weight:600}
+    .confidencePill.conf-high{
+      border-color:var(--ok-line);
+      border-left-color:var(--ok);
+      background:var(--ok-bg);
+      color:var(--ok);
+    }
+    .confidencePill.conf-medium{
+      border-color:var(--warn-line);
+      border-left-color:var(--warn);
+      background:var(--warn-bg);
+      color:var(--warn);
+    }
+    .confidencePill.conf-low{
+      border-color:var(--err-line);
+      border-left-color:var(--err);
+      background:var(--err-bg);
+      color:var(--err);
+    }
+
+    /* ── Popup de confirmacao de cabine por trecho ───────────────────────── */
+
+    .cabinModal{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:20px 22px;
+      max-width:480px;
+      width:90vw;
+      background:var(--surface);
+      color:var(--ink);
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+    }
+    .cabinModal::backdrop{background:rgba(0,0,0,.45)}
+    .cabinModal h3{margin:0 0 12px; font-size:14px; font-weight:600}
+    .cabinModalRow{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:8px 0;
+      border-bottom:1px solid var(--line);
+      font-size:13px;
+    }
+    .cabinModalRow:last-of-type{border-bottom:none}
+    .cabinModalRow select{min-height:30px; padding:4px 8px; width:auto}
+    .cabinModalActions{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      margin-top:16px;
+    }
+
+    /* ── Indicadores de valor ────────────────────────────────────────────── */
+
+    .kpis{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:1px;
+      margin-top:16px;
+      background:var(--line);
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+      overflow:hidden;
+    }
+    .kpi{
+      background:var(--surface);
+      padding:10px 12px;
+      min-height:58px;
+    }
+    .kpi .k{
+      color:var(--ink-2);
+      font-size:11px;
+      line-height:1.3;
+    }
+    .kpi .v{
+      margin-top:4px;
+      font-size:14px;
+      font-weight:600;
+      font-variant-numeric:tabular-nums;
+      letter-spacing:0;
+    }
+
+    /* ── Previa do e-mail ────────────────────────────────────────────────── */
+
+    .previewWrap{
+      height:calc(100vh - 150px);
+      min-height:560px;
+      overflow:auto;
+      background:var(--paper);
+      border:1px solid var(--line);
+      border-radius:var(--radius-sm);
+    }
+    #preview{min-height:100%; padding:16px}
+    #preview:empty::before{
+      content:"A previa aparece aqui depois de gerar a cotacao.";
+      display:block;
+      padding:32px 20px;
+      color:#6b7a8d;
+      font-size:12px;
+      text-align:center;
+    }
+
+    /* ── Telas estreitas ─────────────────────────────────────────────────── */
+
+    @media (max-width:1180px){
+      body.has-preview .grid{grid-template-columns:minmax(0,1fr)}
+      body.has-preview .grid > section:nth-child(2){position:static}
+      .previewWrap{height:auto; min-height:480px; max-height:70vh}
+      .textareas{grid-template-columns:minmax(0,1fr)}
+      .row4{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+
+    @media (max-width:760px){
+      header{padding:12px 16px}
+      main{padding:16px 16px 24px}
+      .brand{width:100%}
+      .pillrow{width:100%}
+      .pill{flex:1 1 auto; min-width:0}
+      .card .bd{padding:14px}
+      .row2, .row3, .row4{grid-template-columns:minmax(0,1fr)}
+      .paxBlock .row3{max-width:none; grid-template-columns:repeat(3,minmax(0,1fr))}
+      .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .btnrow{display:grid; grid-template-columns:minmax(0,1fr)}
+      .btnrow button{width:100%}
+      #itin{min-height:200px}
+      #maskADT, #maskCHD, #maskINF{min-height:130px}
+      .status{white-space:normal}
+    }
+
+    @media (max-width:420px){
+      .paxBlock .row3{grid-template-columns:minmax(0,1fr)}
+    }
+  </style>
+</head>
