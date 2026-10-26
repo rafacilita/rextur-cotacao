@@ -57,9 +57,44 @@ function collectPayment(){
 // Parser, UI, renderização: inalterados.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function build() {
-  const itin = $("itin").value || "";
-  const gds = detectGDSFromItin(itin);
+// Le todos os campos da tela para um objeto simples (a unica parte de build() que le o DOM).
+function readQuoteInputs() {
+  const masks = { ADT: $("maskADT").value, CHD: $("maskCHD").value, INF: $("maskINF").value };
+
+  // Cambio: o valor lido do GDS e gravado no campo (4 casas) ANTES de ser lido de volta,
+  // para o calculo usar exatamente o numero que aparece na tela.
+  const fxInput = $("fldFX").value.trim();
+  const fxIata = extractIataFx([masks.ADT, masks.CHD, masks.INF].join("\n\n"));
+  if (!fxInput && fxIata != null) setFxRate(fxIata, { source: "GDS" }, false);
+  const fxEl = $("fldFX");
+
+  return {
+    itin: $("itin").value || "",
+    masks,
+    cabinConfirm: cabinConfirmState,
+    cabine: { value: $("fldCabine").value || "", source: $("fldCabine").dataset.source || "" },
+    condSel: $("fldCondicao").value,
+    condOutro: $("fldCondOutro").value,
+    rcUSD: $("fldRC").value.trim(),
+    fxInput,
+    fx: { value: fxEl.value, source: fxEl.dataset.source || "", baseDate: fxEl.dataset.baseDate || "", usageDate: fxEl.dataset.usageDate || "" },
+    openTicket: $("fldOpenTicket").value || "",
+    loc: $("fldLOC").value.trim().toUpperCase(),
+    multaReembolso: $("fldMultaReembolso").value.trim(),
+    multaRemarcacao: $("fldMultaRemarcacao").value.trim(),
+    assentosMode: $("fldAssentosMode").value,
+    assentosCustom: $("fldAssentosCustom").value,
+    // Pagamento e lido aqui e viaja no modelo: buildEmail nao deve tocar o DOM.
+    payment: collectPayment(),
+    pax: { adt: +$("qADT").value || 0, chd: +$("qCHD").value || 0, inf: +$("qINF").value || 0 },
+    paxNames: $("chkNomes").checked ? collectPaxNames() : { ADT: [], CHD: [], INF: [] },
+    bagOverrides: { ADT: $("bagOvADT").value, CHD: $("bagOvCHD").value, INF: $("bagOvINF").value }
+  };
+}
+
+// Escreve o resultado de computeQuote() na tela (previa, KPIs, avisos).
+function renderQuote(result) {
+  const { gds, finalQuote } = result;
   $("gdsDetected").textContent = (gds === "AMA" ? "Amadeus" : (gds === "SAB" ? "Sabre" : "—"));
   if (gds === "—") {
     setStatus("GDS não identificado pelo formato do itinerário", true);
@@ -67,186 +102,20 @@ function build() {
     setStatus("GDS identificado: " + (gds === "AMA" ? "Amadeus" : "Sabre"));
   }
 
-  const year = inferYearFromText(
-    itin + "\n" + $("maskADT").value + "\n" + $("maskCHD").value + "\n" + $("maskINF").value
-  );
-  const segs = parseItinerary(itin, gds, year);
-
-  // Cabine confirmada por trecho (popup). So aplica se a confirmacao for
-  // deste MESMO texto de itinerario -- se build() for chamado sem o popup ter
-  // rodado (ex.: os testes chamam build() direto, sem nenhuma interacao de UI),
-  // cabinConfirmState fica null/desatualizado e a coluna Classe cai no
-  // fallback de sempre (RBD cru), sem quebrar nada.
-  if (cabinConfirmState && cabinConfirmState.itinText === itin) {
-    let ai = 0;
-    for (const s of segs) {
-      if (s.surface) continue;
-      s.cabinConfirmed = cabinConfirmState.cabins[ai] || null;
-      ai++;
-    }
-  }
-
-  // ── cabine inferida pela classe de reserva (RBD) ──────────────────────────
-  // So preenche quando o campo nunca foi editado a mao ou quando o valor
-  // atual veio desta mesma inferencia (dataset.source="RBD"); edicao manual
-  // do operador trava o campo ate o "Limpar" (handler perto da linha 4021).
-  const fldCabineEl = $("fldCabine");
-  const canFillCabine = !fldCabineEl.dataset.source || fldCabineEl.dataset.source === "RBD";
-  const inferCabine = inferirCabineItinerario(segs);
-  if (canFillCabine && inferCabine.cabine) {
-    fldCabineEl.value = inferCabine.cabine;
+  if (result.cabineFill != null) {
+    const fldCabineEl = $("fldCabine");
+    fldCabineEl.value = result.cabineFill;
     fldCabineEl.dataset.source = "RBD";
   }
 
-  // ── coleta campos de configuração (inalterado) ────────────────────────────
-  const cabine       = $("fldCabine").value || "";
-  const csel         = $("fldCondicao").value;
-  const condicao     = (csel === "Outro") ? ($("fldCondOutro").value.trim() || "") : (csel || "");
-  const rcUSD        = $("fldRC").value.trim();
-  const fxInput      = $("fldFX").value.trim();
-  const openTicket   = $("fldOpenTicket").value || "";
-  const loc          = $("fldLOC").value.trim().toUpperCase();
-  const multaReembolso  = $("fldMultaReembolso").value.trim();
-  const multaRemarcacao = $("fldMultaRemarcacao").value.trim();
-
-  let assentosText = "";
-  const am = $("fldAssentosMode").value;
-  if (am === "padrao") assentosText = "Marcação antecipada mediante pagamento";
-  else if (am === "custom") assentosText = $("fldAssentosCustom").value.trim();
-
-  // Pagamento e lido aqui e viaja no modelo: buildEmail nao deve tocar o DOM.
-  const payment = collectPayment();
-
-  const pax = { adt: +$("qADT").value || 0, chd: +$("qCHD").value || 0, inf: +$("qINF").value || 0 };
-
-  // ── parsing de tarifas (inalterado) ───────────────────────────────────────
-  const prices = {};
-  const parseFor = (raw) => (gds === "SAB" ? parsePricingSabre(raw) : (gds === "AMA" ? parsePricingAmadeus(raw) : null));
-  if (pax.adt > 0 && $("maskADT").value.trim()) prices.ADT = parseFor($("maskADT").value);
-  if (pax.chd > 0 && $("maskCHD").value.trim()) prices.CHD = parseFor($("maskCHD").value);
-  if (pax.inf > 0 && $("maskINF").value.trim()) prices.INF = parseFor($("maskINF").value);
-
-  // ── bagagem com mais valores do que trechos reais ─────────────────────────
-  // O retorno do GDS pode duplicar um PQ inteiro por quebra de pagina do
-  // terminal (visto num caso real: o PQ do INF apareceu duas vezes, identico,
-  // por causa de um "MD«" de paginacao). Isso faz bagSegs sair mais longo que
-  // a quantidade real de trechos aereos. O e-mail ja cortava corretamente ao
-  // renderizar, mas o aviso de "trecho sem bagagem" nao cortava, e citava
-  // trechos fantasmas ("trecho 6", "trecho 7") que nao existem no itinerario.
-  // Cortar aqui, uma vez, corrige o aviso sem precisar de logica nova nele.
-  {
-    const airSegsTotal = segs.filter(s => s && !s.surface).length;
-    for (const tipo of ["ADT", "CHD", "INF"]) {
-      const pr = prices[tipo];
-      if (pr && Array.isArray(pr.bagSegs) && pr.bagSegs.length > airSegsTotal) {
-        pr.bagSegs = pr.bagSegs.slice(0, airSegsTotal);
-      }
-    }
+  for (const [tipo, wrapId] of [["ADT", "bagOvADTWrap"], ["CHD", "bagOvCHDWrap"], ["INF", "bagOvINFWrap"]]) {
+    if (result.bagOverrideShow[tipo] === undefined) continue;
+    document.getElementById(wrapId).style.display = result.bagOverrideShow[tipo] ? "" : "none";
   }
-
-  // ── bagagem direcional do Sabre ───────────────────────────────────────────
-  // Quando o PQ declara franquia por componente tarifario ("BAG ALLOWANCE
-  // -GRUJFK-01P/..."), a leitura por linha numerada so acerta o ULTIMO trecho
-  // de cada componente. Aqui a franquia é redistribuída pelos trechos aereos
-  // reais do itinerario. Se a cadeia nao bater com confianca, bagSegs
-  // permanece como a leitura original e o aviso generico de bagagem segue
-  // valendo — nunca adivinha qual trecho fica com qual franquia.
-  if (gds === "SAB") {
-    const airSegsBag = segs.filter(s => s && !s.surface);
-    const masksPorTipo = { ADT: $("maskADT").value, CHD: $("maskCHD").value, INF: $("maskINF").value };
-    for (const tipo of ["ADT", "CHD", "INF"]) {
-      const pr = prices[tipo];
-      if (!pr) continue;
-      const direcionais = parseSabreDirectionalBagAllowances(masksPorTipo[tipo]);
-      const corrigido = assignDirectionalBagToSegments(direcionais, airSegsBag);
-      if (corrigido) {
-        pr.bagSegs = corrigido;
-        const uniq = [...new Set(corrigido.filter(Boolean))];
-        pr.bag = uniq.length === 0 ? null : (uniq.length === 1 ? uniq[0] : "VAR");
-      }
-    }
-  }
-
-  // ── bagagem manual override (inalterado) ─────────────────────────────────
-  function applyBagOverride(typeKey, wrapId, inputId) {
-    const pr = prices[typeKey] || null;
-    const wrap = document.getElementById(wrapId);
-    const inp  = document.getElementById(inputId);
-    if (!wrap || !inp) return;
-    let manual = (inp.value || "").trim();
-    const mu = manual.toUpperCase();
-    if (mu === "NIL" || mu === "0P" || mu === "0PC") manual = "Sem Bag";
-    else manual = mu;
-    if (manual) {
-      wrap.style.display = "";
-      if (pr) { pr.bag = manual; pr.bagSegs = [manual]; }
-      return;
-    }
-    wrap.style.display = (pr && !pr.bag) ? "" : "none";
-  }
-  if (pax.adt > 0) applyBagOverride("ADT", "bagOvADTWrap", "bagOvADT");
-  if (pax.chd > 0) applyBagOverride("CHD", "bagOvCHDWrap", "bagOvCHD");
-  if (pax.inf > 0) applyBagOverride("INF", "bagOvINFWrap", "bagOvINF");
-
-  // ── câmbio IATA (inalterado) ──────────────────────────────────────────────
-  function extractIataFx(txt) {
-    const up = (txt || "").toUpperCase();
-    let mm = up.match(/RATE\s+USED\s+1USD\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*BRL/);
-    if (mm) return parseFloat(mm[1]);
-    mm = up.match(/\bBSR\s*([0-9]+(?:\.[0-9]+)?)\b/);
-    if (mm) return parseFloat(mm[1]);
-    mm = up.match(/\b1USD\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*BRL\b/);
-    if (mm) return parseFloat(mm[1]);
-    return null;
-  }
-  const fxMaskSrc = [$("maskADT").value, $("maskCHD").value, $("maskINF").value].join("\n\n");
-  const fxIata = extractIataFx(fxMaskSrc);
-  if (!fxInput && fxIata != null) setFxRate(fxIata, { source: "GDS" }, false);
-  const fxRate = parseAmountAny($("fldFX").value);
-
-  // ── nomes de passageiros (inalterado) ────────────────────────────────────
-  const paxNames = $("chkNomes").checked ? collectPaxNames() : { ADT: [], CHD: [], INF: [] };
-
-  // ── NOVO: monta QuoteModel ───────────────────────────────────────────────
-  // Agrega os dados já parseados em uma estrutura única e tipada.
-  const commercial = {
-    cabine,
-    cabineSource: fldCabineEl.dataset.source || "",
-    cabineMista: inferCabine.mista,
-    condicao,
-    rcUSD,
-    assentosText,
-    payment,
-    openTicket,
-    loc,
-    penalties: {
-      refund:  multaReembolso,
-      reissue: multaRemarcacao
-    }
-  };
-
-  const iataRate = (fxRate != null)
-    ? {
-        from: 'USD',
-        to: 'BRL',
-        rate: fxRate,
-        source: $("fldFX").dataset.source || (fxInput ? 'MANUAL' : 'GDS'),
-        baseDate: $("fldFX").dataset.baseDate || null,
-        usageDate: $("fldFX").dataset.usageDate || null
-      }
-    : null;
-
-  const quote = createQuoteModel({ gds, year, segs, prices, pax, paxNames, commercial, iataRate });
-
-  // ── FASE 2: Rules Engine ─────────────────────────────────────────────────
-  // applyRules não muta quote; retorna um novo objeto enriquecido.
-  const finalQuote = applyRules(quote);
 
   // Expõe finalQuote no window para debug/próximas fases
   window._lastQuote = finalQuote;
-  // ─────────────────────────────────────────────────────────────────────────
 
-  // ── renderização: passa finalQuote (buildEmail extrai o que precisa) ─────
   const out = buildEmail(finalQuote);
   $("subjectPill").textContent = "Assunto: " + out.subject;
   $("preview").innerHTML    = out.html;
@@ -266,6 +135,11 @@ function build() {
   const engineIssues = engineIssuesFromQuote(finalQuote);
   renderValidation((validationActivated ? validateQuoteInput() : []).concat(engineIssues));
   renderConfidence(finalQuote);
+}
+
+// Orquestrador: ler tela -> calcular (nucleo, sem DOM) -> escrever tela.
+function build() {
+  renderQuote(computeQuote(readQuoteInputs()));
 }
 
 // ─── EVENTOS (inalterados) ────────────────────────────────────────────────────

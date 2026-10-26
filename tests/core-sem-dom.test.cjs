@@ -57,3 +57,26 @@ for (const nome of fixtures) {
     }
   });
 }
+
+test("computeQuote roda sem DOM e gera o mesmo QuoteModel que o app", () => {
+  const [itin, adt] = blocos("amadeus_cny_adt_chd_inf.txt");
+  const inputs = {
+    itin, masks: { ADT: adt, CHD: "", INF: "" }, pax: { adt: 1, chd: 0, inf: 0 },
+    paxNames: { ADT: [], CHD: [], INF: [] }, payment: { methods: [], link: "" }, cabinConfirm: null,
+    cabine: { value: "", source: "" }, condSel: "Incluir a RAV", condOutro: "", rcUSD: "40", openTicket: "", loc: "",
+    multaReembolso: "", multaRemarcacao: "", assentosMode: "", assentosCustom: "",
+    bagOverrides: { ADT: "", CHD: "", INF: "" }, fxInput: "5,1693",
+    fx: { value: "5,1693", source: "BCB", baseDate: "", usageDate: "" },
+  };
+  ctx.__inputs = JSON.parse(JSON.stringify(inputs));
+  const r = nucleo("computeQuote(__inputs)");
+  const doc = app.document;
+  doc.getElementById("qADT").value = "1"; doc.getElementById("qCHD").value = "0"; doc.getElementById("qINF").value = "0";
+  app.refreshPaxUI();
+  doc.getElementById("itin").value = itin; doc.getElementById("maskADT").value = adt; doc.getElementById("fldRC").value = "40";
+  app.setFxRate(5.1693, { source: "BCB" }, false);
+  app.build();
+  const semHora = (q) => JSON.parse(JSON.stringify(q, (k, v) => (k === "parsedAt" ? undefined : v)));
+  assert.deepEqual(semHora(r.finalQuote), semHora(app._lastQuote));
+  assert.equal(r.gds, "AMA");
+});
