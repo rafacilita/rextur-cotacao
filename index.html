@@ -963,27 +963,8 @@
   </form>
 </dialog>
 
-<script>
-const $ = (id) => document.getElementById(id);
-
-// ─── UTILITÁRIOS (inalterados) ────────────────────────────────────────────────
-
-(function initTheme(){
-  const sel = document.getElementById("themeSel");
-  const saved = localStorage.getItem("cotacao_theme_v2");
-  const theme = (saved === "light" || saved === "dark") ? saved : "light";
-  document.body.setAttribute("data-theme", theme);
-  if(sel){
-    sel.value = theme;
-    sel.addEventListener("change", () => {
-      const v = sel.value === "light" ? "light" : "dark";
-      document.body.setAttribute("data-theme", v);
-      localStorage.setItem("cotacao_theme_v2", v);
-      setStatus("Tema: " + (v==="light" ? "Claro" : "Escuro"));
-      setTimeout(()=>{ try{ setStatus("Pronto"); }catch(e){} }, 1500);
-    });
-  }
-})();
+<script>// [10-core-formato] NUCLEO: formatacao, numeros, datas (puro, sem DOM)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
 
 function normalizeSpaces(s){ return String(s||"").replace(/\r/g,"").replace(/[ \t]+/g," ").trim(); }
 function flatten(s){ return normalizeSpaces(String(s||"").replace(/\n+/g," ")); }
@@ -1032,30 +1013,6 @@ function fmtDate(ddMMM, year){
   if(!dd||!mm) return ddMMM;
   return `${String(dd).padStart(2,"0")}/${String(mm).padStart(2,"0")}/${year}`;
 }
-function setStatus(msg, warn=false){
-  const el = $("statusPill");
-  el.textContent = msg;
-  el.classList.toggle("warn", !!warn);
-}
-function clearError(){
-  const det = document.getElementById("errDetails");
-  const pre = document.getElementById("errText");
-  if(pre) pre.textContent = "";
-  if(det){ det.open = false; det.style.display = "none"; }
-}
-function showError(e){
-  const det = document.getElementById("errDetails");
-  const pre = document.getElementById("errText");
-  const msg = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e);
-  if(pre) pre.textContent = msg;
-  if(det){ det.style.display = ""; det.open = true; }
-}
-
-const DRAFT_STORAGE_KEY = "cotacao_inter_draft_v1";
-let draftSaveTimer = null;
-let validationActivated = false;
-let previewDirty = false;
-let cabinConfirmState = null; // { itinText, cabins: [...] } | null
 
 function getSaoPauloUsageDate(now = new Date()){
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -1083,1142 +1040,8 @@ function formatDateBR(date){
     date.getUTCFullYear()
   ].join("/");
 }
-
-// Somente USD e automatizado. O cambio IATA/BSR de EUR e GBP segue a metodologia
-// ROE da IATA, que NAO coincide com o fechamento PTAX do BCB: conferido, bate exato
-// apenas para USD. Para as demais moedas o campo permanece manual de proposito.
-const BCB_FX_SUPPORTED = ["USD"];
-const BCB_FX_TIMEOUT_MS = 6000;
-const BCB_FX_CACHE_KEY = "bcb_fx_cache_v1";
-
-function readBcbFxCache(){
-  try{ return JSON.parse(localStorage.getItem(BCB_FX_CACHE_KEY) || "{}") || {}; }
-  catch(e){ return {}; }
-}
-
-function writeBcbFxCache(cache){
-  try{ localStorage.setItem(BCB_FX_CACHE_KEY, JSON.stringify(cache)); }
-  catch(e){ /* cota de storage cheia nao deve impedir a cotacao */ }
-}
-
-// Assinatura preservada: (usageDate, fetchFn) + options opcional para o AbortSignal.
-// O default de fetchFn e resolvido com guarda porque jsdom nao expoe window.fetch.
-async function fetchBcbUsdRateForUsageDate(
-  usageDate = getSaoPauloUsageDate(),
-  fetchFn = (typeof window !== "undefined" && typeof window.fetch === "function") ? window.fetch.bind(window) : null,
-  options = {}
-){
-  if(typeof fetchFn !== "function"){
-    throw new Error("Este ambiente nao expoe fetch para consultar o BCB.");
-  }
-  const endpoint = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)";
-  for(let daysBack = 1; daysBack <= 10; daysBack++){
-    const baseDate = new Date(usageDate.getTime());
-    baseDate.setUTCDate(baseDate.getUTCDate() - daysBack);
-    const queryDate = formatDateForBcb(baseDate);
-    const url = `${endpoint}?@dataCotacao='${queryDate}'&$format=json`;
-    const response = await fetchFn(url, { headers: { Accept: "application/json" }, signal: options.signal });
-    if(!response.ok) throw new Error(`BCB respondeu com status ${response.status}`);
-    const data = await response.json();
-    // A resposta pode trazer boletins intermediarios (Abertura, Intermediario).
-    // O cambio de referencia e o de Fechamento PTAX; o ultimo item e so fallback.
-    const list = Array.isArray(data.value) ? data.value : [];
-    const quote = list.find(entry => entry && entry.tipoBoletim === "Fechamento PTAX")
-      || list[list.length - 1]
-      || null;
-    const rate = quote ? Number(quote.cotacaoVenda) : NaN;
-    if(Number.isFinite(rate) && rate > 0){
-      return { rate, source: "BCB", baseDate, usageDate };
-    }
-  }
-  throw new Error("Nenhuma cotação de fechamento foi encontrada nos 10 dias anteriores.");
-}
-
-// Consulta com cache diario e tempo limite. Degrada para null em qualquer falha:
-// o operador deve poder digitar o cambio a mao sem ver caixa de erro.
-async function fetchBcbUsdRateCached({ force = false } = {}){
-  if(!BCB_FX_SUPPORTED.includes("USD")) return null;
-
-  const usageDate = getSaoPauloUsageDate();
-  const dayKey = formatDateForBcb(usageDate);
-  const cache = readBcbFxCache();
-  // Cache primeiro: com a cotacao do dia em maos nao ha motivo para tocar a rede.
-  if(!force && cache.USD && cache.USD.dayKey === dayKey) return cache.USD;
-
-  if(typeof window === "undefined" || typeof window.fetch !== "function") return null;
-
-  const controller = (typeof AbortController === "function") ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), BCB_FX_TIMEOUT_MS) : null;
-  try{
-    const quote = await fetchBcbUsdRateForUsageDate(usageDate, undefined, {
-      signal: controller ? controller.signal : undefined
-    });
-    const entry = {
-      rate: quote.rate,
-      source: "BCB",
-      baseDate: formatDateBR(quote.baseDate),
-      usageDate: formatDateBR(quote.usageDate),
-      dayKey
-    };
-    cache.USD = entry;
-    writeBcbFxCache(cache);
-    return entry;
-  }catch(e){
-    console.warn("Consulta de cambio BCB indisponivel.", e);
-    return null;
-  }finally{
-    if(timer) clearTimeout(timer);
-  }
-}
-
-// Guarda de sequencia: resposta atrasada nunca sobrescreve uma consulta mais recente.
-let fxAutofillSeq = 0;
-
-// Preenche o cambio sem atropelar valor digitado a mao nem valor vindo da mascara GDS.
-// force=true (botao) ignora essa protecao e sempre atualiza.
-async function maybeAutofillFx({ force = false } = {}){
-  const input = $("fldFX");
-  if(!input) return null;
-  const canFill = () => force || !input.value.trim() || input.dataset.source === "BCB";
-  if(!canFill()) return null;
-
-  const mySeq = ++fxAutofillSeq;
-  const entry = await fetchBcbUsdRateCached({ force });
-  if(mySeq !== fxAutofillSeq) return null;   // outra consulta comecou depois desta
-  if(!entry || !canFill()) return null;
-
-  setFxRate(entry.rate, { source: "BCB", baseDate: entry.baseDate, usageDate: entry.usageDate }, false);
-  return entry;
-}
-
-function readFxMeta(){
-  const input = $("fldFX");
-  return {
-    source: input.dataset.source || "",
-    baseDate: input.dataset.baseDate || "",
-    usageDate: input.dataset.usageDate || ""
-  };
-}
-
-function renderFxHint(){
-  const input = $("fldFX");
-  const hint = $("fxHint");
-  if(!input || !hint) return;
-  const rate = parseAmountAny(input.value);
-  const meta = readFxMeta();
-
-  if(rate != null && meta.source === "BCB" && meta.baseDate && meta.usageDate){
-    hint.textContent = `Venda BCB de ${rate.toFixed(4).replace(".", ",")}, fechamento de ${meta.baseDate}, aplicado em ${meta.usageDate}. Vale só para o RC. A tarifa em BRL continua a do GDS.`;
-  } else if(rate != null && meta.source === "GDS"){
-    hint.textContent = "Câmbio lido da máscara do GDS. Vale só para o RC. A tarifa em BRL continua a do GDS.";
-  } else if(rate != null){
-    hint.textContent = "Câmbio preenchido à mão. Vale só para o RC. A tarifa em BRL continua a do GDS.";
-  } else {
-    hint.textContent = "Aplicado somente ao RC. A tarifa em BRL é a informada pelo GDS.";
-  }
-}
-
-function setFxRate(rate, meta = {}, trackChange = true){
-  const input = $("fldFX");
-  // Vírgula decimal: o resto da interface (incluindo a dica abaixo deste campo)
-  // já mostra o câmbio dessa forma. Um campo com ponto ao lado de outro com
-  // vírgula para o mesmo número é o tipo de detalhe que denuncia um sistema
-  // remendado em partes.
-  input.value = Number(rate).toFixed(4).replace(".", ",");
-  input.dataset.source = meta.source || "";
-  input.dataset.baseDate = meta.baseDate || "";
-  input.dataset.usageDate = meta.usageDate || "";
-  renderFxHint();
-  if(trackChange){
-    scheduleDraftSave();
-    markPreviewDirty();
-  }
-}
-
-function updateDraftPill(text){
-  const el = $("draftPill");
-  if(el) el.textContent = text;
-}
-
-function collectDraftControls(){
-  const controls = {};
-  document.querySelectorAll("main input[id], main select[id], main textarea[id]").forEach(el => {
-    controls[el.id] = (el.type === "checkbox" || el.type === "radio")
-      ? { checked: !!el.checked }
-      : { value: el.value };
-  });
-  return controls;
-}
-
-function saveDraft(){
-  try{
-    const payload = {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      controls: collectDraftControls(),
-      fxMeta: readFxMeta(),
-      cabineSource: $("fldCabine") ? ($("fldCabine").dataset.source || "") : ""
-    };
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
-    updateDraftPill("Salvo " + new Date(payload.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}));
-  }catch(e){
-    console.warn("Não foi possível salvar o rascunho.", e);
-    updateDraftPill("Falha ao salvar");
-  }
-}
-
-function scheduleDraftSave(){
-  clearTimeout(draftSaveTimer);
-  updateDraftPill("Salvando");
-  draftSaveTimer = setTimeout(saveDraft, 450);
-}
-
-function markPreviewDirty(){
-  const preview = $("preview");
-  if(!preview || !(preview.dataset.html || "").trim()) return;
-  previewDirty = true;
-  setStatus("Prévia desatualizada", true);
-  // A confiabilidade se referia a previa anterior; esconder evita leitura enganosa.
-  renderConfidence(null);
-}
-
-function restoreDraft(){
-  let payload = null;
-  try{
-    payload = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "null");
-  }catch(e){
-    console.warn("Rascunho local inválido.", e);
-  }
-  if(!payload || !payload.controls){
-    updateDraftPill("Não salvo");
-    return false;
-  }
-
-  const entries = Object.entries(payload.controls);
-  entries.filter(([id]) => !id.startsWith("name_")).forEach(([id, state]) => {
-    const el = $(id);
-    if(!el) return;
-    if(el.type === "checkbox" || el.type === "radio") el.checked = !!state.checked;
-    else if(state.value != null) el.value = state.value;
-  });
-
-  refreshOptionalUI();
-  refreshPaxUI();
-
-  entries.filter(([id]) => id.startsWith("name_")).forEach(([id, state]) => {
-    const el = $(id);
-    if(el && state.value != null) el.value = state.value;
-  });
-
-  if(payload.fxMeta && $("fldFX")){
-    $("fldFX").dataset.source = payload.fxMeta.source || "";
-    $("fldFX").dataset.baseDate = payload.fxMeta.baseDate || "";
-    $("fldFX").dataset.usageDate = payload.fxMeta.usageDate || "";
-  } else if($("fldFX").value.trim()){
-    $("fldFX").dataset.source = "MANUAL";
-  }
-  if($("fldCabine")){
-    if(payload.cabineSource) $("fldCabine").dataset.source = payload.cabineSource;
-    else delete $("fldCabine").dataset.source;
-  }
-  if($("maskAll")) $("maskAll").value = "";
-  renderFxHint();
-
-  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
-  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
-    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
-    : "Rascunho restaurado");
-  setStatus("Rascunho restaurado. Gere a prévia.");
-  return true;
-}
-
-function clearValidationMarks(){
-  document.querySelectorAll(".is-invalid,.is-warning").forEach(el => {
-    el.classList.remove("is-invalid", "is-warning");
-    el.removeAttribute("aria-invalid");
-  });
-}
-
-function validateQuoteInput(){
-  const issues = [];
-  const add = (id, message, level="warning") => issues.push({id, message, level});
-  const qADT = +$("qADT").value || 0;
-  const qCHD = +$("qCHD").value || 0;
-  const qINF = +$("qINF").value || 0;
-  const itin = $("itin").value.trim();
-
-  if(qADT + qCHD + qINF <= 0) add("qADT", "Informe pelo menos um passageiro.", "error");
-  if(!itin) add("itin", "Cole o itinerário antes de gerar a prévia.", "error");
-  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato colado não corresponde a Sabre nem a Amadeus.", "error");
-
-  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara do ADT está vazia.");
-  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara do CHD está vazia.");
-  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara do INF está vazia.");
-
-  if($("fldCondicao").value === "Outro" && !$("fldCondOutro").value.trim()){
-    add("fldCondOutro", "Escreva a condição ou escolha outra opção.");
-  }
-  if($("fldAssentosMode").value === "custom" && !$("fldAssentosCustom").value.trim()){
-    add("fldAssentosCustom", "Escreva o texto dos assentos ou escolha outra opção.");
-  }
-
-  const rcRaw = $("fldRC").value.trim();
-  if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
-    add("fldRC", "O RC precisa ser um número válido.", "error");
-  }
-  const fxRaw = $("fldFX").value.trim();
-  if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
-    add("fldFX", "O câmbio precisa ser um número maior que zero.", "error");
-  }
-
-  if($("chkNomes").checked){
-    const names = collectPaxNames();
-    if(names.ADT.length < qADT) add("chkNomes", "Faltam nomes de adultos.");
-    if(names.CHD.length < qCHD) add("chkNomes", "Faltam nomes de crianças.");
-    if(names.INF.length < qINF) add("chkNomes", "Faltam nomes de bebês.");
-  }
-  return issues;
-}
-
-// Renderiza o painel de avisos. Aceita dois tipos de item:
-//   • avisos de campo    — têm `id` e marcam o controle correspondente;
-//   • avisos do motor    — `source:"engine"`, sem `id`, exibidos em bloco próprio.
-// Itens sem `id` nunca marcam controle, por isso a guarda antes do $().
-function renderValidation(issues){
-  clearValidationMarks();
-  const summary = $("validationSummary");
-  if(!summary) return;
-  summary.innerHTML = "";
-  summary.classList.remove("show", "error");
-  const all = Array.isArray(issues) ? issues : [];
-  if(!all.length) return;
-
-  const hasError = all.some(issue => issue.level === "error");
-  summary.classList.add("show");
-  if(hasError) summary.classList.add("error");
-
-  const appendBlock = (titleText, items) => {
-    if(!items.length) return;
-    const title = document.createElement("strong");
-    title.textContent = titleText;
-    const list = document.createElement("ul");
-    items.forEach(issue => {
-      const item = document.createElement("li");
-      item.textContent = issue.message;
-      list.appendChild(item);
-      const control = issue.id ? $(issue.id) : null;
-      if(control){
-        control.classList.add(issue.level === "error" ? "is-invalid" : "is-warning");
-        if(issue.level === "error") control.setAttribute("aria-invalid", "true");
-      }
-    });
-    summary.append(title, list);
-  };
-
-  appendBlock(
-    hasError ? "Revise os campos destacados" : "Confira antes de enviar",
-    all.filter(issue => issue.source !== "engine")
-  );
-  appendBlock(
-    "Avisos do motor de cotação. Confira no GDS antes de enviar.",
-    all.filter(issue => issue.source === "engine")
-  );
-}
-
-// Converte os warnings do motor de regras em itens do painel.
-// São strings simples, sem campo associado, por isso id fica null.
-function engineIssuesFromQuote(quote){
-  const list = (quote && quote.meta && Array.isArray(quote.meta.warnings)) ? quote.meta.warnings : [];
-  return list.map(warning => ({ id: null, message: String(warning), level: "warning", source: "engine" }));
-}
-
-const CONFIDENCE_LABEL = { HIGH: "alta", MEDIUM: "média", LOW: "baixa" };
-
-// Exibe o nível de confiabilidade da leitura automática.
-// Chamar com null esconde a tarja (prévia inexistente ou obsoleta).
-function renderConfidence(quote){
-  const el = $("confidencePill");
-  if(!el) return;
-  const level = (quote && quote.meta) ? quote.meta.confidence : null;
-  if(!level){
-    el.hidden = true;
-    el.className = "confidencePill";
-    el.textContent = "";
-    return;
-  }
-  const count = (quote.meta.warnings || []).length;
-  el.className = "confidencePill show conf-" + String(level).toLowerCase();
-  el.hidden = false;
-  const plural = count === 1 ? "1 aviso" : count + " avisos";
-  el.textContent = level === "HIGH"
-    ? "Confiabilidade da leitura: alta. Nenhum aviso do motor."
-    : `Confiabilidade da leitura: ${CONFIDENCE_LABEL[level] || level}. ${plural} para revisar antes de enviar.`;
-}
-
-function enhanceAccessibility(){
-  document.querySelectorAll(".field").forEach(field => {
-    const label = field.querySelector(":scope > label:not([for])");
-    const control = field.querySelector(":scope > input[id], :scope > select[id], :scope > textarea[id]");
-    if(label && control && label.textContent.trim()) label.htmlFor = control.id;
-  });
-  ["itin","maskAll","maskADT","maskCHD","maskINF"].forEach(id => {
-    const el = $(id);
-    if(el) el.setAttribute("spellcheck", "false");
-  });
-}
-
-// ─── UI (inalterada) ──────────────────────────────────────────────────────────
-
-function refreshOptionalUI(){
-  const c = $("fldCondicao").value;
-  $("fldCondOutroWrap").style.display = (c==="Outro") ? "" : "none";
-  const cc = $("payCartao").checked;
-  $("payLinkWrap").style.display = cc ? "" : "none";
-  $("payParcelWrap").style.display = cc ? "" : "none";
-  const am = $("fldAssentosMode").value;
-  $("fldAssentosCustomWrap").style.display = (am==="custom") ? "" : "none";
-}
-function refreshPaxUI(){
-  const qADT = +$("qADT").value || 0;
-  const qCHD = +$("qCHD").value || 0;
-  const qINF = +$("qINF").value || 0;
-  $("maskCHDWrap").style.display = qCHD>0 ? "" : "none";
-  $("maskINFWrap").style.display = qINF>0 ? "" : "none";
-  const wantNames = $("chkNomes").checked;
-  $("paxCard").style.display = wantNames ? "" : "none";
-  $("paxAdultosWrap").style.display = (wantNames && qADT>0) ? "" : "none";
-  $("paxCriancasWrap").style.display = (wantNames && qCHD>0) ? "" : "none";
-  $("paxInfantsWrap").style.display = (wantNames && qINF>0) ? "" : "none";
-  $("divChdSep").style.display = (wantNames && qCHD>0) ? "" : "none";
-  $("divInfSep").style.display = (wantNames && qINF>0) ? "" : "none";
-  $("paxTotalPill").textContent = (qADT+qCHD+qINF) + " no total";
-  renderPaxInputs("ADT", qADT, "paxAdultosList");
-  renderPaxInputs("CHD", qCHD, "paxCriancasList");
-  renderPaxInputs("INF", qINF, "paxInfantsList");
-}
-
-function renderPaxInputs(type, qty, containerId){
-  const box = $(containerId);
-  if(!box) return;
-  const current = [];
-  box.querySelectorAll("input[data-pax]").forEach(inp => current.push(inp.value));
-  box.innerHTML = "";
-  for(let i=1;i<=qty;i++){
-    const wrap = document.createElement("div");
-    wrap.className = "field";
-    const lab = document.createElement("label");
-    lab.textContent = `Nome ${type}${i}`;
-    const inp = document.createElement("input");
-    inp.setAttribute("data-pax","1");
-    inp.id = `name_${type}_${i}`;
-    lab.htmlFor = inp.id;
-    inp.placeholder = (type==="INF") ? "Ex.: SILVA/JOAO INF" : (type==="CHD" ? "Ex.: SILVA/JOAO MSTR" : "Ex.: SILVA/JOAO MR");
-    inp.value = current[i-1] || "";
-    wrap.appendChild(lab);
-    wrap.appendChild(inp);
-    box.appendChild(wrap);
-  }
-}
-
-// ─── PARSING DE PAX ───────────────────────────────────────────────────────────
-// Extrai passageiros ADT / CHD / INF do texto bruto do itinerário.
-//
-// Padrões suportados:
-//   Amadeus com INF inline:  "1. SILVA/RICARDO(INF/PEDRO)"
-//   Amadeus com INF externo: "1. SILVA/JOAO MR"
-//   Sabre com marcador I/:   "1.I/1SILVA/PEDRO INF"
-//
-// Regras INF (Amadeus):
-//   (INF/NOME)            → surname do ADT + NOME
-//   (INF/SOBRENOME/NOME)  → SOBRENOME + NOME
-//   (INF/NOME/DATA)       → surname do ADT + NOME  (data descartada)
-//   (INF/SOBRENOME/NOME/DATA) → SOBRENOME + NOME   (data descartada)
-//   O nome do ADT é sempre limpo — nada do bloco (INF/...) fica no ADT.
-
-function parsePaxFromItin(raw) {
-  const lines = trimLines(raw);
-  const out   = [];
-  const seen  = new Set();
-
-  function push(type, name) {
-    const clean = String(name || '').replace(/\s+/g, ' ').trim();
-    if (!clean) return;
-    const key = type + '|' + clean.toUpperCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ type, name: clean });
-  }
-
-  // Remove prefixo numérico do sobrenome, marcadores (ADT/CHD/INF) e colapsa espaços
-  function normalizeName(n) {
-    let s = String(n || '').trim().replace(/\s+/g, ' ');
-    s = s.replace(/\s*\((ADT|CHD|INF)\)\s*/ig, ' ').trim();
-    const parts = s.split('/');
-    if (parts.length >= 2) {
-      parts[0] = parts[0].replace(/^\d+/, '').trim();
-      s = parts[0] + '/' + parts.slice(1).join('/').trim();
-    }
-    return s.trim();
-  }
-
-  // Classifica tipo pelo marcador Sabre (I/), por marcador solto entre
-  // parenteses ("(CHD)", sem bloco INF) ou pelo titulo do nome.
-  function classify(infMarker, title, bareType) {
-    if (infMarker) return 'INF';
-    if (bareType) return String(bareType).toUpperCase();
-    const t = (title || '').toUpperCase();
-    if (t === 'MR' || t === 'MRS')    return 'ADT';
-    if (t === 'MISS' || t === 'MSTR') return 'CHD';
-    return 'ADT';
-  }
-
-  // ── extractInfBlock ────────────────────────────────────────────────────────
-  // Interpreta o conteúdo de um bloco (INF...) de forma determinística.
-  //
-  // Dois formatos Amadeus (ambos válidos):
-  //
-  //   Formato A — com barra após INF (padrão moderno):
-  //     INF/NOME             → surname do ADT   + NOME
-  //     INF/SOBRENOME/NOME   → SOBRENOME        + NOME
-  //     INF/NOME/DATA        → surname do ADT   + NOME  (data ignorada)
-  //     INF/SOBRENOME/NOME/DATA → SOBRENOME     + NOME  (data ignorada)
-  //
-  //   Formato B — sobrenome concatenado (manual p.7: INFCOUTO/LIAMISS):
-  //     INFSURNAME/NOME      → SURNAME          + NOME
-  //     INFSURNAME/NOME/DATA → SURNAME          + NOME  (data ignorada)
-  //
-  // Retorna { surname, given } ou null se inválido.
-
-  const IS_DATE = /^\d{2}[A-Z]{3}\d{2}$/i;
-
-  function extractInfBlock(blockContent, adtSurname) {
-    const raw = (blockContent || '').trim();
-    if (!/^INF/i.test(raw)) return null;
-
-    // ── Formato B: INFSURNAME/... (sobrenome concatenado ao INF, sem barra) ──
-    // Detecta quando há letras imediatamente após INF antes da primeira barra.
-    // Ex: "INFLINS/MARIA MISS" → surname=LINS, given=MARIA MISS
-    //     "INFCOUTO/LIAMISS/21APR06" → surname=COUTO, given=LIAMISS
-    const concatMatch = raw.match(/^INF([A-ZÀ-Ü][A-ZÀ-Ü0-9]*)\//i);
-    if (concatMatch) {
-      const surname = concatMatch[1].trim();
-      // Tudo após INF+SURNAME+/ — filtra datas nos tokens restantes
-      const rest  = raw.slice(concatMatch[0].length);
-      const parts = rest.split('/').map(t => t.trim()).filter(t => t && !IS_DATE.test(t));
-      if (parts.length === 0) return null;
-      return { surname, given: parts[0] };
-    }
-
-    // ── Formato A: INF/... (padrão com barra) ─────────────────────────────────
-    const tokens = raw.split('/').map(t => t.trim()).filter(Boolean);
-    // tokens[0] === 'INF' — descarta; filtra datas nos restantes
-    const parts = tokens.slice(1).filter(t => !IS_DATE.test(t));
-
-    if (parts.length === 0) return null;
-    if (parts.length === 1) return { surname: adtSurname, given: parts[0] };
-    return { surname: parts[0], given: parts[1] };
-  }
-
-  // ── CASO 2 (compartilhado) ──────────────────────────────────────────────────
-  // Captura padrões: "1. NOME/DADO TITULO", "1.I/1NOME/DADO" (INF Sabre) e
-  // "2.NOME/DADO(CHD)" (marcador solto entre parenteses, sem bloco INF nem
-  // titulo MISS/MSTR). Usado tanto para linhas sem bloco INF quanto para o
-  // restante de uma linha apos o primeiro bloco (INF...) ja processado no
-  // CASO 1 — uma linha pode trazer o ADT+INF e, na sequencia, outro
-  // passageiro (ex.: um CHD) que o CASO 1 sozinho nao cobria.
-  function scanSimplePassengers(text) {
-    const re = /\b(\d+)\.\s*(I\/\d+)?\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(?:\((ADT|CHD|INF)\))?\s*(MISS|MSTR|MRS|MR)?/gi;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      const infMarker = m[2] || null;
-      const bareType  = m[4] || null;
-      const title     = m[5] || '';
-      const name      = normalizeName(m[3] + (title ? ' ' + title : ''));
-      const type      = classify(infMarker, title, bareType);
-      push(type, name);
-    }
-  }
-
-  // ── Loop principal ─────────────────────────────────────────────────────────
-
-  for (const line of lines) {
-    const L = line.trim();
-
-    // ── CASO 1: linha com bloco (INF...) — padrão Amadeus ───────────────────
-    // Detecta (INF/...) e (INFSURNAME/...) — ambos os formatos do manual.
-    // Condição: linha contém '(INF' (com parêntese, evita falso positivo de IATA).
-    if (/\(INF/i.test(L)) {
-
-      // Tudo antes do primeiro '(' é o candidato ao nome do ADT
-      const beforeParen = L.split('(')[0].trim();
-
-      // Posicao do PRIMEIRO bloco (INF...): usada depois para isolar o
-      // restante da linha, que pode trazer outros passageiros.
-      const reBlock = /\(([^)]*)\)/g;
-      let firstInfBlockEnd = -1;
-      let bm;
-      while ((bm = reBlock.exec(L)) !== null) {
-        if (/^INF/i.test(bm[1].trim())) { firstInfBlockEnd = reBlock.lastIndex; break; }
-      }
-
-      // Identifica o nome do ADT na parte anterior ao parêntese
-      // Títulos em ordem longa-primeiro para evitar MR engolir MRS
-      const adtMatch = beforeParen.match(
-        /\b\d+\.\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(MISS|MSTR|MRS|MR)?\s*$/i
-      );
-
-      if (adtMatch && firstInfBlockEnd >= 0) {
-        // ADT: nome limpo, sem qualquer rastro do bloco INF
-        const adtName  = normalizeName(adtMatch[1] + (adtMatch[2] ? ' ' + adtMatch[2] : ''));
-        const adtTitle = (adtMatch[2] || '').toUpperCase();
-        const adtType  = (adtTitle === 'MISS' || adtTitle === 'MSTR') ? 'CHD' : 'ADT';
-        push(adtType, adtName);
-
-        // Sobrenome limpo para herdar ao INF quando não informado no bloco
-        const adtSurname = adtName.split('/')[0]
-          .replace(/\s+(MISS|MSTR|MRS|MR)$/i, '').trim();
-
-        const infBlockMatch = L.slice(0, firstInfBlockEnd).match(/\(([^)]*)\)\s*$/);
-        const inf = infBlockMatch ? extractInfBlock(infBlockMatch[1], adtSurname) : null;
-        if (inf && inf.surname && inf.given) {
-          push('INF', normalizeName(`${inf.surname}/${inf.given}`));
-        }
-
-        // Resto da linha, depois do bloco INF ja processado: pode trazer
-        // outro passageiro (ex.: "2.SILVA/MARIA(CHD)"), que o CASO 1 por si
-        // so nao cobre porque so olha o texto ANTES do primeiro parêntese.
-        scanSimplePassengers(L.slice(firstInfBlockEnd));
-
-        continue; // linha totalmente processada
-      }
-    }
-
-    scanSimplePassengers(L);
-  }
-
-  return out;
-}
-
-function applyAutoPax(paxList){
-  const adt = paxList.filter(p=>p.type==="ADT").map(p=>p.name);
-  const chd = paxList.filter(p=>p.type==="CHD").map(p=>p.name);
-  const inf = paxList.filter(p=>p.type==="INF").map(p=>p.name);
-  $("qADT").value = String(adt.length || 0);
-  $("qCHD").value = String(chd.length || 0);
-  $("qINF").value = String(inf.length || 0);
-  $("chkNomes").checked = true;
-  refreshPaxUI();
-  for(let i=0;i<adt.length;i++){ const el = document.getElementById(`name_ADT_${i+1}`); if(el) el.value = adt[i]; }
-  for(let i=0;i<chd.length;i++){ const el = document.getElementById(`name_CHD_${i+1}`); if(el) el.value = chd[i]; }
-  for(let i=0;i<inf.length;i++){ const el = document.getElementById(`name_INF_${i+1}`); if(el) el.value = inf[i]; }
-  $("autoPaxSuggest").style.display = "none";
-  setStatus("Passageiros preenchidos pelo itinerário");
-  scheduleDraftSave();
-}
-
-function collectPaxNames(){
-  const out = { ADT: [], CHD: [], INF: [] };
-  const qADT = +$("qADT").value || 0;
-  const qCHD = +$("qCHD").value || 0;
-  const qINF = +$("qINF").value || 0;
-  function grab(type, qty){
-    for(let i=1;i<=qty;i++){
-      const el = document.getElementById(`name_${type}_${i}`);
-      const v = (el && el.value) ? el.value.trim() : "";
-      if(v) out[type].push(v);
-    }
-  }
-  grab("ADT", qADT); grab("CHD", qCHD); grab("INF", qINF);
-  return out;
-}
-
-function detectPaxCountsFromPricing(raw){
-  const counts = { ADT: 0, CHD: 0, INF: 0 };
-  const lines = String(raw || "").split(/\r?\n/);
-  const commandLine = lines.find(line => {
-    const up = line.toUpperCase();
-    return !/\bBRL\b/.test(up)
-      && /(?:^|\/|P)\s*\d+\s*(?:ADT|CNN|CHD|INF)(?:\b|\/)/.test(up);
-  });
-  if(!commandLine) return null;
-
-  for(const match of commandLine.matchAll(/(\d+)\s*(ADT|CNN|CHD|INF)\b/gi)){
-    const type = /CNN|CHD/i.test(match[2]) ? "CHD" : match[2].toUpperCase();
-    counts[type] = parseInt(match[1], 10) || 0;
-  }
-  return counts.ADT + counts.CHD + counts.INF > 0 ? counts : null;
-}
-
-function classifySabrePricingBlock(block){
-  const up = String(block || "").toUpperCase();
-  if(/\b(?:INF-\d+|PINF)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*INF\b/.test(up)) return "INF";
-  if(/\b(?:CNN-\d+|CHD-\d+|PCNN|PCHD)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*(?:CNN|CHD)\b/.test(up)) return "CHD";
-  if(/\b(?:ADT-\d+|PADT)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*ADT\b/.test(up)) return "ADT";
-  return null;
-}
-
-function splitSabrePricingMasks(raw){
-  const text = String(raw || "").replace(/\r/g, "");
-  const lines = text.split("\n");
-  const starts = [];
-  lines.forEach((line, index) => {
-    if(/^\s*PQ\s+\d+\s+\S+/i.test(line.replace(/[¥¤]/g, " "))) starts.push(index);
-  });
-
-  // Depois do ultimo PQ, o retorno pode trazer uma secao "WP«"/"WP*BAG«" com
-  // franquia por passageiro numerado (ex.: ADT-02), estrutura diferente da do
-  // PQ e que ainda nao sabemos atribuir ao tipo certo com confianca. Sem este
-  // limite, essa secao vazava para dentro do ULTIMO PQ do retorno (em geral o
-  // INF, por ser o ultimo bloco), misturando franquia de um passageiro com a
-  // leitura de outro.
-  const limiteWpIdx = lines.findIndex(line => /^\s*WP\s*«?\s*$|^\s*WP\*BAG\b/i.test(line));
-  const limite = limiteWpIdx >= 0 ? limiteWpIdx : lines.length;
-
-  const masks = { ADT: "", CHD: "", INF: "" };
-  for(let i = 0; i < starts.length; i++){
-    const start = starts[i];
-    const end = i + 1 < starts.length ? starts[i + 1] : limite;
-    const block = lines.slice(start, end).join("\n").trim();
-    const type = classifySabrePricingBlock(block);
-    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
-  }
-
-  // WP consolidado: usa a linha tarifária identificada quando não há PQ separado.
-  for(const line of lines){
-    const type = classifySabrePricingBlock(line);
-    if(type && !masks[type] && /\b[A-Z]{3}\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/i.test(line)){
-      masks[type] = line.trim();
-    }
-  }
-
-  const pricingStart = lines.findIndex(line => /^\s*(?:WPP|WPNC|WP\/|PQ[«\s])/i.test(line));
-  const itinerary = pricingStart > 0 ? lines.slice(0, pricingStart).join("\n").trim() : "";
-  return {
-    masks,
-    counts: detectPaxCountsFromPricing(text),
-    itinerary
-  };
-}
-
-function classifyAmadeusPricingBlock(block){
-  const up = String(block || "").toUpperCase();
-  const summaryLine = up.split(/\r?\n/).find(line => /^\s*\d{2}\s+\S+/.test(line)) || "";
-  const header = summaryLine.match(/\*\s*(?:\*\s*)?(CH|IN)\s*\*/);
-  if(header) return header[1] === "IN" ? "INF" : "CHD";
-  if(/\/IN\d*\b/.test(up) || /\bIN\d*\+?\*\s*\*\s*IN\b/.test(up)) return "INF";
-  if(/\/CH\d*\b/.test(up) || /\bCH\d*\+?\*\s*\*\s*CH\b/.test(up)) return "CHD";
-  return /\bLAST TKT DTE\b/.test(up) && /\b[A-Z]{3}\s+[0-9]/.test(up) ? "ADT" : null;
-}
-
-function splitAmadeusPricingMasks(raw){
-  const text = String(raw || "").replace(/\r/g, "");
-  const lines = text.split("\n");
-  const starts = [];
-
-  lines.forEach((line, index) => {
-    const command = line.trim().match(/^FQQ(\d+)\s*$/i);
-    if(!command) return;
-    let next = index + 1;
-    while(next < lines.length && !lines[next].trim()) next++;
-    if(new RegExp(`^\\s*${command[1]}\\s+`).test(lines[next] || "")) starts.push(index);
-  });
-
-  const masks = { ADT: "", CHD: "", INF: "" };
-  for(let i = 0; i < starts.length; i++){
-    const start = starts[i];
-    const end = i + 1 < starts.length ? starts[i + 1] : lines.length;
-    const block = lines.slice(start, end).join("\n").trim();
-    const type = classifyAmadeusPricingBlock(block);
-    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
-  }
-
-  const foundTypes = ["ADT", "CHD", "INF"].filter(type => masks[type]);
-  const explicitCounts = detectPaxCountsFromPricing(text);
-  const counts = explicitCounts || {
-    ADT: masks.ADT ? 1 : 0,
-    CHD: masks.CHD ? 1 : 0,
-    INF: masks.INF ? 1 : 0
-  };
-  const itinerary = starts.length ? lines.slice(0, starts[0]).join("\n").trim() : "";
-  return { masks, counts: foundTypes.length ? counts : null, itinerary };
-}
-
-function splitCombinedPricingMasks(raw){
-  const text = String(raw || "");
-  if(/^\s*FQQ\d+\s*$/im.test(text)) return splitAmadeusPricingMasks(text);
-  return splitSabrePricingMasks(text);
-}
-
-function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
-  const raw = $("maskAll").value.trim();
-  if(!raw) return { masks: { ADT: "", CHD: "", INF: "" }, counts: null, itinerary: "" };
-
-  const result = splitCombinedPricingMasks(raw);
-  const found = [];
-  for(const type of ["ADT", "CHD", "INF"]){
-    const field = $(`mask${type}`);
-    if(result.masks[type] && (overwrite || !field.value.trim())){
-      field.value = result.masks[type];
-    }
-    if(result.masks[type]) found.push(type);
-  }
-
-  if(result.counts){
-    $("qADT").value = String(result.counts.ADT);
-    $("qCHD").value = String(result.counts.CHD);
-    $("qINF").value = String(result.counts.INF);
-  }
-  if(result.itinerary && !$("itin").value.trim()) $("itin").value = result.itinerary;
-  refreshPaxUI();
-
-  const expected = result.counts
-    ? ["ADT", "CHD", "INF"].filter(type => result.counts[type] > 0)
-    : found;
-  const missing = expected.filter(type => !result.masks[type]);
-  const status = $("maskSplitStatus");
-  if(status){
-    status.textContent = found.length
-      ? `Identificados: ${found.join(", ")}${missing.length ? `. Faltando: ${missing.join(", ")}` : ""}`
-      : "Nenhuma máscara por passageiro foi identificada";
-    status.classList.toggle("warn", !found.length || missing.length > 0);
-  }
-  if(found.length) $("maskReview").open = missing.length > 0;
-
-  if(announce){
-    setStatus(found.length ? "Máscaras distribuídas para revisão" : "Não foi possível separar as máscaras", !found.length);
-    scheduleDraftSave();
-    markPreviewDirty();
-  }
-  return result;
-}
-
-$("fldCondicao").addEventListener("change", refreshOptionalUI);
-["payFaturado","payCartao","payDeposito"].forEach(id => $(id).addEventListener("change", refreshOptionalUI));
-$("fldAssentosMode").addEventListener("change", refreshOptionalUI);
-["qADT","qCHD","qINF","chkNomes"].forEach(id => $(id).addEventListener("input", refreshPaxUI));
-$("fldLOC").addEventListener("input", (e)=>{ e.target.value = e.target.value.toUpperCase(); });
-refreshOptionalUI();
-refreshPaxUI();
-
-// ─── GDS DETECT (inalterado) ──────────────────────────────────────────────────
-
-function detectGDSFromItin(itinRaw){
-  const lines = trimLines(itinRaw);
-  for(const l of lines){
-    if(/^\d+\s+[A-Z0-9]{2}\d{2,4}\s+[A-Z]\s+\d{2}[A-Z]{3}\b/.test(l)) return "AMA";
-    if(/^\d+\s+[A-Z0-9]{2}\s+\d{1,4}\s+[A-Z]\s+\d{2}[A-Z]{3}\b/.test(l)) return "AMA";
-  }
-  for(const l of lines){
-    if(/^\d+\s+[A-Z0-9]{2}\d{1,4}[A-Z]?\s+\d{2}[A-Z]{3}\b/.test(l)) return "SAB";
-    if(/^\d+\s+[A-Z0-9]{2}\s+\d{1,4}[A-Z]?\s+\d{2}[A-Z]{3}\b/.test(l)) return "SAB";
-  }
-  const f = flatten(itinRaw).toUpperCase();
-  if(/\bDK\d\b/.test(f) || /\bFXP\b/.test(f)) return "AMA";
-  if(/\bSS\d\b/.test(f) || /\bHK\d\b/.test(f) || /\bWP\b/.test(f)) return "SAB";
-  return "—";
-}
-
-// ─── PARSERS DE ITINERÁRIO ────────────────────────────────────────────────────
-// Melhorias baseadas no Manual Amadeus PNR (Junho 2007):
-//   p.11-12  — campos do segmento (status, horários, equipamento)
-//   p.23-24  — tabela de códigos de ação, estado e aviso
-//   p.9      — segmento ARNK (chegada desconhecida / trecho terrestre)
-//   p.12     — "1525+1 Horário estimado de chegada no dia seguinte"
-
-function parseItinerary(itinRaw, gds, year){
-  const lines = trimLines(itinRaw);
-  const segs  = [];
-
-  function normalizeSegmentYears(items){
-    let currentYear = year;
-    let previousMonth = null;
-    const parseFmt = (value) => {
-      const m = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      return m ? { day:+m[1], month:+m[2], year:+m[3] } : null;
-    };
-    const format = ({day,month,year: y}) =>
-      `${String(day).padStart(2,"0")}/${String(month).padStart(2,"0")}/${y}`;
-
-    for(const segment of items){
-      if(segment.surface) continue;
-      const dep = parseFmt(segment.depDateFmt);
-      const arr = parseFmt(segment.arrDateFmt);
-      if(!dep) continue;
-
-      if(previousMonth != null && previousMonth >= 10 && dep.month <= 3){
-        currentYear++;
-      }
-      dep.year = currentYear;
-      segment.depDateFmt = format(dep);
-
-      if(arr){
-        arr.year = currentYear + (dep.month === 12 && arr.month === 1 ? 1 : 0);
-        segment.arrDateFmt = format(arr);
-      }
-      previousMonth = dep.month;
-    }
-    return items;
-  }
-
-  // ── STATUS_CLASS ────────────────────────────────────────────────────────────
-  // Classifica o código de estado IATA em categoria semântica.
-  // Fonte: Manual Amadeus p.23-24 (tabela de códigos)
-  function statusClass(code) {
-    const c = (code || '').toUpperCase();
-    if (c === 'FLWN') return 'flown';
-    if (['HX','XK'].includes(c))                                    return 'cancelled';
-    if (['HL','UU','KL','GL','PL','LL','PC','PD','PE'].includes(c)) return 'waitlisted';
-    if (['HN','PN','TK','TL','TN'].includes(c))                     return 'pending';
-    if (['UN','NO','UC','US'].includes(c))                           return 'problem';
-    if (['HK','LK','NK','KK','RR','DK','PK','GK','SS'].includes(c)) return 'confirmed';
-    return 'unknown';
-  }
-
-  // ── parseTimeToken ──────────────────────────────────────────────────────────
-  // Manual p.12: "1525+1 Horário estimado de chegada (no dia seguinte, +1)"
-  // Retorna { time, dayOffset } — dayOffset é 0 na maioria dos casos.
-  function parseTimeToken(tok) {
-    const m = String(tok || '').match(/^(\d{3,4})(?:\+(\d))?/);
-    if (!m) return { time: tok || '', dayOffset: 0 };
-    return { time: m[1], dayOffset: m[2] ? parseInt(m[2]) : 0 };
-  }
-
-  // ── parseAmadeusLine ────────────────────────────────────────────────────────
-  function parseAmadeusLine(l) {
-    const t = l.split(/\s+/).filter(Boolean);
-    if (t.length < 8) return null;
-    if (!/^\d+$/.test(t[0])) return null;
-
-    let idx = 1, airline = '', flight = '';
-    if (/^[A-Z0-9]{2}\d{1,4}$/.test(t[idx])) {
-      airline = t[idx].slice(0, 2); flight = t[idx].slice(2); idx++;
-    } else if (/^[A-Z0-9]{2}$/.test(t[idx]) && /^\d{1,4}$/.test(t[idx+1]||'')) {
-      airline = t[idx]; flight = t[idx+1]; idx += 2;
-    } else return null;
-
-    const rbd     = t[idx]||''; idx++;
-    const depDate = t[idx]||''; idx++;
-
-    // City pair: DOW embutido ou separado
-    let tok = t[idx]||'', cityPair = '';
-    if (/^\d\*?[A-Z]{6}$/i.test(tok)) { cityPair = tok.replace(/^\d\*?/,'').toUpperCase(); idx++; }
-    else { idx++; cityPair = (t[idx]||'').toUpperCase(); idx++; }
-    if (cityPair.length !== 6) return null;
-    const org = cityPair.slice(0,3), dst = cityPair.slice(3,6);
-
-    // ── Status code: HK1, DK2, HL1, FLWN, etc. ─────────────────────────────
-    // Manual p.23-24: códigos de ação e estado
-    const statusRaw = t[idx]||''; idx++;
-    const isFlown   = /^FLWN$/i.test(statusRaw);
-    const sm        = statusRaw.match(/^([A-Z]{2,4})(\d*)$/i);
-    const scode     = isFlown ? 'FLWN' : (sm ? sm[1].toUpperCase() : '');
-    const paxCount  = (sm && sm[2]) ? parseInt(sm[2]) : null;
-    const sclass    = isFlown ? 'flown' : statusClass(scode);
-
-    // Departure time
-    const depTime = t[idx]||''; idx++;
-
-    // ── Arrival time com possível offset de dia ──────────────────────────────
-    const { time: arrTimeClean, dayOffset: arrDayOffset } = parseTimeToken(t[idx]||'');
-    idx++;
-
-    // Arrival date (se explicitamente exibida)
-    const arrDate = (t[idx] && /^\d{2}[A-Z]{3}/i.test(t[idx])) ? t[idx] : depDate;
-
-    // ── Equipamento da aeronave ─────────────────────────────────────────────
-    // Manual p.12: "744 Equipamento do vôo".
-    // O codigo tem tres caracteres e NAO e so numerico: 32N, 77W, CR9 e E90 sao
-    // todos validos. A versao anterior exigia digitos puros e por isso perdia
-      // 12 dos 29 codigos da tabela, incluindo toda a familia neo e os Embraer.
-    let equipment = null;
-    for (let k = idx; k < Math.min(idx+6, t.length); k++) {
-      if (pareceEquipamento(t[k])) { equipment = String(t[k]).toUpperCase(); break; }
-    }
-
-    return {
-      org, dst, airline, flight, rbd,
-      depDateFmt:  fmtDate(depDate, year),
-      arrDateFmt:  fmtDate(arrDate, year),
-      depTimeFmt:  fmtTime(depTime),
-      arrTimeFmt:  fmtTime(arrTimeClean),
-      arrDayOffset,
-      statusCode: scode, statusClass: sclass, paxCount, equipment,
-      opCarrier: null, opFlight: null, opName: null
-    };
-  }
-
-  // ── parseSabreLine ──────────────────────────────────────────────────────────
-  function parseSabreLine(l) {
-    const t = l.split(/\s+/).filter(Boolean);
-    if (t.length < 6) return null;
-    if (!/^\d+$/.test(t[0])) return null;
-
-    let airline='', flightClass='', date='', cityTok='', dep='', arr='', arrDate='', statusTok='';
-    let idxAfterCity = 0;
-
-    if (/^[A-Z0-9]{2}$/.test(t[1])) {
-      airline=t[1]; flightClass=t[2]||''; date=t[3]||'';
-      const cityIndex = [4,5].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
-      if(cityIndex == null) return null;
-      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
-    } else if (/^[A-Z0-9]{2}\d{1,4}[A-Z]?$/.test(t[1])) {
-      airline=t[1].slice(0,2); flightClass=t[1].slice(2); date=t[2]||'';
-      const cityIndex = [3,4].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
-      if(cityIndex == null) return null;
-      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
-    } else return null;
-
-    const mfc    = String(flightClass).match(/^(\d{1,4})([A-Z])?$/);
-    const flight = mfc ? mfc[1] : flightClass;
-    const rbd    = mfc && mfc[2] ? mfc[2] : '';
-
-    let cityPair = '';
-    const mEmbed = cityTok.match(/^([A-Z]{6})\*?([A-Z]{2}\d+)$/i);
-    if (mEmbed) {
-      cityPair=mEmbed[1].toUpperCase(); dep=t[idxAfterCity]||''; arr=t[idxAfterCity+1]||'';
-      const mAD=t[idxAfterCity+2]||'';
-      arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
-    } else if (/^[A-Z]{6}$/i.test(cityTok)) {
-      cityPair=cityTok.toUpperCase();
-      const maybeStatus=t[idxAfterCity]||'';
-      const isStatus=/^[A-Z]{2}\d+$/.test(maybeStatus);
-      if (isStatus) {
-        statusTok=maybeStatus;
-        dep=t[idxAfterCity+1]||''; arr=t[idxAfterCity+2]||'';
-        const mAD=t[idxAfterCity+3]||'';
-        arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
-      } else {
-        dep=maybeStatus; arr=t[idxAfterCity+1]||'';
-        const mAD=t[idxAfterCity+2]||'';
-        arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
-      }
-    } else {
-      const mcity=cityTok.match(/([A-Z]{6})/i);
-      if (mcity) cityPair=mcity[1].toUpperCase(); else return null;
-      dep=t[idxAfterCity]||''; arr=t[idxAfterCity+1]||''; arrDate=date;
-    }
-
-    if (cityPair.length !== 6) return null;
-    const org=cityPair.slice(0,3), dst=cityPair.slice(3,6);
-
-    // Status embutido no city tok (ex: GRUJFKHK1) ou token separado
-    const smatch     = String(cityTok + " " + statusTok).match(/([A-Z]{2})(\d+)\s*$/i);
-    const scode      = smatch ? smatch[1].toUpperCase() : '';
-    const sclass     = statusClass(scode);
-    const { time: arrTimeClean, dayOffset: arrDayOffset } = parseTimeToken(arr);
-
-    return {
-      org, dst, airline, flight, rbd,
-      depDateFmt:  fmtDate(date, year),
-      arrDateFmt:  fmtDate(arrDate, year),
-      depTimeFmt:  fmtTime(dep),
-      arrTimeFmt:  fmtTime(arrTimeClean),
-      arrDayOffset,
-      statusCode: scode, statusClass: sclass, paxCount: null, equipment: null,
-      opCarrier: null, opFlight: null, opName: null
-    };
-  }
-
-  function parseSabreVisualPair(line, detailLine){
-    const main = String(line || "").match(
-      /^\s*\d+\s+([A-Z0-9]{2})\s+(\d{1,4})\s+([A-Z]{3})\s*-\s*.+?-->\s*([A-Z]{3})\s*-\s*.+?\s+([A-Z])\s+([A-Z]{2})(\d+)\s*$/i
-    );
-    if(!main) return null;
-    const detail = String(detailLine || "").match(
-      /\b(\d{2}[A-Z]{3}),?\s*(\d{1,2}:\d{2})\s+(\d{2}[A-Z]{3}),?\s*(\d{1,2}:\d{2})\b/i
-    );
-    if(!detail) return null;
-
-    const depDate = detail[1].toUpperCase();
-    const arrDate = detail[3].toUpperCase();
-    const scode = main[6].toUpperCase();
-    return {
-      org: main[3].toUpperCase(),
-      dst: main[4].toUpperCase(),
-      airline: main[1].toUpperCase(),
-      flight: main[2],
-      rbd: main[5].toUpperCase(),
-      depDateFmt: fmtDate(depDate, year),
-      arrDateFmt: fmtDate(arrDate, year),
-      depTimeFmt: detail[2].padStart(5, "0"),
-      arrTimeFmt: detail[4].padStart(5, "0"),
-      arrDayOffset: 0,
-      statusCode: scode,
-      statusClass: statusClass(scode),
-      paxCount: parseInt(main[7], 10) || null,
-      equipment: null,
-      opCarrier: null,
-      opFlight: null,
-      opName: null
-    };
-  }
-
-  if (gds === 'AMA') {
-    for (let i = 0; i < lines.length; i++) {
-      const L = lines[i];
-
-      // ── ARNK: segmento de superfície (trecho terrestre) ──────────────────
-      // Manual p.9: "SI ARNK — chegada desconhecida (surface segment)"
-      if (/\bARNK\b/i.test(L) && /^\s*\d+/.test(L)) {
-        segs.push({
-          surface: true, org: null, dst: null,
-          airline: '', flight: '', rbd: '',
-          depDateFmt: '', arrDateFmt: '',
-          depTimeFmt: '', arrTimeFmt: '',
-          arrDayOffset: 0,
-          statusCode: 'ARNK', statusClass: 'surface',
-          paxCount: null, equipment: null,
-          opCarrier: null, opFlight: null, opName: null
-        });
-        continue;
-      }
-
-      const seg = parseAmadeusLine(L);
-      if (!seg) continue;
-
-      for (let j = i+1; j < lines.length; j++) {
-        const nxt = lines[j];
-        if (parseAmadeusLine(nxt)) break;
-        const cs = nxt.match(/\bOPERATED BY\s+(.+?)\s+AS\s+([A-Z0-9]{2})\s+FLT\s+(\d{1,4})/i);
-        if (cs) { seg.opName=cs[1].trim(); seg.opCarrier=cs[2].toUpperCase(); seg.opFlight=cs[3]; continue; }
-        const cs050 = nxt.match(/^\s*050\s+([A-Z0-9]{2})\s+(\d{1,4})\b/i);
-        if (cs050) { seg.opCarrier=seg.opCarrier||cs050[1].toUpperCase(); seg.opFlight=seg.opFlight||cs050[2]; continue; }
-        const op127 = nxt.match(/^\s*127\s+(.+?)\s+FOR\b/i);
-        if (op127) { const opn=op127[1].trim(); if(opn&&!/SUBSIDIARY\/FRANCHISE/i.test(opn)) seg.opName=seg.opName||opn; continue; }
-        const op1 = nxt.match(/^\s*OPERATED BY\s+(.+)$/i);
-        if (op1) { const v=op1[1].trim(); if(!/SUBSIDIARY\/FRANCHISE/i.test(v)&&!/SEE RTSVC/i.test(v)) seg.opName=seg.opName||v; continue; }
-        if (!seg.opName) {
-          if (/LATAM AIRLINES GROUP/i.test(nxt)) seg.opName='LATAM AIRLINES GROUP';
-          if (/LATAM AIRLINES BRASIL/i.test(nxt)) seg.opName='LATAM AIRLINES BRASIL';
-          if (/\bIBERIA\b/i.test(nxt)) seg.opName='IBERIA';
-        }
-      }
-      segs.push(seg);
-    }
-    return normalizeSegmentYears(segs);
-  }
-
-  if (gds === 'SAB') {
-    for (let i = 0; i < lines.length; i++) {
-      let seg = parseSabreVisualPair(lines[i], lines[i + 1]);
-      if(seg) i++;
-      else seg = parseSabreLine(lines[i]);
-      if (!seg) continue;
-      for (let j = i+1; j < lines.length; j++) {
-        const nxt = lines[j];
-        if (parseSabreLine(nxt)) break;
-        const op1 = nxt.match(/^OPERATED BY\s*\/?\s*(.+)$/i);
-        if (op1) seg.opName = op1[1].trim();
-        const op2 = nxt.match(/\bAS\s+([A-Z0-9]{2})\s+FLT\s+(\d{1,4})/i);
-        if (op2) { seg.opCarrier=op2[1].toUpperCase(); seg.opFlight=op2[2]; }
-      }
-      segs.push(seg);
-    }
-    return normalizeSegmentYears(segs);
-  }
-
-  return segs;
-}
+// [20-core-dados] NUCLEO: tabelas de dados usadas pelo nucleo (equipamentos, IATA, cabines, regras)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
 
 // ─── EQUIPAMENTO DA AERONAVE ──────────────────────────────────────────────────
 // Codigo IATA de tres caracteres para nome legivel. Serve para a agencia saber
@@ -2272,27 +1095,6 @@ const ESTADOS_DE_SEGMENTO = new Set([
   "PN","TK","TL","TN","UN","NO","UC","US","LK","NK","KK","RR","DK","PK","GK","SS"
 ]);
 
-// Decide se um token e codigo de equipamento.
-// Padroes com digito sao inequivocos nessa posicao da linha. Codigo so com
-// letras e aceito apenas se conhecido, senao confundiria com codigo de
-// refeicao, de servico e outros tokens de tres letras.
-function pareceEquipamento(token){
-  const t = String(token || "").toUpperCase();
-  if(!/^[0-9A-Z]{3}$/.test(t)) return false;
-  if(/^\d{3}$/.test(t)) return true;                 // 319, 737, 359
-  if(/^\d{2}[A-Z]$/.test(t)) return true;            // 32N, 73M, 77W, 32B
-  if(/^[A-Z]\d{2}$/.test(t)) return true;            // E90, E95, E29
-  if(/^[A-Z]{2}\d$/.test(t)) return !ESTADOS_DE_SEGMENTO.has(t.slice(0, 2)); // CR9 sim, HK1 nao
-  if(/^\d[A-Z]\d$/.test(t)) return true;             // 7M8, 7M9 (variante do 737 MAX)
-  return Object.prototype.hasOwnProperty.call(EQUIPAMENTO, t);
-}
-
-// Nome legivel do equipamento, ou null quando o codigo nao esta na tabela.
-function equipmentName(code){
-  const t = String(code || "").toUpperCase().trim();
-  return EQUIPAMENTO[t] || null;
-}
-
 // ─── CABINE PELA CLASSE DE RESERVA (RBD) ──────────────────────────────────────
 // Convencao IATA ampla, nao especifica de companhia. Deliberadamente
 // conservadora: letras ambiguas entre companhias (W, E, O, R, X e qualquer
@@ -2305,82 +1107,6 @@ const CABINE_POR_RBD = {
   K:"Econômica", L:"Econômica", V:"Econômica", S:"Econômica", N:"Econômica",
   G:"Econômica", T:"Econômica", U:"Econômica"
 };
-function cabinePorRBD(rbd){
-  const t = String(rbd || "").toUpperCase().trim();
-  return CABINE_POR_RBD[t] || null;
-}
-
-// Olha so os trechos aereos (ignora ARNK/superficie e RBD vazio ou fora da
-// tabela). Se todos os trechos com RBD confiavel concordam, devolve a
-// cabine. Se ha RBDs confiaveis discordando entre si (ida e volta em cabines
-// diferentes), devolve mista:true e cabine:null -- o campo so aceita um
-// valor, nao da pra escolher por ele.
-function inferirCabineItinerario(segments){
-  const cabines = new Set();
-  (segments || []).forEach(s => {
-    if (!s || s.surface) return;
-    const c = cabinePorRBD(s.rbd);
-    if (c) cabines.add(c);
-  });
-  if (cabines.size === 0) return { cabine: null, mista: false };
-  if (cabines.size > 1) return { cabine: null, mista: true };
-  return { cabine: Array.from(cabines)[0], mista: false };
-}
-
-// Mesma logica de inferirCabineItinerario, mas usando a cabine CONFIRMADA no
-// popup (s.cabinConfirmed) quando houver, em vez de so a RBD crua -- usado no
-// e-mail para decidir se mostra a coluna "Classe" por trecho (so quando os
-// trechos realmente divergem) e se mostra o campo unico "Cabine" em
-// CONDICOES (so quando NAO divergem, senao um unico valor seria enganoso).
-function effectiveCabinMista(segments){
-  const cabines = new Set();
-  (segments || []).forEach(s => {
-    if (!s || s.surface) return;
-    const c = s.cabinConfirmed || cabinePorRBD(s.rbd);
-    if (c) cabines.add(c);
-  });
-  return cabines.size > 1;
-}
-
-// Popup bloqueante: um <select> por trecho aereo, pre-preenchido com o
-// palpite de cabinePorRBD. Resolve com o array de cabines escolhidas (uma
-// por trecho, na mesma ordem de airSegs) ao confirmar, ou null ao cancelar.
-function openCabinModal(airSegs){
-  return new Promise(resolve => {
-    const dlg  = $("cabinModal");
-    const rows = $("cabinModalRows");
-    rows.innerHTML = "";
-    airSegs.forEach((s, i) => {
-      const guess = cabinePorRBD(s.rbd) || "Econômica";
-      const row = document.createElement("div");
-      row.className = "cabinModalRow";
-      row.innerHTML = `
-        <span>${escapeHtml(s.airline||"")}${escapeHtml(s.flight||"")} ${escapeHtml(s.org||"")}-${escapeHtml(s.dst||"")}</span>
-        <select data-idx="${i}">
-          <option>Econômica</option><option>Premium Economy</option>
-          <option>Executiva</option><option>Primeira Classe</option>
-        </select>`;
-      row.querySelector("select").value = guess;
-      rows.appendChild(row);
-    });
-
-    const cancelBtn = $("cabinModalCancel");
-    function onCancel(){ dlg.close("cancel"); }
-    function onClose(){
-      dlg.removeEventListener("close", onClose);
-      cancelBtn.removeEventListener("click", onCancel);
-      if (dlg.returnValue === "confirm") {
-        resolve(Array.from(rows.querySelectorAll("select")).map(sel => sel.value));
-      } else {
-        resolve(null);
-      }
-    }
-
-    dlg.addEventListener("close", onClose);
-    cancelBtn.addEventListener("click", onCancel);
-    dlg.showModal();
-  });
-}
 
 // ─── LOOKUP DE NOMES IATA ─────────────────────────────────────────────────────
 // Mapeia código IATA → nome legível para exibição no e-mail da agência.
@@ -2750,6 +1476,709 @@ const IATA_NAMES = {
   NAN: 'Nadi (Fiji)',
 };
 
+// Classes de status que exigem conferencia antes de enviar ao cliente.
+// Chaves = statusClass produzido por statusClass() dentro de parseItinerary.
+// 'confirmed' e 'surface' ficam de fora de proposito: nao pedem acao.
+// Se 'unknown' gerar ruido em PNR real, basta remover a entrada daqui.
+const SEGMENT_STATUS_ALERTS = {
+  cancelled:  { label: 'está cancelado',              hint: 'Não envie este trecho ao cliente.' },
+  problem:    { label: 'está com status irregular',   hint: 'Verifique o segmento no GDS.' },
+  waitlisted: { label: 'está em lista de espera',     hint: 'Isso não é confirmação de assento.' },
+  pending:    { label: 'aguarda confirmação',         hint: 'O status ainda não foi confirmado.' },
+  flown:      { label: 'já foi voado',                hint: 'Não deveria entrar em nova emissão.' },
+  unknown:    { label: 'tem status não reconhecido',  hint: 'Confira no GDS.' }
+};
+
+// ── RULE_PIPELINE ─────────────────────────────────────────────────────────────
+// Ordem obrigatória — ver dependências no cabeçalho do bloco acima.
+// Para adicionar etapa: criar função (q) => q e inserir na posição correta.
+// Para remover etapa: retirar da lista (não precisa alterar as outras funções).
+
+const RULE_PIPELINE = [
+  applyCurrency,      // produz meta._engine.rcBRL
+  applyTotalsByPax,   // consome meta._engine.rcBRL → preenche q.totals
+  applyEnrichments,   // lê q.totals → enriquecimentos opcionais (stub)
+  applyValidations,   // lê q.pricing + q.passengers → preenche meta.warnings
+  applyConfidence     // lê meta.warnings + q.pricing → define meta.confidence
+];
+// [30-core-parser-itinerario] NUCLEO: deteccao de GDS e parser de itinerario/passageiros/cabine (puro, sem DOM)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
+
+// ─── PARSING DE PAX ───────────────────────────────────────────────────────────
+// Extrai passageiros ADT / CHD / INF do texto bruto do itinerário.
+//
+// Padrões suportados:
+//   Amadeus com INF inline:  "1. SILVA/RICARDO(INF/PEDRO)"
+//   Amadeus com INF externo: "1. SILVA/JOAO MR"
+//   Sabre com marcador I/:   "1.I/1SILVA/PEDRO INF"
+//
+// Regras INF (Amadeus):
+//   (INF/NOME)            → surname do ADT + NOME
+//   (INF/SOBRENOME/NOME)  → SOBRENOME + NOME
+//   (INF/NOME/DATA)       → surname do ADT + NOME  (data descartada)
+//   (INF/SOBRENOME/NOME/DATA) → SOBRENOME + NOME   (data descartada)
+//   O nome do ADT é sempre limpo — nada do bloco (INF/...) fica no ADT.
+
+function parsePaxFromItin(raw) {
+  const lines = trimLines(raw);
+  const out   = [];
+  const seen  = new Set();
+
+  function push(type, name) {
+    const clean = String(name || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    const key = type + '|' + clean.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ type, name: clean });
+  }
+
+  // Remove prefixo numérico do sobrenome, marcadores (ADT/CHD/INF) e colapsa espaços
+  function normalizeName(n) {
+    let s = String(n || '').trim().replace(/\s+/g, ' ');
+    s = s.replace(/\s*\((ADT|CHD|INF)\)\s*/ig, ' ').trim();
+    const parts = s.split('/');
+    if (parts.length >= 2) {
+      parts[0] = parts[0].replace(/^\d+/, '').trim();
+      s = parts[0] + '/' + parts.slice(1).join('/').trim();
+    }
+    return s.trim();
+  }
+
+  // Classifica tipo pelo marcador Sabre (I/), por marcador solto entre
+  // parenteses ("(CHD)", sem bloco INF) ou pelo titulo do nome.
+  function classify(infMarker, title, bareType) {
+    if (infMarker) return 'INF';
+    if (bareType) return String(bareType).toUpperCase();
+    const t = (title || '').toUpperCase();
+    if (t === 'MR' || t === 'MRS')    return 'ADT';
+    if (t === 'MISS' || t === 'MSTR') return 'CHD';
+    return 'ADT';
+  }
+
+  // ── extractInfBlock ────────────────────────────────────────────────────────
+  // Interpreta o conteúdo de um bloco (INF...) de forma determinística.
+  //
+  // Dois formatos Amadeus (ambos válidos):
+  //
+  //   Formato A — com barra após INF (padrão moderno):
+  //     INF/NOME             → surname do ADT   + NOME
+  //     INF/SOBRENOME/NOME   → SOBRENOME        + NOME
+  //     INF/NOME/DATA        → surname do ADT   + NOME  (data ignorada)
+  //     INF/SOBRENOME/NOME/DATA → SOBRENOME     + NOME  (data ignorada)
+  //
+  //   Formato B — sobrenome concatenado (manual p.7: INFCOUTO/LIAMISS):
+  //     INFSURNAME/NOME      → SURNAME          + NOME
+  //     INFSURNAME/NOME/DATA → SURNAME          + NOME  (data ignorada)
+  //
+  // Retorna { surname, given } ou null se inválido.
+
+  const IS_DATE = /^\d{2}[A-Z]{3}\d{2}$/i;
+
+  function extractInfBlock(blockContent, adtSurname) {
+    const raw = (blockContent || '').trim();
+    if (!/^INF/i.test(raw)) return null;
+
+    // ── Formato B: INFSURNAME/... (sobrenome concatenado ao INF, sem barra) ──
+    // Detecta quando há letras imediatamente após INF antes da primeira barra.
+    // Ex: "INFLINS/MARIA MISS" → surname=LINS, given=MARIA MISS
+    //     "INFCOUTO/LIAMISS/21APR06" → surname=COUTO, given=LIAMISS
+    const concatMatch = raw.match(/^INF([A-ZÀ-Ü][A-ZÀ-Ü0-9]*)\//i);
+    if (concatMatch) {
+      const surname = concatMatch[1].trim();
+      // Tudo após INF+SURNAME+/ — filtra datas nos tokens restantes
+      const rest  = raw.slice(concatMatch[0].length);
+      const parts = rest.split('/').map(t => t.trim()).filter(t => t && !IS_DATE.test(t));
+      if (parts.length === 0) return null;
+      return { surname, given: parts[0] };
+    }
+
+    // ── Formato A: INF/... (padrão com barra) ─────────────────────────────────
+    const tokens = raw.split('/').map(t => t.trim()).filter(Boolean);
+    // tokens[0] === 'INF' — descarta; filtra datas nos restantes
+    const parts = tokens.slice(1).filter(t => !IS_DATE.test(t));
+
+    if (parts.length === 0) return null;
+    if (parts.length === 1) return { surname: adtSurname, given: parts[0] };
+    return { surname: parts[0], given: parts[1] };
+  }
+
+  // ── CASO 2 (compartilhado) ──────────────────────────────────────────────────
+  // Captura padrões: "1. NOME/DADO TITULO", "1.I/1NOME/DADO" (INF Sabre) e
+  // "2.NOME/DADO(CHD)" (marcador solto entre parenteses, sem bloco INF nem
+  // titulo MISS/MSTR). Usado tanto para linhas sem bloco INF quanto para o
+  // restante de uma linha apos o primeiro bloco (INF...) ja processado no
+  // CASO 1 — uma linha pode trazer o ADT+INF e, na sequencia, outro
+  // passageiro (ex.: um CHD) que o CASO 1 sozinho nao cobria.
+  function scanSimplePassengers(text) {
+    const re = /\b(\d+)\.\s*(I\/\d+)?\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(?:\((ADT|CHD|INF)\))?\s*(MISS|MSTR|MRS|MR)?/gi;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const infMarker = m[2] || null;
+      const bareType  = m[4] || null;
+      const title     = m[5] || '';
+      const name      = normalizeName(m[3] + (title ? ' ' + title : ''));
+      const type      = classify(infMarker, title, bareType);
+      push(type, name);
+    }
+  }
+
+  // ── Loop principal ─────────────────────────────────────────────────────────
+
+  for (const line of lines) {
+    const L = line.trim();
+
+    // ── CASO 1: linha com bloco (INF...) — padrão Amadeus ───────────────────
+    // Detecta (INF/...) e (INFSURNAME/...) — ambos os formatos do manual.
+    // Condição: linha contém '(INF' (com parêntese, evita falso positivo de IATA).
+    if (/\(INF/i.test(L)) {
+
+      // Tudo antes do primeiro '(' é o candidato ao nome do ADT
+      const beforeParen = L.split('(')[0].trim();
+
+      // Posicao do PRIMEIRO bloco (INF...): usada depois para isolar o
+      // restante da linha, que pode trazer outros passageiros.
+      const reBlock = /\(([^)]*)\)/g;
+      let firstInfBlockEnd = -1;
+      let bm;
+      while ((bm = reBlock.exec(L)) !== null) {
+        if (/^INF/i.test(bm[1].trim())) { firstInfBlockEnd = reBlock.lastIndex; break; }
+      }
+
+      // Identifica o nome do ADT na parte anterior ao parêntese
+      // Títulos em ordem longa-primeiro para evitar MR engolir MRS
+      const adtMatch = beforeParen.match(
+        /\b\d+\.\s*\d*\s*([A-ZÀ-Ü0-9 ]+\/[A-ZÀ-Ü0-9-]+)\s*(MISS|MSTR|MRS|MR)?\s*$/i
+      );
+
+      if (adtMatch && firstInfBlockEnd >= 0) {
+        // ADT: nome limpo, sem qualquer rastro do bloco INF
+        const adtName  = normalizeName(adtMatch[1] + (adtMatch[2] ? ' ' + adtMatch[2] : ''));
+        const adtTitle = (adtMatch[2] || '').toUpperCase();
+        const adtType  = (adtTitle === 'MISS' || adtTitle === 'MSTR') ? 'CHD' : 'ADT';
+        push(adtType, adtName);
+
+        // Sobrenome limpo para herdar ao INF quando não informado no bloco
+        const adtSurname = adtName.split('/')[0]
+          .replace(/\s+(MISS|MSTR|MRS|MR)$/i, '').trim();
+
+        const infBlockMatch = L.slice(0, firstInfBlockEnd).match(/\(([^)]*)\)\s*$/);
+        const inf = infBlockMatch ? extractInfBlock(infBlockMatch[1], adtSurname) : null;
+        if (inf && inf.surname && inf.given) {
+          push('INF', normalizeName(`${inf.surname}/${inf.given}`));
+        }
+
+        // Resto da linha, depois do bloco INF ja processado: pode trazer
+        // outro passageiro (ex.: "2.SILVA/MARIA(CHD)"), que o CASO 1 por si
+        // so nao cobre porque so olha o texto ANTES do primeiro parêntese.
+        scanSimplePassengers(L.slice(firstInfBlockEnd));
+
+        continue; // linha totalmente processada
+      }
+    }
+
+    scanSimplePassengers(L);
+  }
+
+  return out;
+}
+
+// ─── GDS DETECT (inalterado) ──────────────────────────────────────────────────
+
+function detectGDSFromItin(itinRaw){
+  const lines = trimLines(itinRaw);
+  for(const l of lines){
+    if(/^\d+\s+[A-Z0-9]{2}\d{2,4}\s+[A-Z]\s+\d{2}[A-Z]{3}\b/.test(l)) return "AMA";
+    if(/^\d+\s+[A-Z0-9]{2}\s+\d{1,4}\s+[A-Z]\s+\d{2}[A-Z]{3}\b/.test(l)) return "AMA";
+  }
+  for(const l of lines){
+    if(/^\d+\s+[A-Z0-9]{2}\d{1,4}[A-Z]?\s+\d{2}[A-Z]{3}\b/.test(l)) return "SAB";
+    if(/^\d+\s+[A-Z0-9]{2}\s+\d{1,4}[A-Z]?\s+\d{2}[A-Z]{3}\b/.test(l)) return "SAB";
+  }
+  const f = flatten(itinRaw).toUpperCase();
+  if(/\bDK\d\b/.test(f) || /\bFXP\b/.test(f)) return "AMA";
+  if(/\bSS\d\b/.test(f) || /\bHK\d\b/.test(f) || /\bWP\b/.test(f)) return "SAB";
+  return "—";
+}
+
+// ─── PARSERS DE ITINERÁRIO ────────────────────────────────────────────────────
+// Melhorias baseadas no Manual Amadeus PNR (Junho 2007):
+//   p.11-12  — campos do segmento (status, horários, equipamento)
+//   p.23-24  — tabela de códigos de ação, estado e aviso
+//   p.9      — segmento ARNK (chegada desconhecida / trecho terrestre)
+//   p.12     — "1525+1 Horário estimado de chegada no dia seguinte"
+
+function parseItinerary(itinRaw, gds, year){
+  const lines = trimLines(itinRaw);
+  const segs  = [];
+
+  function normalizeSegmentYears(items){
+    let currentYear = year;
+    let previousMonth = null;
+    const parseFmt = (value) => {
+      const m = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? { day:+m[1], month:+m[2], year:+m[3] } : null;
+    };
+    const format = ({day,month,year: y}) =>
+      `${String(day).padStart(2,"0")}/${String(month).padStart(2,"0")}/${y}`;
+
+    for(const segment of items){
+      if(segment.surface) continue;
+      const dep = parseFmt(segment.depDateFmt);
+      const arr = parseFmt(segment.arrDateFmt);
+      if(!dep) continue;
+
+      if(previousMonth != null && previousMonth >= 10 && dep.month <= 3){
+        currentYear++;
+      }
+      dep.year = currentYear;
+      segment.depDateFmt = format(dep);
+
+      if(arr){
+        arr.year = currentYear + (dep.month === 12 && arr.month === 1 ? 1 : 0);
+        segment.arrDateFmt = format(arr);
+      }
+      previousMonth = dep.month;
+    }
+    return items;
+  }
+
+  // ── STATUS_CLASS ────────────────────────────────────────────────────────────
+  // Classifica o código de estado IATA em categoria semântica.
+  // Fonte: Manual Amadeus p.23-24 (tabela de códigos)
+  function statusClass(code) {
+    const c = (code || '').toUpperCase();
+    if (c === 'FLWN') return 'flown';
+    if (['HX','XK'].includes(c))                                    return 'cancelled';
+    if (['HL','UU','KL','GL','PL','LL','PC','PD','PE'].includes(c)) return 'waitlisted';
+    if (['HN','PN','TK','TL','TN'].includes(c))                     return 'pending';
+    if (['UN','NO','UC','US'].includes(c))                           return 'problem';
+    if (['HK','LK','NK','KK','RR','DK','PK','GK','SS'].includes(c)) return 'confirmed';
+    return 'unknown';
+  }
+
+  // ── parseTimeToken ──────────────────────────────────────────────────────────
+  // Manual p.12: "1525+1 Horário estimado de chegada (no dia seguinte, +1)"
+  // Retorna { time, dayOffset } — dayOffset é 0 na maioria dos casos.
+  function parseTimeToken(tok) {
+    const m = String(tok || '').match(/^(\d{3,4})(?:\+(\d))?/);
+    if (!m) return { time: tok || '', dayOffset: 0 };
+    return { time: m[1], dayOffset: m[2] ? parseInt(m[2]) : 0 };
+  }
+
+  // ── parseAmadeusLine ────────────────────────────────────────────────────────
+  function parseAmadeusLine(l) {
+    const t = l.split(/\s+/).filter(Boolean);
+    if (t.length < 8) return null;
+    if (!/^\d+$/.test(t[0])) return null;
+
+    let idx = 1, airline = '', flight = '';
+    if (/^[A-Z0-9]{2}\d{1,4}$/.test(t[idx])) {
+      airline = t[idx].slice(0, 2); flight = t[idx].slice(2); idx++;
+    } else if (/^[A-Z0-9]{2}$/.test(t[idx]) && /^\d{1,4}$/.test(t[idx+1]||'')) {
+      airline = t[idx]; flight = t[idx+1]; idx += 2;
+    } else return null;
+
+    const rbd     = t[idx]||''; idx++;
+    const depDate = t[idx]||''; idx++;
+
+    // City pair: DOW embutido ou separado
+    let tok = t[idx]||'', cityPair = '';
+    if (/^\d\*?[A-Z]{6}$/i.test(tok)) { cityPair = tok.replace(/^\d\*?/,'').toUpperCase(); idx++; }
+    else { idx++; cityPair = (t[idx]||'').toUpperCase(); idx++; }
+    if (cityPair.length !== 6) return null;
+    const org = cityPair.slice(0,3), dst = cityPair.slice(3,6);
+
+    // ── Status code: HK1, DK2, HL1, FLWN, etc. ─────────────────────────────
+    // Manual p.23-24: códigos de ação e estado
+    const statusRaw = t[idx]||''; idx++;
+    const isFlown   = /^FLWN$/i.test(statusRaw);
+    const sm        = statusRaw.match(/^([A-Z]{2,4})(\d*)$/i);
+    const scode     = isFlown ? 'FLWN' : (sm ? sm[1].toUpperCase() : '');
+    const paxCount  = (sm && sm[2]) ? parseInt(sm[2]) : null;
+    const sclass    = isFlown ? 'flown' : statusClass(scode);
+
+    // Departure time
+    const depTime = t[idx]||''; idx++;
+
+    // ── Arrival time com possível offset de dia ──────────────────────────────
+    const { time: arrTimeClean, dayOffset: arrDayOffset } = parseTimeToken(t[idx]||'');
+    idx++;
+
+    // Arrival date (se explicitamente exibida)
+    const arrDate = (t[idx] && /^\d{2}[A-Z]{3}/i.test(t[idx])) ? t[idx] : depDate;
+
+    // ── Equipamento da aeronave ─────────────────────────────────────────────
+    // Manual p.12: "744 Equipamento do vôo".
+    // O codigo tem tres caracteres e NAO e so numerico: 32N, 77W, CR9 e E90 sao
+    // todos validos. A versao anterior exigia digitos puros e por isso perdia
+      // 12 dos 29 codigos da tabela, incluindo toda a familia neo e os Embraer.
+    let equipment = null;
+    for (let k = idx; k < Math.min(idx+6, t.length); k++) {
+      if (pareceEquipamento(t[k])) { equipment = String(t[k]).toUpperCase(); break; }
+    }
+
+    return {
+      org, dst, airline, flight, rbd,
+      depDateFmt:  fmtDate(depDate, year),
+      arrDateFmt:  fmtDate(arrDate, year),
+      depTimeFmt:  fmtTime(depTime),
+      arrTimeFmt:  fmtTime(arrTimeClean),
+      arrDayOffset,
+      statusCode: scode, statusClass: sclass, paxCount, equipment,
+      opCarrier: null, opFlight: null, opName: null
+    };
+  }
+
+  // ── parseSabreLine ──────────────────────────────────────────────────────────
+  function parseSabreLine(l) {
+    const t = l.split(/\s+/).filter(Boolean);
+    if (t.length < 6) return null;
+    if (!/^\d+$/.test(t[0])) return null;
+
+    let airline='', flightClass='', date='', cityTok='', dep='', arr='', arrDate='', statusTok='';
+    let idxAfterCity = 0;
+
+    if (/^[A-Z0-9]{2}$/.test(t[1])) {
+      airline=t[1]; flightClass=t[2]||''; date=t[3]||'';
+      const cityIndex = [4,5].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
+      if(cityIndex == null) return null;
+      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
+    } else if (/^[A-Z0-9]{2}\d{1,4}[A-Z]?$/.test(t[1])) {
+      airline=t[1].slice(0,2); flightClass=t[1].slice(2); date=t[2]||'';
+      const cityIndex = [3,4].find(i => /^[A-Z]{6}(?:\*?[A-Z]{2}\d+)?$/i.test(t[i]||""));
+      if(cityIndex == null) return null;
+      cityTok=t[cityIndex]; idxAfterCity=cityIndex+1;
+    } else return null;
+
+    const mfc    = String(flightClass).match(/^(\d{1,4})([A-Z])?$/);
+    const flight = mfc ? mfc[1] : flightClass;
+    const rbd    = mfc && mfc[2] ? mfc[2] : '';
+
+    let cityPair = '';
+    const mEmbed = cityTok.match(/^([A-Z]{6})\*?([A-Z]{2}\d+)$/i);
+    if (mEmbed) {
+      cityPair=mEmbed[1].toUpperCase(); dep=t[idxAfterCity]||''; arr=t[idxAfterCity+1]||'';
+      const mAD=t[idxAfterCity+2]||'';
+      arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
+    } else if (/^[A-Z]{6}$/i.test(cityTok)) {
+      cityPair=cityTok.toUpperCase();
+      const maybeStatus=t[idxAfterCity]||'';
+      const isStatus=/^[A-Z]{2}\d+$/.test(maybeStatus);
+      if (isStatus) {
+        statusTok=maybeStatus;
+        dep=t[idxAfterCity+1]||''; arr=t[idxAfterCity+2]||'';
+        const mAD=t[idxAfterCity+3]||'';
+        arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
+      } else {
+        dep=maybeStatus; arr=t[idxAfterCity+1]||'';
+        const mAD=t[idxAfterCity+2]||'';
+        arrDate = /^\d{2}[A-Z]{3}/i.test(mAD) ? mAD : date;
+      }
+    } else {
+      const mcity=cityTok.match(/([A-Z]{6})/i);
+      if (mcity) cityPair=mcity[1].toUpperCase(); else return null;
+      dep=t[idxAfterCity]||''; arr=t[idxAfterCity+1]||''; arrDate=date;
+    }
+
+    if (cityPair.length !== 6) return null;
+    const org=cityPair.slice(0,3), dst=cityPair.slice(3,6);
+
+    // Status embutido no city tok (ex: GRUJFKHK1) ou token separado
+    const smatch     = String(cityTok + " " + statusTok).match(/([A-Z]{2})(\d+)\s*$/i);
+    const scode      = smatch ? smatch[1].toUpperCase() : '';
+    const sclass     = statusClass(scode);
+    const { time: arrTimeClean, dayOffset: arrDayOffset } = parseTimeToken(arr);
+
+    return {
+      org, dst, airline, flight, rbd,
+      depDateFmt:  fmtDate(date, year),
+      arrDateFmt:  fmtDate(arrDate, year),
+      depTimeFmt:  fmtTime(dep),
+      arrTimeFmt:  fmtTime(arrTimeClean),
+      arrDayOffset,
+      statusCode: scode, statusClass: sclass, paxCount: null, equipment: null,
+      opCarrier: null, opFlight: null, opName: null
+    };
+  }
+
+  function parseSabreVisualPair(line, detailLine){
+    const main = String(line || "").match(
+      /^\s*\d+\s+([A-Z0-9]{2})\s+(\d{1,4})\s+([A-Z]{3})\s*-\s*.+?-->\s*([A-Z]{3})\s*-\s*.+?\s+([A-Z])\s+([A-Z]{2})(\d+)\s*$/i
+    );
+    if(!main) return null;
+    const detail = String(detailLine || "").match(
+      /\b(\d{2}[A-Z]{3}),?\s*(\d{1,2}:\d{2})\s+(\d{2}[A-Z]{3}),?\s*(\d{1,2}:\d{2})\b/i
+    );
+    if(!detail) return null;
+
+    const depDate = detail[1].toUpperCase();
+    const arrDate = detail[3].toUpperCase();
+    const scode = main[6].toUpperCase();
+    return {
+      org: main[3].toUpperCase(),
+      dst: main[4].toUpperCase(),
+      airline: main[1].toUpperCase(),
+      flight: main[2],
+      rbd: main[5].toUpperCase(),
+      depDateFmt: fmtDate(depDate, year),
+      arrDateFmt: fmtDate(arrDate, year),
+      depTimeFmt: detail[2].padStart(5, "0"),
+      arrTimeFmt: detail[4].padStart(5, "0"),
+      arrDayOffset: 0,
+      statusCode: scode,
+      statusClass: statusClass(scode),
+      paxCount: parseInt(main[7], 10) || null,
+      equipment: null,
+      opCarrier: null,
+      opFlight: null,
+      opName: null
+    };
+  }
+
+  if (gds === 'AMA') {
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+
+      // ── ARNK: segmento de superfície (trecho terrestre) ──────────────────
+      // Manual p.9: "SI ARNK — chegada desconhecida (surface segment)"
+      if (/\bARNK\b/i.test(L) && /^\s*\d+/.test(L)) {
+        segs.push({
+          surface: true, org: null, dst: null,
+          airline: '', flight: '', rbd: '',
+          depDateFmt: '', arrDateFmt: '',
+          depTimeFmt: '', arrTimeFmt: '',
+          arrDayOffset: 0,
+          statusCode: 'ARNK', statusClass: 'surface',
+          paxCount: null, equipment: null,
+          opCarrier: null, opFlight: null, opName: null
+        });
+        continue;
+      }
+
+      const seg = parseAmadeusLine(L);
+      if (!seg) continue;
+
+      for (let j = i+1; j < lines.length; j++) {
+        const nxt = lines[j];
+        if (parseAmadeusLine(nxt)) break;
+        const cs = nxt.match(/\bOPERATED BY\s+(.+?)\s+AS\s+([A-Z0-9]{2})\s+FLT\s+(\d{1,4})/i);
+        if (cs) { seg.opName=cs[1].trim(); seg.opCarrier=cs[2].toUpperCase(); seg.opFlight=cs[3]; continue; }
+        const cs050 = nxt.match(/^\s*050\s+([A-Z0-9]{2})\s+(\d{1,4})\b/i);
+        if (cs050) { seg.opCarrier=seg.opCarrier||cs050[1].toUpperCase(); seg.opFlight=seg.opFlight||cs050[2]; continue; }
+        const op127 = nxt.match(/^\s*127\s+(.+?)\s+FOR\b/i);
+        if (op127) { const opn=op127[1].trim(); if(opn&&!/SUBSIDIARY\/FRANCHISE/i.test(opn)) seg.opName=seg.opName||opn; continue; }
+        const op1 = nxt.match(/^\s*OPERATED BY\s+(.+)$/i);
+        if (op1) { const v=op1[1].trim(); if(!/SUBSIDIARY\/FRANCHISE/i.test(v)&&!/SEE RTSVC/i.test(v)) seg.opName=seg.opName||v; continue; }
+        if (!seg.opName) {
+          if (/LATAM AIRLINES GROUP/i.test(nxt)) seg.opName='LATAM AIRLINES GROUP';
+          if (/LATAM AIRLINES BRASIL/i.test(nxt)) seg.opName='LATAM AIRLINES BRASIL';
+          if (/\bIBERIA\b/i.test(nxt)) seg.opName='IBERIA';
+        }
+      }
+      segs.push(seg);
+    }
+    return normalizeSegmentYears(segs);
+  }
+
+  if (gds === 'SAB') {
+    for (let i = 0; i < lines.length; i++) {
+      let seg = parseSabreVisualPair(lines[i], lines[i + 1]);
+      if(seg) i++;
+      else seg = parseSabreLine(lines[i]);
+      if (!seg) continue;
+      for (let j = i+1; j < lines.length; j++) {
+        const nxt = lines[j];
+        if (parseSabreLine(nxt)) break;
+        const op1 = nxt.match(/^OPERATED BY\s*\/?\s*(.+)$/i);
+        if (op1) seg.opName = op1[1].trim();
+        const op2 = nxt.match(/\bAS\s+([A-Z0-9]{2})\s+FLT\s+(\d{1,4})/i);
+        if (op2) { seg.opCarrier=op2[1].toUpperCase(); seg.opFlight=op2[2]; }
+      }
+      segs.push(seg);
+    }
+    return normalizeSegmentYears(segs);
+  }
+
+  return segs;
+}
+
+// Decide se um token e codigo de equipamento.
+// Padroes com digito sao inequivocos nessa posicao da linha. Codigo so com
+// letras e aceito apenas se conhecido, senao confundiria com codigo de
+// refeicao, de servico e outros tokens de tres letras.
+function pareceEquipamento(token){
+  const t = String(token || "").toUpperCase();
+  if(!/^[0-9A-Z]{3}$/.test(t)) return false;
+  if(/^\d{3}$/.test(t)) return true;                 // 319, 737, 359
+  if(/^\d{2}[A-Z]$/.test(t)) return true;            // 32N, 73M, 77W, 32B
+  if(/^[A-Z]\d{2}$/.test(t)) return true;            // E90, E95, E29
+  if(/^[A-Z]{2}\d$/.test(t)) return !ESTADOS_DE_SEGMENTO.has(t.slice(0, 2)); // CR9 sim, HK1 nao
+  if(/^\d[A-Z]\d$/.test(t)) return true;             // 7M8, 7M9 (variante do 737 MAX)
+  return Object.prototype.hasOwnProperty.call(EQUIPAMENTO, t);
+}
+
+// Nome legivel do equipamento, ou null quando o codigo nao esta na tabela.
+function equipmentName(code){
+  const t = String(code || "").toUpperCase().trim();
+  return EQUIPAMENTO[t] || null;
+}
+function cabinePorRBD(rbd){
+  const t = String(rbd || "").toUpperCase().trim();
+  return CABINE_POR_RBD[t] || null;
+}
+
+// Olha so os trechos aereos (ignora ARNK/superficie e RBD vazio ou fora da
+// tabela). Se todos os trechos com RBD confiavel concordam, devolve a
+// cabine. Se ha RBDs confiaveis discordando entre si (ida e volta em cabines
+// diferentes), devolve mista:true e cabine:null -- o campo so aceita um
+// valor, nao da pra escolher por ele.
+function inferirCabineItinerario(segments){
+  const cabines = new Set();
+  (segments || []).forEach(s => {
+    if (!s || s.surface) return;
+    const c = cabinePorRBD(s.rbd);
+    if (c) cabines.add(c);
+  });
+  if (cabines.size === 0) return { cabine: null, mista: false };
+  if (cabines.size > 1) return { cabine: null, mista: true };
+  return { cabine: Array.from(cabines)[0], mista: false };
+}
+
+// Mesma logica de inferirCabineItinerario, mas usando a cabine CONFIRMADA no
+// popup (s.cabinConfirmed) quando houver, em vez de so a RBD crua -- usado no
+// e-mail para decidir se mostra a coluna "Classe" por trecho (so quando os
+// trechos realmente divergem) e se mostra o campo unico "Cabine" em
+// CONDICOES (so quando NAO divergem, senao um unico valor seria enganoso).
+function effectiveCabinMista(segments){
+  const cabines = new Set();
+  (segments || []).forEach(s => {
+    if (!s || s.surface) return;
+    const c = s.cabinConfirmed || cabinePorRBD(s.rbd);
+    if (c) cabines.add(c);
+  });
+  return cabines.size > 1;
+}
+// [40-core-parser-tarifa] NUCLEO: parsers de tarifa (Amadeus/Sabre), impostos, bagagem, separacao de mascaras (puro, sem DOM)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
+
+function detectPaxCountsFromPricing(raw){
+  const counts = { ADT: 0, CHD: 0, INF: 0 };
+  const lines = String(raw || "").split(/\r?\n/);
+  const commandLine = lines.find(line => {
+    const up = line.toUpperCase();
+    return !/\bBRL\b/.test(up)
+      && /(?:^|\/|P)\s*\d+\s*(?:ADT|CNN|CHD|INF)(?:\b|\/)/.test(up);
+  });
+  if(!commandLine) return null;
+
+  for(const match of commandLine.matchAll(/(\d+)\s*(ADT|CNN|CHD|INF)\b/gi)){
+    const type = /CNN|CHD/i.test(match[2]) ? "CHD" : match[2].toUpperCase();
+    counts[type] = parseInt(match[1], 10) || 0;
+  }
+  return counts.ADT + counts.CHD + counts.INF > 0 ? counts : null;
+}
+
+function classifySabrePricingBlock(block){
+  const up = String(block || "").toUpperCase();
+  if(/\b(?:INF-\d+|PINF)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*INF\b/.test(up)) return "INF";
+  if(/\b(?:CNN-\d+|CHD-\d+|PCNN|PCHD)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*(?:CNN|CHD)\b/.test(up)) return "CHD";
+  if(/\b(?:ADT-\d+|PADT)\b/.test(up) || /\bBRL\s*[0-9][0-9.,]*\s*ADT\b/.test(up)) return "ADT";
+  return null;
+}
+
+function splitSabrePricingMasks(raw){
+  const text = String(raw || "").replace(/\r/g, "");
+  const lines = text.split("\n");
+  const starts = [];
+  lines.forEach((line, index) => {
+    if(/^\s*PQ\s+\d+\s+\S+/i.test(line.replace(/[¥¤]/g, " "))) starts.push(index);
+  });
+
+  // Depois do ultimo PQ, o retorno pode trazer uma secao "WP«"/"WP*BAG«" com
+  // franquia por passageiro numerado (ex.: ADT-02), estrutura diferente da do
+  // PQ e que ainda nao sabemos atribuir ao tipo certo com confianca. Sem este
+  // limite, essa secao vazava para dentro do ULTIMO PQ do retorno (em geral o
+  // INF, por ser o ultimo bloco), misturando franquia de um passageiro com a
+  // leitura de outro.
+  const limiteWpIdx = lines.findIndex(line => /^\s*WP\s*«?\s*$|^\s*WP\*BAG\b/i.test(line));
+  const limite = limiteWpIdx >= 0 ? limiteWpIdx : lines.length;
+
+  const masks = { ADT: "", CHD: "", INF: "" };
+  for(let i = 0; i < starts.length; i++){
+    const start = starts[i];
+    const end = i + 1 < starts.length ? starts[i + 1] : limite;
+    const block = lines.slice(start, end).join("\n").trim();
+    const type = classifySabrePricingBlock(block);
+    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
+  }
+
+  // WP consolidado: usa a linha tarifária identificada quando não há PQ separado.
+  for(const line of lines){
+    const type = classifySabrePricingBlock(line);
+    if(type && !masks[type] && /\b[A-Z]{3}\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/i.test(line)){
+      masks[type] = line.trim();
+    }
+  }
+
+  const pricingStart = lines.findIndex(line => /^\s*(?:WPP|WPNC|WP\/|PQ[«\s])/i.test(line));
+  const itinerary = pricingStart > 0 ? lines.slice(0, pricingStart).join("\n").trim() : "";
+  return {
+    masks,
+    counts: detectPaxCountsFromPricing(text),
+    itinerary
+  };
+}
+
+function classifyAmadeusPricingBlock(block){
+  const up = String(block || "").toUpperCase();
+  const summaryLine = up.split(/\r?\n/).find(line => /^\s*\d{2}\s+\S+/.test(line)) || "";
+  const header = summaryLine.match(/\*\s*(?:\*\s*)?(CH|IN)\s*\*/);
+  if(header) return header[1] === "IN" ? "INF" : "CHD";
+  if(/\/IN\d*\b/.test(up) || /\bIN\d*\+?\*\s*\*\s*IN\b/.test(up)) return "INF";
+  if(/\/CH\d*\b/.test(up) || /\bCH\d*\+?\*\s*\*\s*CH\b/.test(up)) return "CHD";
+  return /\bLAST TKT DTE\b/.test(up) && /\b[A-Z]{3}\s+[0-9]/.test(up) ? "ADT" : null;
+}
+
+function splitAmadeusPricingMasks(raw){
+  const text = String(raw || "").replace(/\r/g, "");
+  const lines = text.split("\n");
+  const starts = [];
+
+  lines.forEach((line, index) => {
+    const command = line.trim().match(/^FQQ(\d+)\s*$/i);
+    if(!command) return;
+    let next = index + 1;
+    while(next < lines.length && !lines[next].trim()) next++;
+    if(new RegExp(`^\\s*${command[1]}\\s+`).test(lines[next] || "")) starts.push(index);
+  });
+
+  const masks = { ADT: "", CHD: "", INF: "" };
+  for(let i = 0; i < starts.length; i++){
+    const start = starts[i];
+    const end = i + 1 < starts.length ? starts[i + 1] : lines.length;
+    const block = lines.slice(start, end).join("\n").trim();
+    const type = classifyAmadeusPricingBlock(block);
+    if(type) masks[type] = masks[type] ? `${masks[type]}\n\n${block}` : block;
+  }
+
+  const foundTypes = ["ADT", "CHD", "INF"].filter(type => masks[type]);
+  const explicitCounts = detectPaxCountsFromPricing(text);
+  const counts = explicitCounts || {
+    ADT: masks.ADT ? 1 : 0,
+    CHD: masks.CHD ? 1 : 0,
+    INF: masks.INF ? 1 : 0
+  };
+  const itinerary = starts.length ? lines.slice(0, starts[0]).join("\n").trim() : "";
+  return { masks, counts: foundTypes.length ? counts : null, itinerary };
+}
+
+function splitCombinedPricingMasks(raw){
+  const text = String(raw || "");
+  if(/^\s*FQQ\d+\s*$/im.test(text)) return splitAmadeusPricingMasks(text);
+  return splitSabrePricingMasks(text);
+}
+
 /**
  * Resolve código IATA para nome legível.
  * Retorna só o nome (sem o código) — quem chama decide o formato de exibição.
@@ -3056,16 +2485,14 @@ function parsePricingSabre(pricingRaw){
   const currencyMatch = flat.match(/\b([A-Z]{3})\s*[0-9][0-9.,]*\s+BRL\s*[0-9]/);
   return {fareCur:currencyMatch ? currencyMatch[1] : null, fareAmt:null, equivBRL:null, taxesBRL:null, totalBRL:null, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource: null, taxesSource: null, taxLinesBRL: null};
 }
+// [50-core-modelo] NUCLEO: QuoteModel e pipeline de regras (moeda, totais, validacoes, confianca) (puro, sem DOM)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
 
-// ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
-
-function collectPayment(){
-  const parts=[];
-  if($("payFaturado").checked) parts.push("Faturado");
-  if($("payCartao").checked){ const p = $("payParcel").value || "1x"; parts.push(`Cartão de crédito (${p} sem juros)`); }
-  if($("payDeposito").checked) parts.push("Transferência Bancária");
-  const link = $("payLink").value.trim();
-  return {methods: parts, link};
+// Converte os warnings do motor de regras em itens do painel.
+// São strings simples, sem campo associado, por isso id fica null.
+function engineIssuesFromQuote(quote){
+  const list = (quote && quote.meta && Array.isArray(quote.meta.warnings)) ? quote.meta.warnings : [];
+  return list.map(warning => ({ id: null, message: String(warning), level: "warning", source: "engine" }));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3311,19 +2738,6 @@ function applyEnrichments(q) {
   return q;
 }
 
-// Classes de status que exigem conferencia antes de enviar ao cliente.
-// Chaves = statusClass produzido por statusClass() dentro de parseItinerary.
-// 'confirmed' e 'surface' ficam de fora de proposito: nao pedem acao.
-// Se 'unknown' gerar ruido em PNR real, basta remover a entrada daqui.
-const SEGMENT_STATUS_ALERTS = {
-  cancelled:  { label: 'está cancelado',              hint: 'Não envie este trecho ao cliente.' },
-  problem:    { label: 'está com status irregular',   hint: 'Verifique o segmento no GDS.' },
-  waitlisted: { label: 'está em lista de espera',     hint: 'Isso não é confirmação de assento.' },
-  pending:    { label: 'aguarda confirmação',         hint: 'O status ainda não foi confirmado.' },
-  flown:      { label: 'já foi voado',                hint: 'Não deveria entrar em nova emissão.' },
-  unknown:    { label: 'tem status não reconhecido',  hint: 'Confira no GDS.' }
-};
-
 // ── applyValidations ──────────────────────────────────────────────────────────
 // Responsabilidade única: todas as validações de negócio.
 // Lê q.pricing e q.passengers. Escreve apenas em q.meta.warnings[].
@@ -3470,19 +2884,6 @@ function applyConfidence(q) {
   return q;
 }
 
-// ── RULE_PIPELINE ─────────────────────────────────────────────────────────────
-// Ordem obrigatória — ver dependências no cabeçalho do bloco acima.
-// Para adicionar etapa: criar função (q) => q e inserir na posição correta.
-// Para remover etapa: retirar da lista (não precisa alterar as outras funções).
-
-const RULE_PIPELINE = [
-  applyCurrency,      // produz meta._engine.rcBRL
-  applyTotalsByPax,   // consome meta._engine.rcBRL → preenche q.totals
-  applyEnrichments,   // lê q.totals → enriquecimentos opcionais (stub)
-  applyValidations,   // lê q.pricing + q.passengers → preenche meta.warnings
-  applyConfidence     // lê meta.warnings + q.pricing → define meta.confidence
-];
-
 // ── applyRules (orquestrador) ─────────────────────────────────────────────────
 // Executa RULE_PIPELINE sequencialmente sobre o clone do QuoteModel.
 // Não conhece o que cada etapa faz — só garante a ordem e o isolamento.
@@ -3508,6 +2909,8 @@ function applyRules(quote) {
 
   return q;
 }
+// [60-core-email] NUCLEO: montagem do e-mail/HTML de saida (puro, sem DOM)
+// Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // buildEmail — agora recebe QuoteModel
@@ -3854,6 +3257,620 @@ function buildEmail(quote) {
   </div>`.trim();
 
   return { html, subject };
+}
+// [70-ui-base] UI: $, helpers de status/erro e estado de interface
+
+const $ = (id) => document.getElementById(id);
+
+// ─── UTILITÁRIOS (inalterados) ────────────────────────────────────────────────
+
+(function initTheme(){
+  const sel = document.getElementById("themeSel");
+  const saved = localStorage.getItem("cotacao_theme_v2");
+  const theme = (saved === "light" || saved === "dark") ? saved : "light";
+  document.body.setAttribute("data-theme", theme);
+  if(sel){
+    sel.value = theme;
+    sel.addEventListener("change", () => {
+      const v = sel.value === "light" ? "light" : "dark";
+      document.body.setAttribute("data-theme", v);
+      localStorage.setItem("cotacao_theme_v2", v);
+      setStatus("Tema: " + (v==="light" ? "Claro" : "Escuro"));
+      setTimeout(()=>{ try{ setStatus("Pronto"); }catch(e){} }, 1500);
+    });
+  }
+})();
+function setStatus(msg, warn=false){
+  const el = $("statusPill");
+  el.textContent = msg;
+  el.classList.toggle("warn", !!warn);
+}
+function clearError(){
+  const det = document.getElementById("errDetails");
+  const pre = document.getElementById("errText");
+  if(pre) pre.textContent = "";
+  if(det){ det.open = false; det.style.display = "none"; }
+}
+function showError(e){
+  const det = document.getElementById("errDetails");
+  const pre = document.getElementById("errText");
+  const msg = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e);
+  if(pre) pre.textContent = msg;
+  if(det){ det.style.display = ""; det.open = true; }
+}
+
+const DRAFT_STORAGE_KEY = "cotacao_inter_draft_v1";
+let draftSaveTimer = null;
+let validationActivated = false;
+let previewDirty = false;
+let cabinConfirmState = null; // { itinText, cabins: [...] } | null
+// [72-ui-cambio-bcb] UI: cambio automatico (BCB) e dica de cambio
+
+// Somente USD e automatizado. O cambio IATA/BSR de EUR e GBP segue a metodologia
+// ROE da IATA, que NAO coincide com o fechamento PTAX do BCB: conferido, bate exato
+// apenas para USD. Para as demais moedas o campo permanece manual de proposito.
+const BCB_FX_SUPPORTED = ["USD"];
+const BCB_FX_TIMEOUT_MS = 6000;
+const BCB_FX_CACHE_KEY = "bcb_fx_cache_v1";
+
+function readBcbFxCache(){
+  try{ return JSON.parse(localStorage.getItem(BCB_FX_CACHE_KEY) || "{}") || {}; }
+  catch(e){ return {}; }
+}
+
+function writeBcbFxCache(cache){
+  try{ localStorage.setItem(BCB_FX_CACHE_KEY, JSON.stringify(cache)); }
+  catch(e){ /* cota de storage cheia nao deve impedir a cotacao */ }
+}
+
+// Assinatura preservada: (usageDate, fetchFn) + options opcional para o AbortSignal.
+// O default de fetchFn e resolvido com guarda porque jsdom nao expoe window.fetch.
+async function fetchBcbUsdRateForUsageDate(
+  usageDate = getSaoPauloUsageDate(),
+  fetchFn = (typeof window !== "undefined" && typeof window.fetch === "function") ? window.fetch.bind(window) : null,
+  options = {}
+){
+  if(typeof fetchFn !== "function"){
+    throw new Error("Este ambiente nao expoe fetch para consultar o BCB.");
+  }
+  const endpoint = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)";
+  for(let daysBack = 1; daysBack <= 10; daysBack++){
+    const baseDate = new Date(usageDate.getTime());
+    baseDate.setUTCDate(baseDate.getUTCDate() - daysBack);
+    const queryDate = formatDateForBcb(baseDate);
+    const url = `${endpoint}?@dataCotacao='${queryDate}'&$format=json`;
+    const response = await fetchFn(url, { headers: { Accept: "application/json" }, signal: options.signal });
+    if(!response.ok) throw new Error(`BCB respondeu com status ${response.status}`);
+    const data = await response.json();
+    // A resposta pode trazer boletins intermediarios (Abertura, Intermediario).
+    // O cambio de referencia e o de Fechamento PTAX; o ultimo item e so fallback.
+    const list = Array.isArray(data.value) ? data.value : [];
+    const quote = list.find(entry => entry && entry.tipoBoletim === "Fechamento PTAX")
+      || list[list.length - 1]
+      || null;
+    const rate = quote ? Number(quote.cotacaoVenda) : NaN;
+    if(Number.isFinite(rate) && rate > 0){
+      return { rate, source: "BCB", baseDate, usageDate };
+    }
+  }
+  throw new Error("Nenhuma cotação de fechamento foi encontrada nos 10 dias anteriores.");
+}
+
+// Consulta com cache diario e tempo limite. Degrada para null em qualquer falha:
+// o operador deve poder digitar o cambio a mao sem ver caixa de erro.
+async function fetchBcbUsdRateCached({ force = false } = {}){
+  if(!BCB_FX_SUPPORTED.includes("USD")) return null;
+
+  const usageDate = getSaoPauloUsageDate();
+  const dayKey = formatDateForBcb(usageDate);
+  const cache = readBcbFxCache();
+  // Cache primeiro: com a cotacao do dia em maos nao ha motivo para tocar a rede.
+  if(!force && cache.USD && cache.USD.dayKey === dayKey) return cache.USD;
+
+  if(typeof window === "undefined" || typeof window.fetch !== "function") return null;
+
+  const controller = (typeof AbortController === "function") ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), BCB_FX_TIMEOUT_MS) : null;
+  try{
+    const quote = await fetchBcbUsdRateForUsageDate(usageDate, undefined, {
+      signal: controller ? controller.signal : undefined
+    });
+    const entry = {
+      rate: quote.rate,
+      source: "BCB",
+      baseDate: formatDateBR(quote.baseDate),
+      usageDate: formatDateBR(quote.usageDate),
+      dayKey
+    };
+    cache.USD = entry;
+    writeBcbFxCache(cache);
+    return entry;
+  }catch(e){
+    console.warn("Consulta de cambio BCB indisponivel.", e);
+    return null;
+  }finally{
+    if(timer) clearTimeout(timer);
+  }
+}
+
+// Guarda de sequencia: resposta atrasada nunca sobrescreve uma consulta mais recente.
+let fxAutofillSeq = 0;
+
+// Preenche o cambio sem atropelar valor digitado a mao nem valor vindo da mascara GDS.
+// force=true (botao) ignora essa protecao e sempre atualiza.
+async function maybeAutofillFx({ force = false } = {}){
+  const input = $("fldFX");
+  if(!input) return null;
+  const canFill = () => force || !input.value.trim() || input.dataset.source === "BCB";
+  if(!canFill()) return null;
+
+  const mySeq = ++fxAutofillSeq;
+  const entry = await fetchBcbUsdRateCached({ force });
+  if(mySeq !== fxAutofillSeq) return null;   // outra consulta comecou depois desta
+  if(!entry || !canFill()) return null;
+
+  setFxRate(entry.rate, { source: "BCB", baseDate: entry.baseDate, usageDate: entry.usageDate }, false);
+  return entry;
+}
+
+function readFxMeta(){
+  const input = $("fldFX");
+  return {
+    source: input.dataset.source || "",
+    baseDate: input.dataset.baseDate || "",
+    usageDate: input.dataset.usageDate || ""
+  };
+}
+
+function renderFxHint(){
+  const input = $("fldFX");
+  const hint = $("fxHint");
+  if(!input || !hint) return;
+  const rate = parseAmountAny(input.value);
+  const meta = readFxMeta();
+
+  if(rate != null && meta.source === "BCB" && meta.baseDate && meta.usageDate){
+    hint.textContent = `Venda BCB de ${rate.toFixed(4).replace(".", ",")}, fechamento de ${meta.baseDate}, aplicado em ${meta.usageDate}. Vale só para o RC. A tarifa em BRL continua a do GDS.`;
+  } else if(rate != null && meta.source === "GDS"){
+    hint.textContent = "Câmbio lido da máscara do GDS. Vale só para o RC. A tarifa em BRL continua a do GDS.";
+  } else if(rate != null){
+    hint.textContent = "Câmbio preenchido à mão. Vale só para o RC. A tarifa em BRL continua a do GDS.";
+  } else {
+    hint.textContent = "Aplicado somente ao RC. A tarifa em BRL é a informada pelo GDS.";
+  }
+}
+
+function setFxRate(rate, meta = {}, trackChange = true){
+  const input = $("fldFX");
+  // Vírgula decimal: o resto da interface (incluindo a dica abaixo deste campo)
+  // já mostra o câmbio dessa forma. Um campo com ponto ao lado de outro com
+  // vírgula para o mesmo número é o tipo de detalhe que denuncia um sistema
+  // remendado em partes.
+  input.value = Number(rate).toFixed(4).replace(".", ",");
+  input.dataset.source = meta.source || "";
+  input.dataset.baseDate = meta.baseDate || "";
+  input.dataset.usageDate = meta.usageDate || "";
+  renderFxHint();
+  if(trackChange){
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+}
+// [74-ui-rascunho-validacao] UI: rascunho (autosave) e validacao de entrada
+
+function updateDraftPill(text){
+  const el = $("draftPill");
+  if(el) el.textContent = text;
+}
+
+function collectDraftControls(){
+  const controls = {};
+  document.querySelectorAll("main input[id], main select[id], main textarea[id]").forEach(el => {
+    controls[el.id] = (el.type === "checkbox" || el.type === "radio")
+      ? { checked: !!el.checked }
+      : { value: el.value };
+  });
+  return controls;
+}
+
+function saveDraft(){
+  try{
+    const payload = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      controls: collectDraftControls(),
+      fxMeta: readFxMeta(),
+      cabineSource: $("fldCabine") ? ($("fldCabine").dataset.source || "") : ""
+    };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    updateDraftPill("Salvo " + new Date(payload.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}));
+  }catch(e){
+    console.warn("Não foi possível salvar o rascunho.", e);
+    updateDraftPill("Falha ao salvar");
+  }
+}
+
+function scheduleDraftSave(){
+  clearTimeout(draftSaveTimer);
+  updateDraftPill("Salvando");
+  draftSaveTimer = setTimeout(saveDraft, 450);
+}
+
+function markPreviewDirty(){
+  const preview = $("preview");
+  if(!preview || !(preview.dataset.html || "").trim()) return;
+  previewDirty = true;
+  setStatus("Prévia desatualizada", true);
+  // A confiabilidade se referia a previa anterior; esconder evita leitura enganosa.
+  renderConfidence(null);
+}
+
+function restoreDraft(){
+  let payload = null;
+  try{
+    payload = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "null");
+  }catch(e){
+    console.warn("Rascunho local inválido.", e);
+  }
+  if(!payload || !payload.controls){
+    updateDraftPill("Não salvo");
+    return false;
+  }
+
+  const entries = Object.entries(payload.controls);
+  entries.filter(([id]) => !id.startsWith("name_")).forEach(([id, state]) => {
+    const el = $(id);
+    if(!el) return;
+    if(el.type === "checkbox" || el.type === "radio") el.checked = !!state.checked;
+    else if(state.value != null) el.value = state.value;
+  });
+
+  refreshOptionalUI();
+  refreshPaxUI();
+
+  entries.filter(([id]) => id.startsWith("name_")).forEach(([id, state]) => {
+    const el = $(id);
+    if(el && state.value != null) el.value = state.value;
+  });
+
+  if(payload.fxMeta && $("fldFX")){
+    $("fldFX").dataset.source = payload.fxMeta.source || "";
+    $("fldFX").dataset.baseDate = payload.fxMeta.baseDate || "";
+    $("fldFX").dataset.usageDate = payload.fxMeta.usageDate || "";
+  } else if($("fldFX").value.trim()){
+    $("fldFX").dataset.source = "MANUAL";
+  }
+  if($("fldCabine")){
+    if(payload.cabineSource) $("fldCabine").dataset.source = payload.cabineSource;
+    else delete $("fldCabine").dataset.source;
+  }
+  if($("maskAll")) $("maskAll").value = "";
+  renderFxHint();
+
+  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
+  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
+    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
+    : "Rascunho restaurado");
+  setStatus("Rascunho restaurado. Gere a prévia.");
+  return true;
+}
+
+function clearValidationMarks(){
+  document.querySelectorAll(".is-invalid,.is-warning").forEach(el => {
+    el.classList.remove("is-invalid", "is-warning");
+    el.removeAttribute("aria-invalid");
+  });
+}
+
+function validateQuoteInput(){
+  const issues = [];
+  const add = (id, message, level="warning") => issues.push({id, message, level});
+  const qADT = +$("qADT").value || 0;
+  const qCHD = +$("qCHD").value || 0;
+  const qINF = +$("qINF").value || 0;
+  const itin = $("itin").value.trim();
+
+  if(qADT + qCHD + qINF <= 0) add("qADT", "Informe pelo menos um passageiro.", "error");
+  if(!itin) add("itin", "Cole o itinerário antes de gerar a prévia.", "error");
+  else if(detectGDSFromItin(itin) === "—") add("itin", "O formato colado não corresponde a Sabre nem a Amadeus.", "error");
+
+  if(qADT > 0 && !$("maskADT").value.trim()) add("maskADT", "A máscara do ADT está vazia.");
+  if(qCHD > 0 && !$("maskCHD").value.trim()) add("maskCHD", "A máscara do CHD está vazia.");
+  if(qINF > 0 && !$("maskINF").value.trim()) add("maskINF", "A máscara do INF está vazia.");
+
+  if($("fldCondicao").value === "Outro" && !$("fldCondOutro").value.trim()){
+    add("fldCondOutro", "Escreva a condição ou escolha outra opção.");
+  }
+  if($("fldAssentosMode").value === "custom" && !$("fldAssentosCustom").value.trim()){
+    add("fldAssentosCustom", "Escreva o texto dos assentos ou escolha outra opção.");
+  }
+
+  const rcRaw = $("fldRC").value.trim();
+  if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
+    add("fldRC", "O RC precisa ser um número válido.", "error");
+  }
+  const fxRaw = $("fldFX").value.trim();
+  if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
+    add("fldFX", "O câmbio precisa ser um número maior que zero.", "error");
+  }
+
+  if($("chkNomes").checked){
+    const names = collectPaxNames();
+    if(names.ADT.length < qADT) add("chkNomes", "Faltam nomes de adultos.");
+    if(names.CHD.length < qCHD) add("chkNomes", "Faltam nomes de crianças.");
+    if(names.INF.length < qINF) add("chkNomes", "Faltam nomes de bebês.");
+  }
+  return issues;
+}
+
+// Renderiza o painel de avisos. Aceita dois tipos de item:
+//   • avisos de campo    — têm `id` e marcam o controle correspondente;
+//   • avisos do motor    — `source:"engine"`, sem `id`, exibidos em bloco próprio.
+// Itens sem `id` nunca marcam controle, por isso a guarda antes do $().
+function renderValidation(issues){
+  clearValidationMarks();
+  const summary = $("validationSummary");
+  if(!summary) return;
+  summary.innerHTML = "";
+  summary.classList.remove("show", "error");
+  const all = Array.isArray(issues) ? issues : [];
+  if(!all.length) return;
+
+  const hasError = all.some(issue => issue.level === "error");
+  summary.classList.add("show");
+  if(hasError) summary.classList.add("error");
+
+  const appendBlock = (titleText, items) => {
+    if(!items.length) return;
+    const title = document.createElement("strong");
+    title.textContent = titleText;
+    const list = document.createElement("ul");
+    items.forEach(issue => {
+      const item = document.createElement("li");
+      item.textContent = issue.message;
+      list.appendChild(item);
+      const control = issue.id ? $(issue.id) : null;
+      if(control){
+        control.classList.add(issue.level === "error" ? "is-invalid" : "is-warning");
+        if(issue.level === "error") control.setAttribute("aria-invalid", "true");
+      }
+    });
+    summary.append(title, list);
+  };
+
+  appendBlock(
+    hasError ? "Revise os campos destacados" : "Confira antes de enviar",
+    all.filter(issue => issue.source !== "engine")
+  );
+  appendBlock(
+    "Avisos do motor de cotação. Confira no GDS antes de enviar.",
+    all.filter(issue => issue.source === "engine")
+  );
+}
+// [76-ui-formulario] UI: confianca, acessibilidade, passageiros e entrada combinada
+
+const CONFIDENCE_LABEL = { HIGH: "alta", MEDIUM: "média", LOW: "baixa" };
+
+// Exibe o nível de confiabilidade da leitura automática.
+// Chamar com null esconde a tarja (prévia inexistente ou obsoleta).
+function renderConfidence(quote){
+  const el = $("confidencePill");
+  if(!el) return;
+  const level = (quote && quote.meta) ? quote.meta.confidence : null;
+  if(!level){
+    el.hidden = true;
+    el.className = "confidencePill";
+    el.textContent = "";
+    return;
+  }
+  const count = (quote.meta.warnings || []).length;
+  el.className = "confidencePill show conf-" + String(level).toLowerCase();
+  el.hidden = false;
+  const plural = count === 1 ? "1 aviso" : count + " avisos";
+  el.textContent = level === "HIGH"
+    ? "Confiabilidade da leitura: alta. Nenhum aviso do motor."
+    : `Confiabilidade da leitura: ${CONFIDENCE_LABEL[level] || level}. ${plural} para revisar antes de enviar.`;
+}
+
+function enhanceAccessibility(){
+  document.querySelectorAll(".field").forEach(field => {
+    const label = field.querySelector(":scope > label:not([for])");
+    const control = field.querySelector(":scope > input[id], :scope > select[id], :scope > textarea[id]");
+    if(label && control && label.textContent.trim()) label.htmlFor = control.id;
+  });
+  ["itin","maskAll","maskADT","maskCHD","maskINF"].forEach(id => {
+    const el = $(id);
+    if(el) el.setAttribute("spellcheck", "false");
+  });
+}
+
+// ─── UI (inalterada) ──────────────────────────────────────────────────────────
+
+function refreshOptionalUI(){
+  const c = $("fldCondicao").value;
+  $("fldCondOutroWrap").style.display = (c==="Outro") ? "" : "none";
+  const cc = $("payCartao").checked;
+  $("payLinkWrap").style.display = cc ? "" : "none";
+  $("payParcelWrap").style.display = cc ? "" : "none";
+  const am = $("fldAssentosMode").value;
+  $("fldAssentosCustomWrap").style.display = (am==="custom") ? "" : "none";
+}
+function refreshPaxUI(){
+  const qADT = +$("qADT").value || 0;
+  const qCHD = +$("qCHD").value || 0;
+  const qINF = +$("qINF").value || 0;
+  $("maskCHDWrap").style.display = qCHD>0 ? "" : "none";
+  $("maskINFWrap").style.display = qINF>0 ? "" : "none";
+  const wantNames = $("chkNomes").checked;
+  $("paxCard").style.display = wantNames ? "" : "none";
+  $("paxAdultosWrap").style.display = (wantNames && qADT>0) ? "" : "none";
+  $("paxCriancasWrap").style.display = (wantNames && qCHD>0) ? "" : "none";
+  $("paxInfantsWrap").style.display = (wantNames && qINF>0) ? "" : "none";
+  $("divChdSep").style.display = (wantNames && qCHD>0) ? "" : "none";
+  $("divInfSep").style.display = (wantNames && qINF>0) ? "" : "none";
+  $("paxTotalPill").textContent = (qADT+qCHD+qINF) + " no total";
+  renderPaxInputs("ADT", qADT, "paxAdultosList");
+  renderPaxInputs("CHD", qCHD, "paxCriancasList");
+  renderPaxInputs("INF", qINF, "paxInfantsList");
+}
+
+function renderPaxInputs(type, qty, containerId){
+  const box = $(containerId);
+  if(!box) return;
+  const current = [];
+  box.querySelectorAll("input[data-pax]").forEach(inp => current.push(inp.value));
+  box.innerHTML = "";
+  for(let i=1;i<=qty;i++){
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const lab = document.createElement("label");
+    lab.textContent = `Nome ${type}${i}`;
+    const inp = document.createElement("input");
+    inp.setAttribute("data-pax","1");
+    inp.id = `name_${type}_${i}`;
+    lab.htmlFor = inp.id;
+    inp.placeholder = (type==="INF") ? "Ex.: SILVA/JOAO INF" : (type==="CHD" ? "Ex.: SILVA/JOAO MSTR" : "Ex.: SILVA/JOAO MR");
+    inp.value = current[i-1] || "";
+    wrap.appendChild(lab);
+    wrap.appendChild(inp);
+    box.appendChild(wrap);
+  }
+}
+
+function applyAutoPax(paxList){
+  const adt = paxList.filter(p=>p.type==="ADT").map(p=>p.name);
+  const chd = paxList.filter(p=>p.type==="CHD").map(p=>p.name);
+  const inf = paxList.filter(p=>p.type==="INF").map(p=>p.name);
+  $("qADT").value = String(adt.length || 0);
+  $("qCHD").value = String(chd.length || 0);
+  $("qINF").value = String(inf.length || 0);
+  $("chkNomes").checked = true;
+  refreshPaxUI();
+  for(let i=0;i<adt.length;i++){ const el = document.getElementById(`name_ADT_${i+1}`); if(el) el.value = adt[i]; }
+  for(let i=0;i<chd.length;i++){ const el = document.getElementById(`name_CHD_${i+1}`); if(el) el.value = chd[i]; }
+  for(let i=0;i<inf.length;i++){ const el = document.getElementById(`name_INF_${i+1}`); if(el) el.value = inf[i]; }
+  $("autoPaxSuggest").style.display = "none";
+  setStatus("Passageiros preenchidos pelo itinerário");
+  scheduleDraftSave();
+}
+
+function collectPaxNames(){
+  const out = { ADT: [], CHD: [], INF: [] };
+  const qADT = +$("qADT").value || 0;
+  const qCHD = +$("qCHD").value || 0;
+  const qINF = +$("qINF").value || 0;
+  function grab(type, qty){
+    for(let i=1;i<=qty;i++){
+      const el = document.getElementById(`name_${type}_${i}`);
+      const v = (el && el.value) ? el.value.trim() : "";
+      if(v) out[type].push(v);
+    }
+  }
+  grab("ADT", qADT); grab("CHD", qCHD); grab("INF", qINF);
+  return out;
+}
+
+function applyCombinedPricingInput({ overwrite = false, announce = true } = {}){
+  const raw = $("maskAll").value.trim();
+  if(!raw) return { masks: { ADT: "", CHD: "", INF: "" }, counts: null, itinerary: "" };
+
+  const result = splitCombinedPricingMasks(raw);
+  const found = [];
+  for(const type of ["ADT", "CHD", "INF"]){
+    const field = $(`mask${type}`);
+    if(result.masks[type] && (overwrite || !field.value.trim())){
+      field.value = result.masks[type];
+    }
+    if(result.masks[type]) found.push(type);
+  }
+
+  if(result.counts){
+    $("qADT").value = String(result.counts.ADT);
+    $("qCHD").value = String(result.counts.CHD);
+    $("qINF").value = String(result.counts.INF);
+  }
+  if(result.itinerary && !$("itin").value.trim()) $("itin").value = result.itinerary;
+  refreshPaxUI();
+
+  const expected = result.counts
+    ? ["ADT", "CHD", "INF"].filter(type => result.counts[type] > 0)
+    : found;
+  const missing = expected.filter(type => !result.masks[type]);
+  const status = $("maskSplitStatus");
+  if(status){
+    status.textContent = found.length
+      ? `Identificados: ${found.join(", ")}${missing.length ? `. Faltando: ${missing.join(", ")}` : ""}`
+      : "Nenhuma máscara por passageiro foi identificada";
+    status.classList.toggle("warn", !found.length || missing.length > 0);
+  }
+  if(found.length) $("maskReview").open = missing.length > 0;
+
+  if(announce){
+    setStatus(found.length ? "Máscaras distribuídas para revisão" : "Não foi possível separar as máscaras", !found.length);
+    scheduleDraftSave();
+    markPreviewDirty();
+  }
+  return result;
+}
+
+$("fldCondicao").addEventListener("change", refreshOptionalUI);
+["payFaturado","payCartao","payDeposito"].forEach(id => $(id).addEventListener("change", refreshOptionalUI));
+$("fldAssentosMode").addEventListener("change", refreshOptionalUI);
+["qADT","qCHD","qINF","chkNomes"].forEach(id => $(id).addEventListener("input", refreshPaxUI));
+$("fldLOC").addEventListener("input", (e)=>{ e.target.value = e.target.value.toUpperCase(); });
+refreshOptionalUI();
+refreshPaxUI();
+// [78-ui-geracao] UI: modal de cabine, build() e fiacao de eventos de carga
+
+// Popup bloqueante: um <select> por trecho aereo, pre-preenchido com o
+// palpite de cabinePorRBD. Resolve com o array de cabines escolhidas (uma
+// por trecho, na mesma ordem de airSegs) ao confirmar, ou null ao cancelar.
+function openCabinModal(airSegs){
+  return new Promise(resolve => {
+    const dlg  = $("cabinModal");
+    const rows = $("cabinModalRows");
+    rows.innerHTML = "";
+    airSegs.forEach((s, i) => {
+      const guess = cabinePorRBD(s.rbd) || "Econômica";
+      const row = document.createElement("div");
+      row.className = "cabinModalRow";
+      row.innerHTML = `
+        <span>${escapeHtml(s.airline||"")}${escapeHtml(s.flight||"")} ${escapeHtml(s.org||"")}-${escapeHtml(s.dst||"")}</span>
+        <select data-idx="${i}">
+          <option>Econômica</option><option>Premium Economy</option>
+          <option>Executiva</option><option>Primeira Classe</option>
+        </select>`;
+      row.querySelector("select").value = guess;
+      rows.appendChild(row);
+    });
+
+    const cancelBtn = $("cabinModalCancel");
+    function onCancel(){ dlg.close("cancel"); }
+    function onClose(){
+      dlg.removeEventListener("close", onClose);
+      cancelBtn.removeEventListener("click", onCancel);
+      if (dlg.returnValue === "confirm") {
+        resolve(Array.from(rows.querySelectorAll("select")).map(sel => sel.value));
+      } else {
+        resolve(null);
+      }
+    }
+
+    dlg.addEventListener("close", onClose);
+    cancelBtn.addEventListener("click", onCancel);
+    dlg.showModal();
+  });
+}
+
+// ─── PAGAMENTO (inalterado) ───────────────────────────────────────────────────
+
+function collectPayment(){
+  const parts=[];
+  if($("payFaturado").checked) parts.push("Faturado");
+  if($("payCartao").checked){ const p = $("payParcel").value || "1x"; parts.push(`Cartão de crédito (${p} sem juros)`); }
+  if($("payDeposito").checked) parts.push("Transferência Bancária");
+  const link = $("payLink").value.trim();
+  return {methods: parts, link};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
