@@ -155,13 +155,24 @@ function applyCurrency(q) {
 function applyTotalsByPax(q) {
   // Fail-safe: rcBRL = 0 se applyCurrency não rodou antes
   const rcBRL       = (q.meta._engine && q.meta._engine.rcBRL) || 0;
-  const fareDisplay = (q.totals && q.totals.fareDisplay) ? q.totals.fareDisplay : '—';
+  let   fareDisplay = (q.totals && q.totals.fareDisplay) ? q.totals.fareDisplay : '—';
+
+  // Markup (interno): sobe a tarifa — na moeda e em BRL — em X%; as taxas nao mudam. A agencia nao ve
+  // o markup: o e-mail so enxerga a tarifa ja majorada. RAV (comissao da agencia): Y% sobre a tarifa
+  // JA COM markup, somada ao total. RAV vazio = "A definir": nao entra no total. Sem nenhum dos dois
+  // o resultado e identico ao de antes (as chaves novas so existem quando um deles esta em uso).
+  const markupPct = parsePercent(q.commercial.markupPct);
+  const ravPct    = parsePercent(q.commercial.ravPct);
+  const withMarkup = (v) => (markupPct && v != null) ? +(v * (1 + markupPct / 100)).toFixed(2) : v;
+  const extras    = !!(markupPct || ravPct);
 
   const byType = {};
   let groupFareTotal  = 0;
   let groupTaxesTotal = 0;
   let groupRCTotal    = 0;
   let groupGrandTotal = 0;
+  let groupMarkupTotal = 0;
+  let groupRAVTotal    = 0;
 
   const paxOrder = [
     { type: 'ADT', qty: q.passengers.counts.adt },
@@ -189,25 +200,49 @@ function applyTotalsByPax(q) {
       continue;
     }
 
-    const fareTotal  = pr.equivBRL != null ? +(pr.equivBRL * qty).toFixed(2) : null;
+    // Markup so se a tarifa em BRL existe; sem ela nao se aplica a nada (nem na moeda) e o operador e avisado.
+    const mkApplies = !!(markupPct && pr.equivBRL != null);
+    if (markupPct && pr.equivBRL == null) {
+      q.meta.warnings.push(`${type}: markup não aplicado porque a tarifa em BRL não foi identificada.`);
+    }
+    if (ravPct && pr.equivBRL == null) {
+      q.meta.warnings.push(`${type}: RAV não calculada porque a tarifa em BRL não foi identificada.`);
+    }
+    const equiv        = mkApplies ? withMarkup(pr.equivBRL) : (pr.equivBRL ?? null);
+    const fareAmt      = mkApplies ? withMarkup(pr.fareAmt ?? null) : (pr.fareAmt ?? null);
+    const markupPerPax = mkApplies ? +(equiv - pr.equivBRL).toFixed(2) : 0;
+    const ravPerPax    = (ravPct && equiv != null) ? +(equiv * ravPct / 100).toFixed(2) : null;
+    const ravAdd       = ravPerPax || 0;
+
+    const fareTotal  = equiv != null ? +(equiv * qty).toFixed(2) : null;
     const taxesTotal = pr.taxesBRL != null ? +(pr.taxesBRL * qty).toFixed(2) : null;
     const rcTotal    = +(rcBRL * qty).toFixed(2);
-    const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + rcBRL) * qty).toFixed(2) : null;
+    const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + markupPerPax + rcBRL + ravAdd) * qty).toFixed(2) : null;
 
     byType[type] = {
       quantity:     qty,
-      farePerPax:   pr.fareAmt  ?? null,
+      farePerPax:   fareAmt,
       fareCurrency: pr.fareCur  ?? null,
-      equivPerPax:  pr.equivBRL ?? null,
+      equivPerPax:  equiv,
       taxesPerPax:  pr.taxesBRL ?? null,
       rcPerPax:     rcBRL,
-      totalPerPax:  pr.totalBRL != null ? +(pr.totalBRL + rcBRL).toFixed(2) : null,
+      totalPerPax:  pr.totalBRL != null ? +(pr.totalBRL + markupPerPax + rcBRL + ravAdd).toFixed(2) : null,
       fareTotal,
       taxesTotal,
       rcTotal,
       grandTotal,
       _needsReview: (pr.fareAmt == null || pr.totalBRL == null)
     };
+    if (extras) {
+      byType[type].markupPerPax = markupPerPax;   // interno: nunca vai para o e-mail
+      byType[type].ravPerPax    = ravPerPax;      // null = A definir
+      byType[type].ravTotal     = ravPerPax != null ? +(ravPerPax * qty).toFixed(2) : 0;
+    }
+    if (markupPct && type === 'ADT' && fareAmt != null) {
+      fareDisplay = moneyCurrency(fareAmt, pr.fareCur) + ' (ADT)';
+    }
+    groupMarkupTotal += +(markupPerPax * qty).toFixed(2);
+    groupRAVTotal    += ravPerPax != null ? +(ravPerPax * qty).toFixed(2) : 0;
 
     if (fareTotal  != null) groupFareTotal  += fareTotal;
     if (taxesTotal != null) groupTaxesTotal += taxesTotal;
@@ -222,7 +257,8 @@ function applyTotalsByPax(q) {
       taxesTotal: +groupTaxesTotal.toFixed(2),
       rcTotal:    +groupRCTotal.toFixed(2),
       grandTotal: +groupGrandTotal.toFixed(2),
-      currency:   'BRL'
+      currency:   'BRL',
+      ...(extras ? { markupTotal: +groupMarkupTotal.toFixed(2), ravTotal: +groupRAVTotal.toFixed(2) } : {})
     },
     // Aliases de compat — buildEmail e KPIs leem esses nomes diretamente
     equivBRL:    +groupFareTotal.toFixed(2),

@@ -225,7 +225,10 @@ function buildEmail(quote) {
   const subject = `Cotação INTER – ${route} – ${carrier}${loc ? " – LOC "+loc : ""}`;
 
   const includeRC = (parseAmountAny(rcUSD)!=null && parseAmountAny(rcUSD)>0 && fxRate!=null && fxRate>0);
-  const valuesColspan = 5 + (includeRC ? 1 : 0);
+  // RAV = comissao da agencia: coluna propria, somada ao total. So aparece com percentual definido
+  // (vazio = "A definir": o e-mail sai como sempre saiu). O markup NAO aparece em lugar nenhum: ja esta na tarifa.
+  const includeRAV = rows.some(r => r.ravPerPax != null && r.ravPerPax > 0);
+  const valuesColspan = 5 + (includeRC ? 1 : 0) + (includeRAV ? 1 : 0);
 
   const valuesHead = `
       <tr>
@@ -233,7 +236,7 @@ function buildEmail(quote) {
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (moeda)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (BRL)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Taxas (BRL)</th>
-        ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}
+        ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}${includeRAV ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RAV (BRL)</th>` : ``}
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Total (BRL)</th>
       </tr>`;
 
@@ -243,14 +246,14 @@ function buildEmail(quote) {
     // totalPerPax ja inclui o RC arredondado por passageiro.
     const finalTotal = includeRC
       ? (r.totalPerPax != null ? r.totalPerPax : null)
-      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax).toFixed(2) : r.totalPerPax);
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : r.totalPerPax);
     return `
     <tr>
       <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
       <td style="${cell}">${(r.fareCurrency && r.farePerPax!=null) ? escapeHtml(moneyCurrency(r.farePerPax, r.fareCurrency)) : "—"}</td>
       <td style="${cell}">${r.equivPerPax!=null ? moneyBRL(r.equivPerPax) : "—"}</td>
       <td style="${cell}">${r.taxesPerPax!=null ? moneyBRL(r.taxesPerPax) : "—"}</td>
-      ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}
+      ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}${includeRAV ? `<td style="${cell}">${r.ravPerPax!=null ? moneyBRL(r.ravPerPax) : "—"}</td>` : ``}
       <td style="${cell} font-weight:700;">${finalTotal!=null ? moneyBRL(finalTotal) : "—"}</td>
     </tr>
   `;
@@ -337,7 +340,7 @@ function buildEmail(quote) {
       ${valuesHead}
       ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
-    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}
+    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}${includeRAV ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.</div>` : ``}
 
     <div style="margin-top:14px; font-size:13px;">
       <b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}

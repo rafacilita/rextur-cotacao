@@ -843,6 +843,28 @@
         </div>
 
         <div class="subcard">
+          <h3>Markup e RAV</h3>
+          <div class="row2">
+            <div class="field">
+              <label for="fldMarkup">Markup sobre a tarifa (%) — interno</label>
+              <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
+            </div>
+            <div class="field">
+              <label for="fldRAV">RAV da agência (%)</label>
+              <div class="fxControl">
+                <input id="fldRAV" inputmode="decimal" placeholder="A definir" />
+                <button id="btnRav7" class="secondary" type="button">Sugerir 7%</button>
+              </div>
+            </div>
+          </div>
+          <div class="hint" id="markupHint">
+            Markup: interno, vai embutido na tarifa (moeda e BRL) e a agência não vê; as taxas não mudam.
+            RAV: comissão da agência, calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+          </div>
+          <div class="hint" id="markupInfo"></div>
+        </div>
+
+        <div class="subcard">
           <h3>Forma de pagamento</h3>
           <div class="switches">
             <label class="chip"><input type="checkbox" id="payFaturado">Faturado</label>
@@ -982,6 +1004,11 @@ function parseAmountAny(raw){
   } else if(hasComma && !hasDot) s = s.replace(",",".");
   const v = parseFloat(s);
   return Number.isFinite(v) ? v : null;
+}
+// Percentual digitado ("7", "7,5", "7%"): numero > 0 ou null. Vazio/zero/invalido = null ("sem percentual").
+function parsePercent(raw){
+  const v = parseAmountAny(String(raw == null ? "" : raw).replace(/%/g, ""));
+  return (v != null && v > 0) ? v : null;
 }
 function moneyBRL(v){ if(v==null||!Number.isFinite(v)) return "—"; return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v); }
 function moneyCurrency(v, currency){
@@ -2642,13 +2669,24 @@ function applyCurrency(q) {
 function applyTotalsByPax(q) {
   // Fail-safe: rcBRL = 0 se applyCurrency não rodou antes
   const rcBRL       = (q.meta._engine && q.meta._engine.rcBRL) || 0;
-  const fareDisplay = (q.totals && q.totals.fareDisplay) ? q.totals.fareDisplay : '—';
+  let   fareDisplay = (q.totals && q.totals.fareDisplay) ? q.totals.fareDisplay : '—';
+
+  // Markup (interno): sobe a tarifa — na moeda e em BRL — em X%; as taxas nao mudam. A agencia nao ve
+  // o markup: o e-mail so enxerga a tarifa ja majorada. RAV (comissao da agencia): Y% sobre a tarifa
+  // JA COM markup, somada ao total. RAV vazio = "A definir": nao entra no total. Sem nenhum dos dois
+  // o resultado e identico ao de antes (as chaves novas so existem quando um deles esta em uso).
+  const markupPct = parsePercent(q.commercial.markupPct);
+  const ravPct    = parsePercent(q.commercial.ravPct);
+  const withMarkup = (v) => (markupPct && v != null) ? +(v * (1 + markupPct / 100)).toFixed(2) : v;
+  const extras    = !!(markupPct || ravPct);
 
   const byType = {};
   let groupFareTotal  = 0;
   let groupTaxesTotal = 0;
   let groupRCTotal    = 0;
   let groupGrandTotal = 0;
+  let groupMarkupTotal = 0;
+  let groupRAVTotal    = 0;
 
   const paxOrder = [
     { type: 'ADT', qty: q.passengers.counts.adt },
@@ -2676,25 +2714,49 @@ function applyTotalsByPax(q) {
       continue;
     }
 
-    const fareTotal  = pr.equivBRL != null ? +(pr.equivBRL * qty).toFixed(2) : null;
+    // Markup so se a tarifa em BRL existe; sem ela nao se aplica a nada (nem na moeda) e o operador e avisado.
+    const mkApplies = !!(markupPct && pr.equivBRL != null);
+    if (markupPct && pr.equivBRL == null) {
+      q.meta.warnings.push(`${type}: markup não aplicado porque a tarifa em BRL não foi identificada.`);
+    }
+    if (ravPct && pr.equivBRL == null) {
+      q.meta.warnings.push(`${type}: RAV não calculada porque a tarifa em BRL não foi identificada.`);
+    }
+    const equiv        = mkApplies ? withMarkup(pr.equivBRL) : (pr.equivBRL ?? null);
+    const fareAmt      = mkApplies ? withMarkup(pr.fareAmt ?? null) : (pr.fareAmt ?? null);
+    const markupPerPax = mkApplies ? +(equiv - pr.equivBRL).toFixed(2) : 0;
+    const ravPerPax    = (ravPct && equiv != null) ? +(equiv * ravPct / 100).toFixed(2) : null;
+    const ravAdd       = ravPerPax || 0;
+
+    const fareTotal  = equiv != null ? +(equiv * qty).toFixed(2) : null;
     const taxesTotal = pr.taxesBRL != null ? +(pr.taxesBRL * qty).toFixed(2) : null;
     const rcTotal    = +(rcBRL * qty).toFixed(2);
-    const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + rcBRL) * qty).toFixed(2) : null;
+    const grandTotal = pr.totalBRL != null ? +((pr.totalBRL + markupPerPax + rcBRL + ravAdd) * qty).toFixed(2) : null;
 
     byType[type] = {
       quantity:     qty,
-      farePerPax:   pr.fareAmt  ?? null,
+      farePerPax:   fareAmt,
       fareCurrency: pr.fareCur  ?? null,
-      equivPerPax:  pr.equivBRL ?? null,
+      equivPerPax:  equiv,
       taxesPerPax:  pr.taxesBRL ?? null,
       rcPerPax:     rcBRL,
-      totalPerPax:  pr.totalBRL != null ? +(pr.totalBRL + rcBRL).toFixed(2) : null,
+      totalPerPax:  pr.totalBRL != null ? +(pr.totalBRL + markupPerPax + rcBRL + ravAdd).toFixed(2) : null,
       fareTotal,
       taxesTotal,
       rcTotal,
       grandTotal,
       _needsReview: (pr.fareAmt == null || pr.totalBRL == null)
     };
+    if (extras) {
+      byType[type].markupPerPax = markupPerPax;   // interno: nunca vai para o e-mail
+      byType[type].ravPerPax    = ravPerPax;      // null = A definir
+      byType[type].ravTotal     = ravPerPax != null ? +(ravPerPax * qty).toFixed(2) : 0;
+    }
+    if (markupPct && type === 'ADT' && fareAmt != null) {
+      fareDisplay = moneyCurrency(fareAmt, pr.fareCur) + ' (ADT)';
+    }
+    groupMarkupTotal += +(markupPerPax * qty).toFixed(2);
+    groupRAVTotal    += ravPerPax != null ? +(ravPerPax * qty).toFixed(2) : 0;
 
     if (fareTotal  != null) groupFareTotal  += fareTotal;
     if (taxesTotal != null) groupTaxesTotal += taxesTotal;
@@ -2709,7 +2771,8 @@ function applyTotalsByPax(q) {
       taxesTotal: +groupTaxesTotal.toFixed(2),
       rcTotal:    +groupRCTotal.toFixed(2),
       grandTotal: +groupGrandTotal.toFixed(2),
-      currency:   'BRL'
+      currency:   'BRL',
+      ...(extras ? { markupTotal: +groupMarkupTotal.toFixed(2), ravTotal: +groupRAVTotal.toFixed(2) } : {})
     },
     // Aliases de compat — buildEmail e KPIs leem esses nomes diretamente
     equivBRL:    +groupFareTotal.toFixed(2),
@@ -2926,7 +2989,7 @@ function extractIataFx(txt) {
 }
 
 // inputs: { itin, masks:{ADT,CHD,INF}, pax:{adt,chd,inf}, paxNames, payment,
-//   cabinConfirm (ou null), cabine:{value,source}, condSel, condOutro, rcUSD, openTicket, loc,
+//   cabinConfirm (ou null), cabine:{value,source}, condSel, condOutro, rcUSD, markupPct, ravPct, openTicket, loc,
 //   multaReembolso, multaRemarcacao, assentosMode, assentosCustom,
 //   bagOverrides:{ADT,CHD,INF}, fxInput, fx:{value,source,baseDate,usageDate} }
 // Retorna { gds, finalQuote, cabineFill, bagOverrideShow:{ADT,CHD,INF} }
@@ -3046,6 +3109,8 @@ function computeQuote(inputs) {
     cabineMista: inferCabine.mista,
     condicao,
     rcUSD: inputs.rcUSD,
+    markupPct: inputs.markupPct || "",   // interno: embutido na tarifa, a agencia nao ve
+    ravPct: inputs.ravPct || "",         // comissao da agencia; vazio = "A definir" (nao entra no total)
     assentosText,
     payment: inputs.payment,
     openTicket: inputs.openTicket,
@@ -3300,7 +3365,10 @@ function buildEmail(quote) {
   const subject = `Cotação INTER – ${route} – ${carrier}${loc ? " – LOC "+loc : ""}`;
 
   const includeRC = (parseAmountAny(rcUSD)!=null && parseAmountAny(rcUSD)>0 && fxRate!=null && fxRate>0);
-  const valuesColspan = 5 + (includeRC ? 1 : 0);
+  // RAV = comissao da agencia: coluna propria, somada ao total. So aparece com percentual definido
+  // (vazio = "A definir": o e-mail sai como sempre saiu). O markup NAO aparece em lugar nenhum: ja esta na tarifa.
+  const includeRAV = rows.some(r => r.ravPerPax != null && r.ravPerPax > 0);
+  const valuesColspan = 5 + (includeRC ? 1 : 0) + (includeRAV ? 1 : 0);
 
   const valuesHead = `
       <tr>
@@ -3308,7 +3376,7 @@ function buildEmail(quote) {
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (moeda)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Tarifa (BRL)</th>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Taxas (BRL)</th>
-        ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}
+        ${includeRC ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RC (BRL)</th>` : ``}${includeRAV ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">RAV (BRL)</th>` : ``}
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Total (BRL)</th>
       </tr>`;
 
@@ -3318,14 +3386,14 @@ function buildEmail(quote) {
     // totalPerPax ja inclui o RC arredondado por passageiro.
     const finalTotal = includeRC
       ? (r.totalPerPax != null ? r.totalPerPax : null)
-      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax).toFixed(2) : r.totalPerPax);
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : r.totalPerPax);
     return `
     <tr>
       <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
       <td style="${cell}">${(r.fareCurrency && r.farePerPax!=null) ? escapeHtml(moneyCurrency(r.farePerPax, r.fareCurrency)) : "—"}</td>
       <td style="${cell}">${r.equivPerPax!=null ? moneyBRL(r.equivPerPax) : "—"}</td>
       <td style="${cell}">${r.taxesPerPax!=null ? moneyBRL(r.taxesPerPax) : "—"}</td>
-      ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}
+      ${includeRC ? `<td style="${cell}">${moneyBRL(r.rcPerPax||0)}</td>` : ``}${includeRAV ? `<td style="${cell}">${r.ravPerPax!=null ? moneyBRL(r.ravPerPax) : "—"}</td>` : ``}
       <td style="${cell} font-weight:700;">${finalTotal!=null ? moneyBRL(finalTotal) : "—"}</td>
     </tr>
   `;
@@ -3412,7 +3480,7 @@ function buildEmail(quote) {
       ${valuesHead}
       ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
-    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}
+    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}${includeRAV ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.</div>` : ``}
 
     <div style="margin-top:14px; font-size:13px;">
       <b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}
@@ -3753,6 +3821,13 @@ function validateQuoteInput(){
   if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
     add("fldRC", "O RC precisa ser um número válido.", "error");
   }
+  for (const [id, nome] of [["fldMarkup", "O markup"], ["fldRAV", "A RAV"]]) {
+    const raw = $(id).value.trim();
+    if (raw) {
+      const v = parseAmountAny(raw.replace(/%/g, ""));
+      if (v == null || v < 0 || v > 100) add(id, `${nome} precisa ser um percentual entre 0 e 100.`, "error");
+    }
+  }
   const fxRaw = $("fldFX").value.trim();
   if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
     add("fldFX", "O câmbio precisa ser um número maior que zero.", "error");
@@ -4062,6 +4137,8 @@ function readQuoteInputs() {
     condSel: $("fldCondicao").value,
     condOutro: $("fldCondOutro").value,
     rcUSD: $("fldRC").value.trim(),
+    markupPct: $("fldMarkup").value.trim(),
+    ravPct: $("fldRAV").value.trim(),
     fxInput,
     fx: { value: fxEl.value, source: fxEl.dataset.source || "", baseDate: fxEl.dataset.baseDate || "", usageDate: fxEl.dataset.usageDate || "" },
     openTicket: $("fldOpenTicket").value || "",
@@ -4114,6 +4191,12 @@ function renderQuote(result) {
   $("kEquiv").textContent = finalQuote.totals.equivBRL  != null ? moneyBRL(finalQuote.totals.equivBRL)  : "—";
   $("kTaxes").textContent = finalQuote.totals.taxesBRL  != null ? moneyBRL(finalQuote.totals.taxesBRL)  : "—";
   $("kTotal").textContent = finalQuote.totals.totalBRL  != null ? moneyBRL(finalQuote.totals.totalBRL)  : "—";
+  // Painel interno (nunca vai para o e-mail): quanto de markup e de RAV entrou no total do grupo.
+  const g = finalQuote.totals.group || {};
+  const infoParts = [];
+  if (g.markupTotal > 0) infoParts.push(`Markup embutido na tarifa: ${moneyBRL(g.markupTotal)}`);
+  if (g.ravTotal > 0) infoParts.push(`RAV da agência: ${moneyBRL(g.ravTotal)}`);
+  $("markupInfo").textContent = infoParts.join(" • ");
 
   // ── Feedback ao operador: avisos do motor + confiabilidade ────────────────
   // Fica aqui, e não no handler do botão, porque os testes chamam build()
@@ -4230,6 +4313,13 @@ $("btnCopy").addEventListener("click", async ()=>{
   catch(e){ console.error(e); setStatus("Falha ao copiar", true); showError(e); }
 });
 
+// Sugestao de RAV: preenche 7% (editavel). Dispara 'input' para marcar a previa como desatualizada e salvar o rascunho.
+$("btnRav7").addEventListener("click", ()=>{
+  const el = $("fldRAV");
+  el.value = "7,00";
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 $("btnFetchFX").addEventListener("click", async ()=>{
   const button = $("btnFetchFX");
   button.disabled = true;
@@ -4250,7 +4340,7 @@ $("btnFetchFX").addEventListener("click", async ()=>{
 $("btnClear").addEventListener("click", ()=>{
   clearTimeout(draftSaveTimer);
   localStorage.removeItem(DRAFT_STORAGE_KEY);
-  ["fldRC","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
+  ["fldRC","fldMarkup","fldRAV","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
    "itin","maskAll","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
   $("maskSplitStatus").textContent = "Aguardando conteúdo";
   $("maskSplitStatus").classList.remove("warn");
@@ -4275,6 +4365,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("subjectPill").textContent="Assunto: —";
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
+  $("markupInfo").textContent="";
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;

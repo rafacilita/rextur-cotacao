@@ -15,7 +15,7 @@ function extractIataFx(txt) {
 }
 
 // inputs: { itin, masks:{ADT,CHD,INF}, pax:{adt,chd,inf}, paxNames, payment,
-//   cabinConfirm (ou null), cabine:{value,source}, condSel, condOutro, rcUSD, openTicket, loc,
+//   cabinConfirm (ou null), cabine:{value,source}, condSel, condOutro, rcUSD, markupPct, ravPct, openTicket, loc,
 //   multaReembolso, multaRemarcacao, assentosMode, assentosCustom,
 //   bagOverrides:{ADT,CHD,INF}, fxInput, fx:{value,source,baseDate,usageDate} }
 // Retorna { gds, finalQuote, cabineFill, bagOverrideShow:{ADT,CHD,INF} }
@@ -135,6 +135,8 @@ function computeQuote(inputs) {
     cabineMista: inferCabine.mista,
     condicao,
     rcUSD: inputs.rcUSD,
+    markupPct: inputs.markupPct || "",   // interno: embutido na tarifa, a agencia nao ve
+    ravPct: inputs.ravPct || "",         // comissao da agencia; vazio = "A definir" (nao entra no total)
     assentosText,
     payment: inputs.payment,
     openTicket: inputs.openTicket,

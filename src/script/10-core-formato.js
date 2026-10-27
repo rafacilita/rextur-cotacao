@@ -18,6 +18,11 @@ function parseAmountAny(raw){
   const v = parseFloat(s);
   return Number.isFinite(v) ? v : null;
 }
+// Percentual digitado ("7", "7,5", "7%"): numero > 0 ou null. Vazio/zero/invalido = null ("sem percentual").
+function parsePercent(raw){
+  const v = parseAmountAny(String(raw == null ? "" : raw).replace(/%/g, ""));
+  return (v != null && v > 0) ? v : null;
+}
 function moneyBRL(v){ if(v==null||!Number.isFinite(v)) return "—"; return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v); }
 function moneyCurrency(v, currency){
   if(v==null || !Number.isFinite(v)) return "—";

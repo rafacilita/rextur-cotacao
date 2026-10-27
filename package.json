@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node --test tests/parser.test.cjs tests/core-sem-dom.test.cjs",
+    "test": "node --test tests/parser.test.cjs tests/core-sem-dom.test.cjs tests/markup-rav.test.cjs",
     "test:watch": "node --test --watch tests/parser.test.cjs"
   },
   "devDependencies": {

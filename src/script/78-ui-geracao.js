@@ -76,6 +76,8 @@ function readQuoteInputs() {
     condSel: $("fldCondicao").value,
     condOutro: $("fldCondOutro").value,
     rcUSD: $("fldRC").value.trim(),
+    markupPct: $("fldMarkup").value.trim(),
+    ravPct: $("fldRAV").value.trim(),
     fxInput,
     fx: { value: fxEl.value, source: fxEl.dataset.source || "", baseDate: fxEl.dataset.baseDate || "", usageDate: fxEl.dataset.usageDate || "" },
     openTicket: $("fldOpenTicket").value || "",
@@ -128,6 +130,12 @@ function renderQuote(result) {
   $("kEquiv").textContent = finalQuote.totals.equivBRL  != null ? moneyBRL(finalQuote.totals.equivBRL)  : "—";
   $("kTaxes").textContent = finalQuote.totals.taxesBRL  != null ? moneyBRL(finalQuote.totals.taxesBRL)  : "—";
   $("kTotal").textContent = finalQuote.totals.totalBRL  != null ? moneyBRL(finalQuote.totals.totalBRL)  : "—";
+  // Painel interno (nunca vai para o e-mail): quanto de markup e de RAV entrou no total do grupo.
+  const g = finalQuote.totals.group || {};
+  const infoParts = [];
+  if (g.markupTotal > 0) infoParts.push(`Markup embutido na tarifa: ${moneyBRL(g.markupTotal)}`);
+  if (g.ravTotal > 0) infoParts.push(`RAV da agência: ${moneyBRL(g.ravTotal)}`);
+  $("markupInfo").textContent = infoParts.join(" • ");
 
   // ── Feedback ao operador: avisos do motor + confiabilidade ────────────────
   // Fica aqui, e não no handler do botão, porque os testes chamam build()
@@ -244,6 +252,13 @@ $("btnCopy").addEventListener("click", async ()=>{
   catch(e){ console.error(e); setStatus("Falha ao copiar", true); showError(e); }
 });
 
+// Sugestao de RAV: preenche 7% (editavel). Dispara 'input' para marcar a previa como desatualizada e salvar o rascunho.
+$("btnRav7").addEventListener("click", ()=>{
+  const el = $("fldRAV");
+  el.value = "7,00";
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 $("btnFetchFX").addEventListener("click", async ()=>{
   const button = $("btnFetchFX");
   button.disabled = true;
@@ -264,7 +279,7 @@ $("btnFetchFX").addEventListener("click", async ()=>{
 $("btnClear").addEventListener("click", ()=>{
   clearTimeout(draftSaveTimer);
   localStorage.removeItem(DRAFT_STORAGE_KEY);
-  ["fldRC","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
+  ["fldRC","fldMarkup","fldRAV","fldFX","fldAssentosCustom","fldMultaReembolso","fldMultaRemarcacao","fldLOC","fldCondOutro",
    "itin","maskAll","maskADT","maskCHD","maskINF","payLink","bagOvADT","bagOvCHD","bagOvINF"].forEach(id=>{ if($(id)) $(id).value=""; });
   $("maskSplitStatus").textContent = "Aguardando conteúdo";
   $("maskSplitStatus").classList.remove("warn");
@@ -289,6 +304,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("subjectPill").textContent="Assunto: —";
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
+  $("markupInfo").textContent="";
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;

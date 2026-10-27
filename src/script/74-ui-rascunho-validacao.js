@@ -131,6 +131,13 @@ function validateQuoteInput(){
   if(rcRaw && (parseAmountAny(rcRaw) == null || parseAmountAny(rcRaw) < 0)){
     add("fldRC", "O RC precisa ser um número válido.", "error");
   }
+  for (const [id, nome] of [["fldMarkup", "O markup"], ["fldRAV", "A RAV"]]) {
+    const raw = $(id).value.trim();
+    if (raw) {
+      const v = parseAmountAny(raw.replace(/%/g, ""));
+      if (v == null || v < 0 || v > 100) add(id, `${nome} precisa ser um percentual entre 0 e 100.`, "error");
+    }
+  }
   const fxRaw = $("fldFX").value.trim();
   if(fxRaw && (parseAmountAny(fxRaw) == null || parseAmountAny(fxRaw) <= 0)){
     add("fldFX", "O câmbio precisa ser um número maior que zero.", "error");
