@@ -1,0 +1,19 @@
+{
+  "head": "src/head.html",
+  "body": "src/body.html",
+  "script": [
+    "src/script/10-core-formato.js",
+    "src/script/20-core-dados.js",
+    "src/script/30-core-parser-itinerario.js",
+    "src/script/40-core-parser-tarifa.js",
+    "src/script/50-core-modelo.js",
+    "src/script/55-core-calculo-cotacao.js",
+    "src/script/60-core-email.js",
+    "src/script/70-ui-base.js",
+    "src/script/72-ui-cambio-bcb.js",
+    "src/script/74-ui-rascunho-validacao.js",
+    "src/script/76-ui-formulario.js",
+    "src/script/78-ui-geracao.js"
+  ],
+  "foot": "src/foot.html"
+}
