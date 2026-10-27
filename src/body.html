@@ -195,25 +195,30 @@
         </div>
 
         <div class="subcard">
-          <h3>Markup e RAV</h3>
-          <div class="row2">
-            <div class="field">
-              <label for="fldMarkup">Markup sobre a tarifa (%) — interno</label>
-              <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
-            </div>
-            <div class="field">
-              <label for="fldRAV">RAV da agência (%)</label>
-              <div class="fxControl">
-                <input id="fldRAV" inputmode="decimal" placeholder="A definir" />
-                <button id="btnRav7" class="secondary" type="button">Sugerir 7%</button>
-              </div>
-            </div>
+          <h3>Markup (interno)</h3>
+          <div class="field">
+            <label for="fldMarkup">Markup sobre a tarifa (%)</label>
+            <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
           </div>
           <div class="hint" id="markupHint">
-            Markup: interno, vai embutido na tarifa (moeda e BRL) e a agência não vê; as taxas não mudam.
-            RAV: comissão da agência, calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+            Interno: vai embutido na tarifa (moeda e BRL) e a agência não vê. As taxas não mudam.
           </div>
           <div class="hint" id="markupInfo"></div>
+        </div>
+
+        <div class="subcard">
+          <h3>RAV da agência</h3>
+          <div class="field">
+            <label for="fldRAV">RAV (%)</label>
+            <div class="fxControl">
+              <input id="fldRAV" inputmode="decimal" placeholder="A definir" />
+              <button id="btnRav7" class="secondary" type="button">Sugerir 7% de RAV</button>
+            </div>
+          </div>
+          <div class="hint" id="ravHint">
+            Comissão da agência: calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+          </div>
+          <div class="hint" id="ravInfo"></div>
         </div>
 
         <div class="subcard">

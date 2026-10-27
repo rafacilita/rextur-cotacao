@@ -843,25 +843,30 @@
         </div>
 
         <div class="subcard">
-          <h3>Markup e RAV</h3>
-          <div class="row2">
-            <div class="field">
-              <label for="fldMarkup">Markup sobre a tarifa (%) — interno</label>
-              <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
-            </div>
-            <div class="field">
-              <label for="fldRAV">RAV da agência (%)</label>
-              <div class="fxControl">
-                <input id="fldRAV" inputmode="decimal" placeholder="A definir" />
-                <button id="btnRav7" class="secondary" type="button">Sugerir 7%</button>
-              </div>
-            </div>
+          <h3>Markup (interno)</h3>
+          <div class="field">
+            <label for="fldMarkup">Markup sobre a tarifa (%)</label>
+            <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
           </div>
           <div class="hint" id="markupHint">
-            Markup: interno, vai embutido na tarifa (moeda e BRL) e a agência não vê; as taxas não mudam.
-            RAV: comissão da agência, calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+            Interno: vai embutido na tarifa (moeda e BRL) e a agência não vê. As taxas não mudam.
           </div>
           <div class="hint" id="markupInfo"></div>
+        </div>
+
+        <div class="subcard">
+          <h3>RAV da agência</h3>
+          <div class="field">
+            <label for="fldRAV">RAV (%)</label>
+            <div class="fxControl">
+              <input id="fldRAV" inputmode="decimal" placeholder="A definir" />
+              <button id="btnRav7" class="secondary" type="button">Sugerir 7% de RAV</button>
+            </div>
+          </div>
+          <div class="hint" id="ravHint">
+            Comissão da agência: calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+          </div>
+          <div class="hint" id="ravInfo"></div>
         </div>
 
         <div class="subcard">
@@ -4193,10 +4198,8 @@ function renderQuote(result) {
   $("kTotal").textContent = finalQuote.totals.totalBRL  != null ? moneyBRL(finalQuote.totals.totalBRL)  : "—";
   // Painel interno (nunca vai para o e-mail): quanto de markup e de RAV entrou no total do grupo.
   const g = finalQuote.totals.group || {};
-  const infoParts = [];
-  if (g.markupTotal > 0) infoParts.push(`Markup embutido na tarifa: ${moneyBRL(g.markupTotal)}`);
-  if (g.ravTotal > 0) infoParts.push(`RAV da agência: ${moneyBRL(g.ravTotal)}`);
-  $("markupInfo").textContent = infoParts.join(" • ");
+  $("markupInfo").textContent = g.markupTotal > 0 ? `Markup embutido na tarifa do grupo: ${moneyBRL(g.markupTotal)}` : "";
+  $("ravInfo").textContent    = g.ravTotal > 0    ? `RAV da agência no grupo: ${moneyBRL(g.ravTotal)}` : "";
 
   // ── Feedback ao operador: avisos do motor + confiabilidade ────────────────
   // Fica aqui, e não no handler do botão, porque os testes chamam build()
@@ -4365,7 +4368,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("subjectPill").textContent="Assunto: —";
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
-  $("markupInfo").textContent="";
+  $("markupInfo").textContent=""; $("ravInfo").textContent="";
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;
