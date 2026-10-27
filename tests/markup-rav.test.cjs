@@ -81,7 +81,8 @@ test("markup e INVISIVEL para a agencia: o e-mail nao cita markup nem mostra a t
   assert.doesNotMatch(txt, /13\.673,45/);
   assert.doesNotMatch(txt, /RAV \(BRL\)/, "markup sozinho nao cria coluna RAV");
   // o painel interno (so do operador) mostra o valor
-  assert.match(norm(app.document.getElementById("markupInfo").textContent), /Markup embutido na tarifa: R\$ 1\.367,35/);
+  assert.match(norm(app.document.getElementById("markupInfo").textContent), /Markup embutido na tarifa do grupo: R\$ 1\.367,35/);
+  assert.equal(app.document.getElementById("ravInfo").textContent, "", "sem RAV, o painel da RAV fica vazio");
   app.close();
 });
 
@@ -182,6 +183,7 @@ test("Limpar devolve markup a vazio e RAV a 'A definir'", () => {
   assert.equal(app.document.getElementById("fldRAV").value, "");
   assert.equal(app.document.getElementById("fldRAV").placeholder, "A definir");
   assert.equal(app.document.getElementById("markupInfo").textContent, "");
+  assert.equal(app.document.getElementById("ravInfo").textContent, "");
   app.close();
 });
 
@@ -190,5 +192,22 @@ test("rascunho (autosave) guarda markup e RAV", () => {
   const c = app.collectDraftControls();
   assert.equal(c.fldMarkup.value, "10");
   assert.equal(c.fldRAV.value, "7");
+  app.close();
+});
+
+test("Markup e RAV ficam em blocos separados; o botao de 7% pertence so a RAV", () => {
+  const app = chd({ rav: "7" });
+  const d = app.document;
+  const cardMarkup = d.getElementById("fldMarkup").closest(".subcard");
+  const cardRav = d.getElementById("fldRAV").closest(".subcard");
+  assert.ok(cardMarkup && cardRav && cardMarkup !== cardRav, "campos em subcards diferentes");
+  assert.equal(d.getElementById("btnRav7").closest(".subcard"), cardRav, "botao dentro do bloco da RAV");
+  assert.equal(cardMarkup.contains(d.getElementById("btnRav7")), false, "botao fora do bloco do markup");
+  assert.match(cardRav.querySelector("h3").textContent, /RAV/);
+  assert.match(cardMarkup.querySelector("h3").textContent, /Markup/);
+  assert.match(d.getElementById("btnRav7").textContent, /RAV/, "o rotulo do botao diz que o 7% e da RAV");
+  // cada painel mostra so o seu valor
+  assert.equal(d.getElementById("markupInfo").textContent, "");
+  assert.match(norm(d.getElementById("ravInfo").textContent), /RAV da agência no grupo: R\$ 957,14/);
   app.close();
 });

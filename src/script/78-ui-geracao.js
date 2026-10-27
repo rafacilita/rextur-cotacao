@@ -132,10 +132,8 @@ function renderQuote(result) {
   $("kTotal").textContent = finalQuote.totals.totalBRL  != null ? moneyBRL(finalQuote.totals.totalBRL)  : "—";
   // Painel interno (nunca vai para o e-mail): quanto de markup e de RAV entrou no total do grupo.
   const g = finalQuote.totals.group || {};
-  const infoParts = [];
-  if (g.markupTotal > 0) infoParts.push(`Markup embutido na tarifa: ${moneyBRL(g.markupTotal)}`);
-  if (g.ravTotal > 0) infoParts.push(`RAV da agência: ${moneyBRL(g.ravTotal)}`);
-  $("markupInfo").textContent = infoParts.join(" • ");
+  $("markupInfo").textContent = g.markupTotal > 0 ? `Markup embutido na tarifa do grupo: ${moneyBRL(g.markupTotal)}` : "";
+  $("ravInfo").textContent    = g.ravTotal > 0    ? `RAV da agência no grupo: ${moneyBRL(g.ravTotal)}` : "";
 
   // ── Feedback ao operador: avisos do motor + confiabilidade ────────────────
   // Fica aqui, e não no handler do botão, porque os testes chamam build()
@@ -304,7 +302,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("subjectPill").textContent="Assunto: —";
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
-  $("markupInfo").textContent="";
+  $("markupInfo").textContent=""; $("ravInfo").textContent="";
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;
