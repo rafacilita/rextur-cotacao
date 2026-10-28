@@ -23,6 +23,10 @@ function buildEmail(quote) {
   const paxNames        = quote.passengers.names;
   const itinSegs        = quote.itinerary;
   const prices          = quote.pricing;
+  // Largura FIXA das tabelas do e-mail (px). Com width="100%" o Outlook (motor do Word) ignora a largura da div e
+  // trata a tabela como "Autoajuste a janela": ela estica, fica espacosa e atrapalha escrever texto antes/depois.
+  // Para mudar a largura, mude so aqui.
+  const EMAIL_W = 680;
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Cabines divergem entre trechos (pos-confirmacao do popup, com fallback na
@@ -263,8 +267,8 @@ function buildEmail(quote) {
 
   const html = `
   <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color:${INK};">
-  <div style="width:680px; max-width:680px;">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:14px; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+  <div style="width:${EMAIL_W}px; max-width:${EMAIL_W}px;">
+    <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:14px; mso-table-lspace:0pt; mso-table-rspace:0pt;">
       <tr>
         <td colspan="2" style="padding:0; border:0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; mso-table-lspace:0pt; mso-table-rspace:0pt;">
@@ -307,14 +311,14 @@ function buildEmail(quote) {
 
     ${optItems.length ? `
       ${sectionBar("Condições")}
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+      <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
         ${optItems.map(([label, val]) => `<tr><td style="${cell} width:30%;"><b>${label}</b></td><td style="${cell}">${val}</td></tr>`).join("")}
       </table>
     ` : ""}
 
     ${(paxNames && (paxNames.ADT.length || paxNames.CHD.length || paxNames.INF.length)) ? `
       ${sectionBar("Passageiros")}
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+      <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
         ${(paxNames.ADT||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Adulto</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
         ${(paxNames.CHD||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Criança</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
         ${(paxNames.INF||[]).map(n=>`<tr><td style="${cell} width:14%;"><b>Bebê</b></td><td style="${cell}">${escapeHtml(n)}</td></tr>`).join("")}
@@ -323,7 +327,7 @@ function buildEmail(quote) {
 
     ${sectionBar("Itinerário")}
     ${(!typesPresent.length) ? "" : `<div style="${cell} border-top:none; font-size:12px; color:${MUTED};">${bagSameAcrossTypes ? "Franquia de bagagem por trecho de voo." : "Franquia de bagagem por trecho de voo, podendo variar entre os tipos de passageiro."}</div>`}
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:13px; margin-bottom:4px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+    <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; margin-bottom:4px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
       <tr>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Voo</th>
         ${cabineMista ? `<th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Classe</th>` : ""}
@@ -336,7 +340,7 @@ function buildEmail(quote) {
     </table>
 
     ${sectionBar("Valores por passageiro")}
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+    <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
       ${valuesHead}
       ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
