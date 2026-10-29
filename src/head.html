@@ -594,6 +594,51 @@
       letter-spacing:0;
     }
 
+    /* ── Hierarquia do formulario ────────────────────────────────────────── */
+
+    .subcard h3{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+    .tag{
+      display:inline-block;
+      padding:1px 8px;
+      border:1px solid var(--line-strong);
+      border-radius:999px;
+      color:var(--ink-2);
+      font-size:10.5px;
+      font-weight:500;
+      line-height:1.6;
+      white-space:nowrap;
+    }
+    .tag.tagReq{border-color:var(--accent); color:var(--accent)}
+    .tag.tagInternal{border-color:var(--warn-line); background:var(--warn-bg); color:var(--warn)}
+    .tag.tagAgency{border-color:var(--ok-line); background:var(--ok-bg); color:var(--ok)}
+    body[data-theme="dark"] .tag.tagReq{color:var(--ink)}
+    .internalBlock{border-left:3px solid var(--warn-line)}
+    .agencyBlock{border-left:3px solid var(--ok-line)}
+    .adjustPair{align-items:start; margin-top:16px}
+    .adjustPair .subcard{margin-top:0}
+    body.has-preview .adjustPair{grid-template-columns:minmax(0,1fr)}
+
+    /* Conferir: so aparece quando ha algo a conferir (previa, aviso ou erro). */
+    .checkBlock{display:none; margin-top:0; margin-bottom:16px}
+    body.has-preview .checkBlock,
+    .checkBlock:has(.validationSummary.show),
+    .checkBlock:has(.confidencePill.show),
+    .checkBlock:has(#errDetails:not([style*="none"])){display:block}
+    .checkBlock .kpis{margin-top:0}
+    .checkBlock .validationSummary.show, .checkBlock .confidencePill.show{margin-bottom:12px}
+    body:not(.has-preview) .checkBlock .kpis{display:none}
+
+    /* Barra de acao: fica visivel ao rolar o formulario. */
+    .actionBar{
+      position:sticky;
+      bottom:0;
+      z-index:5;
+      margin:16px -16px -16px;
+      padding:12px 16px;
+      background:var(--surface);
+      border-top:1px solid var(--line);
+    }
+
     /* ── Previa do e-mail ────────────────────────────────────────────────── */
 
     .previewWrap{
@@ -623,6 +668,9 @@
       .textareas{grid-template-columns:minmax(0,1fr)}
       .row4{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
+    @media (max-width:1000px){
+      .adjustPair{grid-template-columns:minmax(0,1fr)}
+    }
 
     @media (max-width:760px){
       header{padding:12px 16px}
@@ -635,6 +683,7 @@
       .paxBlock .row3{max-width:none; grid-template-columns:repeat(3,minmax(0,1fr))}
       .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
       .btnrow{display:grid; grid-template-columns:minmax(0,1fr)}
+      .actionBar{margin:16px -14px -14px; padding:12px 14px}
       .btnrow button{width:100%}
       #itin{min-height:200px}
       #maskADT, #maskCHD, #maskINF{min-height:130px}
