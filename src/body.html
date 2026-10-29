@@ -41,7 +41,7 @@
 
       <div class="bd">
         <div class="subcard paxBlock">
-          <h3>Passageiros</h3>
+          <h3>Passageiros <span class="tag tagReq">Obrigatório</span></h3>
           <div class="row3">
             <div class="field">
               <label for="qADT">Adultos</label>
@@ -98,7 +98,7 @@
 
             <div id="paxInfantsWrap" style="display:none;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800;">Infants</div>
+                <div style="font-weight:800;">Bebês</div>
                 <div class="status">INF</div>
               </div>
               <div id="paxInfantsList" class="row2" style="margin-top:10px;"></div>
@@ -152,30 +152,28 @@
             </div>
           </div>
 
-          <div class="btnrow">
-            <button id="btnBuild" type="button">Gerar prévia</button>
-            <button id="btnCopy" class="secondary" type="button">Copiar HTML (Outlook)</button>
-            <button id="btnClear" class="ghost" type="button">Limpar</button>
-          </div>
-          <details id="errDetails" style="display:none; margin-top:10px; padding:10px; border:1px solid rgba(148,163,184,.6); border-radius:12px; background:rgba(255,255,255,.6);">
-            <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
-            <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
-          </details>
-          <div id="confidencePill" class="confidencePill" role="status" aria-live="polite" hidden></div>
-          <div id="validationSummary" class="validationSummary" role="alert" aria-live="polite"></div>
-
-          <div class="kpis">
-            <div class="kpi"><div class="k">Tarifa do ADT</div><div class="v" id="kFare">—</div></div>
-            <div class="kpi"><div class="k">Tarifa do grupo</div><div class="v" id="kEquiv">—</div></div>
-            <div class="kpi"><div class="k">Taxas do grupo</div><div class="v" id="kTaxes">—</div></div>
-            <div class="kpi"><div class="k">Total do grupo</div><div class="v" id="kTotal">—</div></div>
-          </div>
         </div>
 
-        <div class="divider"></div>
+        <div class="subcard checkBlock" id="checkBlock">
+          <h3>Conferir</h3>
+        <details id="errDetails" style="display:none; margin-top:10px; padding:10px; border:1px solid rgba(148,163,184,.6); border-radius:12px; background:rgba(255,255,255,.6);">
+          <summary style="cursor:pointer; font-weight:700;">Detalhes do erro</summary>
+          <pre id="errText" style="white-space:pre-wrap; margin:10px 0 0; font-size:12px; color:#111827;"></pre>
+        </details>
+        <div id="confidencePill" class="confidencePill" role="status" aria-live="polite" hidden></div>
+        <div id="validationSummary" class="validationSummary" role="alert" aria-live="polite"></div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="k">Tarifa do ADT</div><div class="v" id="kFare">—</div></div>
+          <div class="kpi"><div class="k">Tarifa do grupo</div><div class="v" id="kEquiv">—</div></div>
+          <div class="kpi"><div class="k">Taxas do grupo</div><div class="v" id="kTaxes">—</div></div>
+          <div class="kpi"><div class="k">Total do grupo</div><div class="v" id="kTotal">—</div></div>
+        </div>
+        </div>
+
 
         <div class="subcard">
-          <h3>Valores e câmbio</h3>
+          <h3>Valores e câmbio <span class="tag tagReq">Obrigatório</span></h3>
           <div class="row2">
             <div class="field">
               <label for="fldRC">RC por passageiro (USD)</label>
@@ -189,25 +187,32 @@
               </div>
             </div>
           </div>
+          <div class="row2" style="margin-top:12px;">
+            <div class="field">
+              <label for="fldLOC">Localizador</label>
+              <input id="fldLOC" placeholder="Ex.: AY9RIP" />
+            </div>
+          </div>
           <div class="hint" id="fxHint">
             Aplicado somente ao RC. A tarifa permanece conforme o equivalente em BRL informado pelo GDS.
           </div>
         </div>
 
-        <div class="subcard">
-          <h3>Markup (interno)</h3>
+        <div class="row2 adjustPair">
+        <div class="subcard internalBlock">
+          <h3>Markup <span class="tag tagInternal">Interno · a agência não vê</span></h3>
           <div class="field">
             <label for="fldMarkup">Markup sobre a tarifa (%)</label>
             <input id="fldMarkup" inputmode="decimal" placeholder="Opcional. Ex.: 5" />
           </div>
           <div class="hint" id="markupHint">
-            Interno: vai embutido na tarifa (moeda e BRL) e a agência não vê. As taxas não mudam.
+            Embutido na tarifa; as taxas não mudam.
           </div>
           <div class="hint" id="markupInfo"></div>
         </div>
 
-        <div class="subcard">
-          <h3>RAV da agência</h3>
+        <div class="subcard agencyBlock">
+          <h3>RAV da agência <span class="tag tagAgency">Vai no e-mail</span></h3>
           <div class="field">
             <label for="fldRAV">RAV (%)</label>
             <div class="fxControl">
@@ -216,13 +221,14 @@
             </div>
           </div>
           <div class="hint" id="ravHint">
-            Comissão da agência: calculada sobre a tarifa já com markup e somada ao total. Em branco = "A definir" (não entra no e-mail).
+            Sobre a tarifa já com markup; soma no total. Em branco = "A definir" (fora do e-mail).
           </div>
           <div class="hint" id="ravInfo"></div>
         </div>
+        </div>
 
         <div class="subcard">
-          <h3>Forma de pagamento</h3>
+          <h3>Forma de pagamento <span class="tag">Opcional</span></h3>
           <div class="switches">
             <label class="chip"><input type="checkbox" id="payFaturado">Faturado</label>
             <label class="chip"><input type="checkbox" id="payCartao">Cartão de crédito</label>
@@ -245,7 +251,7 @@
         </div>
 
         <div class="subcard">
-          <h3>Condições comerciais</h3>
+          <h3>Condições comerciais <span class="tag">Opcional</span></h3>
           <div class="row3">
             <div class="field">
               <label for="fldCabine">Cabine</label>
@@ -305,14 +311,16 @@
                 <option value="Não">Não</option>
               </select>
             </div>
-            <div class="field">
-              <label for="fldLOC">Localizador</label>
-              <input id="fldLOC" placeholder="Ex.: AY9RIP" />
-            </div>
           </div>
 
           <div class="hint" id="hintOptional">Campo em branco não entra no e-mail.</div>
         </div>
+
+          <div class="btnrow actionBar">
+            <button id="btnBuild" type="button">Gerar prévia</button>
+            <button id="btnCopy" class="secondary" type="button">Copiar HTML (Outlook)</button>
+            <button id="btnClear" class="ghost" type="button">Limpar</button>
+          </div>
 
       </div>
     </section>
