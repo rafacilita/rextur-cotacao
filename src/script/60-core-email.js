@@ -217,7 +217,35 @@ function buildEmail(quote) {
       if(f && !fareFamilies.includes(label)) fareFamilies.push(label);
     });
   }
-  if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
+  // Familia por trecho: so quando o GDS informa quais trechos cada familia cobre E ha mais de uma
+  // familia no mesmo bilhete (ex.: CLASICA nos 2 primeiros voos, PREMIER no 3o). Sem isso, mantem
+  // a lista de nomes de sempre. Mostrado na mesma linha discreta de Condicoes, sem destaque.
+  const fareFamilyLine = (() => {
+    const segLabel = (n) => {
+      const sg = airSegs[n - 1];
+      return sg && sg.airline && sg.org && sg.dst ? `${sg.airline} ${sg.flight} ${sg.org}-${sg.dst}` : `trecho ${n}`;
+    };
+    const porTipo = [];
+    let algumPorTrecho = false;
+    for(const t of typesPresent){
+      const pr = prices ? prices[t] : null;
+      const fsegs = pr && Array.isArray(pr.fareFamilySegs) ? pr.fareFamilySegs : [];
+      if(fsegs.length >= 2){
+        algumPorTrecho = true;
+        porTipo.push([t, fsegs.map(f => `${f.name}: ${f.segs.map(segLabel).join(", ")}`).join("; ")]);
+      } else {
+        // este tipo nao traz familia por trecho: continua so com o(s) nome(s)
+        const arr = pr && Array.isArray(pr.fareFamilies) && pr.fareFamilies.length ? pr.fareFamilies : (pr && pr.fareFamily ? [pr.fareFamily] : []);
+        if(arr.length) porTipo.push([t, arr.join(", ")]);
+      }
+    }
+    if(!algumPorTrecho) return "";
+    // todos os tipos iguais -> uma vez so, sem prefixo; senão, prefixa o tipo
+    const iguais = porTipo.length === typesPresent.length && porTipo.every(p => p[1] === porTipo[0][1]);
+    return iguais ? porTipo[0][1] : porTipo.map(([t, txt]) => `${t} — ${txt}`).join(" | ");
+  })();
+  if(fareFamilyLine) optItems.push(["Família tarifária", escapeHtml(fareFamilyLine)]);
+  else if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
   if(cabine && !cabineMista) optItems.push(["Cabine", escapeHtml(cabine)]);
   if(pay.methods.length) optItems.push(["Forma de pagamento", escapeHtml(pay.methods.join(", ")) + (pay.link ? ` — link: ${escapeHtml(pay.link)}` : "")]);
   if(condicao) optItems.push(["Condição", escapeHtml(condicao)]);
