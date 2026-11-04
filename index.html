@@ -4529,7 +4529,7 @@ function currentCRC(){
 // Mesmo estilo do rodape do CRR4 na Reemissao (8px, cinza claro). break-all: o codigo
 // e uma palavra so e, sem isso, alargaria o e-mail.
 function crcFooterHtml(code){
-  return `<p style="margin:6px 0 0; font-size:8px; color:#bbb; word-break:break-all;">${escapeHtml(code)}</p>`;
+  return `<p style="margin:6px 0 0; font-size:8px; color:#bbb; word-break:break-all; width:680px; max-width:680px;">${escapeHtml(code)}</p>`;
 }
 
 function setCRCMsg(text, warn = false){
