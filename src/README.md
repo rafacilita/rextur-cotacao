@@ -6,10 +6,11 @@
 ## Layout
 
 - `head.html`, `body.html`, `foot.html` — estrutura e CSS.
-- `script/10..60-core-*.js` — **núcleo**: parsing, QuoteModel, regras, e-mail. Nunca toca
+- `script/10..62-core-*.js` — **núcleo**: parsing, QuoteModel, regras, e-mail e o CRC
+  (`62-core-crc.js`: monta e lê o código do rodapé do e-mail; carrega o markup de propósito). Nunca toca
   DOM, `window` ou `localStorage`. Provado por `tests/core-sem-dom.test.cjs` (carrega só
   esses arquivos numa `vm` sem navegador).
-- `script/70..78-ui-*.js` — **interface**: leitura/escrita do DOM, rascunho, câmbio BCB,
+- `script/70..78-ui-*.js` — **interface**: leitura/escrita do DOM, rascunho, CRC (`77-ui-crc.js`), câmbio BCB,
   `build()` e fiação de eventos.
 
 Os arquivos **não são módulos ES**: são recortes de texto concatenados na ordem do
