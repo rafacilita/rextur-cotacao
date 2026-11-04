@@ -374,6 +374,10 @@
     .sourceBlock .subcard{background:var(--surface); margin-top:0}
     .sourceBlock .subcard + .subcard{margin-top:12px}
 
+    .crcBlock summary{cursor:pointer; font-size:13px; font-weight:600; color:var(--ink)}
+    .crcBlock #crcInput{min-height:64px; font-family:ui-monospace, Consolas, monospace; font-size:12px}
+    #crcMsg.warn{color:var(--warn)}
+
     .maskReview{margin:0}
     .maskReview summary{
       cursor:pointer;
@@ -737,6 +741,19 @@
       </div>
 
       <div class="bd">
+        <details class="subcard crcBlock" id="crcBlock">
+          <summary>Abrir cotação enviada (CRC)</summary>
+          <div class="field" style="margin-top:10px;">
+            <label for="crcInput">Código CRC ou o e-mail inteiro</label>
+            <textarea id="crcInput" data-nodraft rows="3" spellcheck="false" placeholder="Cole aqui o e-mail da cotação (ou só o código CRC1-… do rodapé)"></textarea>
+            <div class="help">A cotação é refeita na tela como foi enviada, inclusive o markup.</div>
+          </div>
+          <div class="btnrow" style="margin-top:8px;">
+            <button id="btnLoadCRC" class="secondary" type="button">Carregar CRC</button>
+          </div>
+          <div class="hint" id="crcMsg" role="status" aria-live="polite"></div>
+        </details>
+
         <div class="subcard paxBlock">
           <h3>Passageiros <span class="tag tagReq">Obrigatório</span></h3>
           <div class="row3">
@@ -3552,6 +3569,364 @@ function buildEmail(quote) {
 
   return { html, subject };
 }
+// [62-core-crc] Nucleo: CRC (Codigo de Registro da Cotacao) -- montar e ler, sem DOM e sem rede
+//
+// O CRC e o "CRR da Cotacao": o estado da tela vai compactado no rodape do e-mail da agencia,
+// e qualquer colega cola o codigo de volta para reabrir a cotacao (conferencia, rentabilizacao).
+// Tudo acontece no navegador: nada e enviado a servidor nenhum.
+//
+// O CRC CARREGA O MARKUP de proposito (decisao de 04/11/2026): o objetivo principal e saber se
+// o colaborador anterior rentabilizou a emissao. O codigo e so compactado (reversivel), nao
+// criptografado.
+//
+// Formato: "CRC1-" + LZString.compressToEncodedURIComponent(JSON.stringify(payload)).
+// Prefixo proprio (e nao CRR) para a Reemissao e a Cotacao nunca lerem o codigo uma da outra.
+
+// ----- LZ-String (copiado da Calculadora de Reemissao, que usa o mesmo formato no CRR4) -----
+// Implementacao baseada em lz-string (pieroxy, MIT). So compressToEncodedURIComponent /
+// decompressFromEncodedURIComponent sao usados.
+const LZString = (function(){
+  const f = String.fromCharCode;
+  const keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+  const baseReverseDic = {};
+
+  function getBaseValue(alphabet, character) {
+    if(!baseReverseDic[alphabet]) {
+      baseReverseDic[alphabet] = {};
+      for (let i=0; i<alphabet.length; i++) baseReverseDic[alphabet][alphabet.charAt(i)] = i;
+    }
+    return baseReverseDic[alphabet][character];
+  }
+
+  function _compress(uncompressed, bitsPerChar, getCharFromInt) {
+    if (uncompressed == null) return "";
+    let i, value;
+    const context_dictionary = {};
+    const context_dictionaryToCreate = {};
+    let context_c = "";
+    let context_wc = "";
+    let context_w = "";
+    let context_enlargeIn = 2;
+    let context_dictSize = 3;
+    let context_numBits = 2;
+    const context_data = [];
+    let context_data_val = 0;
+    let context_data_position = 0;
+
+    function writeBit(bit){
+      context_data_val = (context_data_val << 1) | bit;
+      if (context_data_position === bitsPerChar - 1) {
+        context_data_position = 0;
+        context_data.push(getCharFromInt(context_data_val));
+        context_data_val = 0;
+      } else {
+        context_data_position++;
+      }
+    }
+    function writeBits(numBits, val){
+      for (i=0;i<numBits;i++){
+        writeBit(val & 1);
+        val >>= 1;
+      }
+    }
+
+    for (let ii=0; ii<uncompressed.length; ii++){
+      context_c = uncompressed.charAt(ii);
+      if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
+        context_dictionary[context_c] = context_dictSize++;
+        context_dictionaryToCreate[context_c] = true;
+      }
+
+      context_wc = context_w + context_c;
+      if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
+        context_w = context_wc;
+      } else {
+        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+          if (context_w.charCodeAt(0) < 256) {
+            writeBits(context_numBits, 0);
+            value = context_w.charCodeAt(0);
+            writeBits(8, value);
+          } else {
+            writeBits(context_numBits, 1);
+            value = context_w.charCodeAt(0);
+            writeBits(16, value);
+          }
+          context_enlargeIn--;
+          if (context_enlargeIn === 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+          delete context_dictionaryToCreate[context_w];
+        } else {
+          value = context_dictionary[context_w];
+          writeBits(context_numBits, value);
+        }
+
+        context_enlargeIn--;
+        if (context_enlargeIn === 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+
+        context_dictionary[context_wc] = context_dictSize++;
+        context_w = String(context_c);
+      }
+    }
+
+    if (context_w !== "") {
+      if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+        if (context_w.charCodeAt(0) < 256) {
+          writeBits(context_numBits, 0);
+          value = context_w.charCodeAt(0);
+          writeBits(8, value);
+        } else {
+          writeBits(context_numBits, 1);
+          value = context_w.charCodeAt(0);
+          writeBits(16, value);
+        }
+        context_enlargeIn--;
+        if (context_enlargeIn === 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+        delete context_dictionaryToCreate[context_w];
+      } else {
+        value = context_dictionary[context_w];
+        writeBits(context_numBits, value);
+      }
+
+      context_enlargeIn--;
+      if (context_enlargeIn === 0) {
+        context_enlargeIn = Math.pow(2, context_numBits);
+        context_numBits++;
+      }
+    }
+
+    writeBits(context_numBits, 2);
+
+    while (true) {
+      context_data_val = (context_data_val << 1);
+      if (context_data_position === bitsPerChar - 1) {
+        context_data.push(getCharFromInt(context_data_val));
+        break;
+      } else context_data_position++;
+    }
+
+    return context_data.join("");
+  }
+
+  function _decompress(length, resetValue, getNextValue) {
+    const dictionary = [];
+    let next;
+    let enlargeIn = 4;
+    let dictSize = 4;
+    let numBits = 3;
+    let entry = "";
+    const result = [];
+    let i;
+    let w;
+    let bits, resb, maxpower, power;
+    const data = { val: getNextValue(0), position: resetValue, index: 1 };
+
+    for (i=0; i<3; i++) dictionary[i] = i;
+
+    function readBits(nbits){
+      bits = 0;
+      maxpower = Math.pow(2, nbits);
+      power = 1;
+      while (power !== maxpower) {
+        resb = data.val & data.position;
+        data.position >>= 1;
+        if (data.position === 0) {
+          data.position = resetValue;
+          data.val = getNextValue(data.index++);
+        }
+        bits |= (resb > 0 ? 1 : 0) * power;
+        power <<= 1;
+      }
+      return bits;
+    }
+
+    next = readBits(2);
+    switch (next) {
+      case 0:
+        w = f(readBits(8));
+        break;
+      case 1:
+        w = f(readBits(16));
+        break;
+      case 2:
+        return "";
+      default:
+        return null;
+    }
+
+    dictionary[3] = w;
+    result.push(w);
+
+    while (true) {
+      if (data.index > length) return null;
+
+      const c = readBits(numBits);
+
+      switch (c) {
+        case 0:
+          dictionary[dictSize++] = f(readBits(8));
+          next = dictSize - 1;
+          enlargeIn--;
+          break;
+        case 1:
+          dictionary[dictSize++] = f(readBits(16));
+          next = dictSize - 1;
+          enlargeIn--;
+          break;
+        case 2:
+          return result.join("");
+        default:
+          next = c;
+      }
+
+      if (enlargeIn === 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+
+      if (dictionary[next]) {
+        entry = dictionary[next];
+      } else {
+        if (next === dictSize) entry = w + w.charAt(0);
+        else return null;
+      }
+      result.push(entry);
+
+      dictionary[dictSize++] = w + entry.charAt(0);
+      enlargeIn--;
+
+      w = entry;
+
+      if (enlargeIn === 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+    }
+  }
+
+  return {
+    compressToEncodedURIComponent: function(input){
+      if (input == null) return "";
+      return _compress(input, 6, function(a){ return keyStrUriSafe.charAt(a); });
+    },
+    decompressFromEncodedURIComponent: function(input){
+      if (input == null) return "";
+      if (input === "") return null;
+      input = input.replace(/ /g, "+");
+      return _decompress(input.length, 32, function(index){ return getBaseValue(keyStrUriSafe, input.charAt(index)); });
+    }
+  };
+})();
+
+// ----- CRC -----
+const CRC_PREFIX = "CRC1-";
+const CRC_VERSION = 1;
+
+// Textos colados do GDS: quando dois campos tem o MESMO texto (ex.: PNR + tarifa colados
+// juntos no itinerario e na mascara), o segundo vira so uma referencia ao primeiro.
+const CRC_TEXT_FIELDS = ["itin", "maskADT", "maskCHD", "maskINF"];
+// maskAll e so a caixa de entrada que e repartida em maskADT/CHD/INF; o rascunho tambem
+// nao a restaura. Guardar duplicaria o maior texto do codigo.
+const CRC_SKIP_FIELDS = ["maskAll"];
+
+// state = { controls, defaults, fxMeta, cabineSource, cabins }
+//   controls/defaults: { id: {value} | {checked} } (formato de collectDraftControls)
+// So entra o que difere da tela em branco; texto so com espacos conta como vazio.
+function buildCRCPayload(state){
+  const controls = (state && state.controls) || {};
+  const defaults = (state && state.defaults) || {};
+  const c = {}, r = {}, seen = {};
+  for (const [id, st] of Object.entries(controls)) {
+    if (CRC_SKIP_FIELDS.includes(id) || !st) continue;
+    const def = defaults[id] || {};
+    if ("checked" in st) {
+      if (!!st.checked !== !!def.checked) c[id] = st.checked ? 1 : 0;
+      continue;
+    }
+    const v = st.value == null ? "" : String(st.value);
+    const dflt = def.value == null ? "" : String(def.value);
+    if (v === dflt) continue;
+    if (!v.trim() && !dflt.trim()) continue;
+    if (CRC_TEXT_FIELDS.includes(id) && v.trim()) {
+      const igual = CRC_TEXT_FIELDS.find((o) => seen[o] === v);
+      if (igual) { r[id] = igual; continue; }
+      seen[id] = v;
+    }
+    c[id] = v;
+  }
+  const payload = { v: CRC_VERSION, c };
+  if (Object.keys(r).length) payload.r = r;
+  const fx = (state && state.fxMeta) || {};
+  if (fx.source || fx.baseDate || fx.usageDate) payload.fx = [fx.source || "", fx.baseDate || "", fx.usageDate || ""];
+  if (state && state.cabineSource) payload.cs = state.cabineSource;
+  if (state && Array.isArray(state.cabins) && state.cabins.length) payload.cab = state.cabins.map(String);
+  return payload;
+}
+
+function encodeCRC(payload){
+  return CRC_PREFIX + LZString.compressToEncodedURIComponent(JSON.stringify(payload));
+}
+
+// Aceita o codigo puro ou o e-mail inteiro (resposta da agencia, encaminhamento), com
+// quebras de linha no meio e o ">" que alguns clientes poem no inicio da linha citada.
+function extractCRC(text){
+  const compact = String(text || "").replace(/\r?\n[ \t]*(?:>[ \t]*)*/g, "").replace(/\s+/g, "");
+  const m = compact.match(/CRC1-[A-Za-z0-9+\-$]+/i);
+  return m ? CRC_PREFIX + m[0].slice(CRC_PREFIX.length) : null;
+}
+
+// Devolve o payload ou lanca Error com mensagem para o operador.
+function decodeCRC(text){
+  const code = extractCRC(text);
+  if (!code) {
+    if (/CRR[1-5]-|RA1-/i.test(String(text || "").replace(/\s+/g, ""))) {
+      throw new Error("Este código é um CRR da Reemissão. Abra-o na Calculadora de Reemissão.");
+    }
+    throw new Error("Nenhum código CRC encontrado no texto colado.");
+  }
+  let payload = null;
+  try {
+    const json = LZString.decompressFromEncodedURIComponent(code.slice(CRC_PREFIX.length));
+    payload = json ? JSON.parse(json) : null;
+  } catch (e) { payload = null; }
+  if (!payload || typeof payload !== "object" || !payload.c || typeof payload.c !== "object") {
+    throw new Error("CRC incompleto ou danificado. Copie o código inteiro do rodapé do e-mail.");
+  }
+  if (payload.v !== CRC_VERSION) throw new Error("Versão de CRC não suportada por esta calculadora.");
+  return payload;
+}
+
+// Do payload para o estado completo da tela: parte da tela em branco (defaults) e aplica
+// o que veio no codigo. Campo que nao existe na tela em branco (nomes dos passageiros,
+// criados conforme a quantidade) entra como esta.
+function expandCRCPayload(payload, defaults){
+  const controls = {};
+  for (const [id, st] of Object.entries(defaults || {})) controls[id] = Object.assign({}, st);
+  for (const [id, v] of Object.entries(payload.c || {})) {
+    const def = (defaults || {})[id];
+    const isCheck = def ? ("checked" in def) : (typeof v === "number");
+    controls[id] = isCheck ? { checked: !!v } : { value: v == null ? "" : String(v) };
+  }
+  for (const [id, ref] of Object.entries(payload.r || {})) {
+    const src = controls[ref];
+    if (src && "value" in src) controls[id] = { value: src.value };
+  }
+  for (const id of CRC_SKIP_FIELDS) if (controls[id]) controls[id] = { value: "" };
+  const fx = Array.isArray(payload.fx) ? payload.fx : [];
+  return {
+    controls,
+    fxMeta: { source: fx[0] || "", baseDate: fx[1] || "", usageDate: fx[2] || "" },
+    cabineSource: payload.cs || "",
+    cabins: Array.isArray(payload.cab) ? payload.cab.map(String) : null
+  };
+}
 // [70-ui-base] UI: $, helpers de status/erro e estado de interface
 
 const $ = (id) => document.getElementById(id);
@@ -3759,7 +4134,8 @@ function updateDraftPill(text){
 
 function collectDraftControls(){
   const controls = {};
-  document.querySelectorAll("main input[id], main select[id], main textarea[id]").forEach(el => {
+  // [data-nodraft] fica de fora (ex.: a caixa onde se cola o CRC nao e estado da cotacao).
+  document.querySelectorAll("main input[id]:not([data-nodraft]), main select[id]:not([data-nodraft]), main textarea[id]:not([data-nodraft])").forEach(el => {
     controls[el.id] = (el.type === "checkbox" || el.type === "radio")
       ? { checked: !!el.checked }
       : { value: el.value };
@@ -3811,6 +4187,19 @@ function restoreDraft(){
     return false;
   }
 
+  applyDraftPayload(payload);
+
+  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
+  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
+    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
+    : "Rascunho restaurado");
+  setStatus("Rascunho restaurado. Gere a prévia.");
+  return true;
+}
+
+// Escreve na tela um estado no formato do rascunho ({controls, fxMeta, cabineSource}).
+// Usado pelo rascunho local e pelo CRC (77-ui-crc).
+function applyDraftPayload(payload){
   const entries = Object.entries(payload.controls);
   entries.filter(([id]) => !id.startsWith("name_")).forEach(([id, state]) => {
     const el = $(id);
@@ -3840,13 +4229,6 @@ function restoreDraft(){
   }
   if($("maskAll")) $("maskAll").value = "";
   renderFxHint();
-
-  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
-  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
-    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
-    : "Rascunho restaurado");
-  setStatus("Rascunho restaurado. Gere a prévia.");
-  return true;
 }
 
 function clearValidationMarks(){
@@ -4121,6 +4503,90 @@ $("fldAssentosMode").addEventListener("change", refreshOptionalUI);
 $("fldLOC").addEventListener("input", (e)=>{ e.target.value = e.target.value.toUpperCase(); });
 refreshOptionalUI();
 refreshPaxUI();
+// [77-ui-crc] UI: CRC no rodape do e-mail e caixa "Abrir cotacao enviada (CRC)"
+// Montagem e leitura do codigo ficam no nucleo (62-core-crc); aqui so se le/escreve a tela.
+
+// Retrato da tela em branco, tirado ANTES do rascunho ser restaurado (o 78 chama
+// restoreDraft no fim). O CRC guarda so o que difere deste retrato.
+const CRC_DEFAULTS = collectDraftControls();
+
+function currentCRC(){
+  const itin = $("itin").value;
+  return encodeCRC(buildCRCPayload({
+    controls: collectDraftControls(),
+    defaults: CRC_DEFAULTS,
+    fxMeta: readFxMeta(),
+    cabineSource: $("fldCabine") ? ($("fldCabine").dataset.source || "") : "",
+    // cabines confirmadas no popup: sem elas, reabrir pediria a confirmacao de novo
+    cabins: (cabinConfirmState && cabinConfirmState.itinText === itin) ? cabinConfirmState.cabins : null
+  }));
+}
+
+// Mesmo estilo do rodape do CRR4 na Reemissao (8px, cinza claro). break-all: o codigo
+// e uma palavra so e, sem isso, alargaria o e-mail.
+function crcFooterHtml(code){
+  return `<p style="margin:6px 0 0; font-size:8px; color:#bbb; word-break:break-all;">${escapeHtml(code)}</p>`;
+}
+
+function setCRCMsg(text, warn = false){
+  const el = $("crcMsg");
+  el.textContent = text;
+  el.classList.toggle("warn", !!warn);
+}
+
+// Reabre a cotacao do CRC: a tela inteira passa a ser a do codigo (o que nao veio nele
+// volta ao padrao) e a previa e gerada de novo.
+function loadCRC(text){
+  const st = expandCRCPayload(decodeCRC(text), CRC_DEFAULTS);   // lanca Error com mensagem
+
+  // O cambio do CRC e o da cotacao original: cancela a consulta ao BCB que a abertura
+  // da pagina pode ter deixado em andamento (ela sobrescreveria um cambio de origem BCB).
+  fxAutofillSeq++;
+  clearTimeout(draftSaveTimer);
+
+  applyDraftPayload({ controls: st.controls, fxMeta: st.fxMeta, cabineSource: st.cabineSource });
+  // nomes que estavam na tela e nao vieram no codigo
+  document.querySelectorAll('main input[id^="name_"]').forEach(el => {
+    if(!(el.id in st.controls)) el.value = "";
+  });
+  $("maskSplitStatus").textContent = "Aguardando conteúdo";
+  $("maskSplitStatus").classList.remove("warn");
+
+  cabinConfirmState = st.cabins ? { itinText: $("itin").value, cabins: st.cabins } : null;
+
+  // A previa da cotacao anterior sai da tela: se a geracao abaixo parar na validacao,
+  // nao pode sobrar um e-mail de outra cotacao pronto para copiar.
+  $("preview").innerHTML = "";
+  $("preview").dataset.html = "";
+  document.body.classList.remove("has-preview");
+  $("subjectPill").textContent = "Assunto: —";
+  window._lastQuote = null;
+  renderConfidence(null);
+  previewDirty = false;
+
+  // Mesmo caminho do botao: valida, (so se faltar cabine) pergunta, gera e salva o rascunho.
+  $("btnBuild").click();
+
+  const mk = $("fldMarkup").value.trim();
+  const g = (window._lastQuote && window._lastQuote.totals && window._lastQuote.totals.group) || {};
+  const loc = $("fldLOC").value.trim().toUpperCase();
+  const mkTxt = mk
+    ? `Markup: ${mk}%${g.markupTotal > 0 ? " (" + moneyBRL(g.markupTotal) + " no grupo)" : ""}.`
+    : "Sem markup.";
+  setCRCMsg(`Cotação reaberta${loc ? " (LOC " + loc + ")" : ""}. ${mkTxt}`);
+  return st;
+}
+
+$("btnLoadCRC").addEventListener("click", ()=>{
+  const text = $("crcInput").value;
+  if(!text.trim()){ setCRCMsg("Cole o e-mail ou o código CRC antes de carregar.", true); return; }
+  try{
+    loadCRC(text);
+  }catch(e){
+    console.warn(e);
+    setCRCMsg(e && e.message ? e.message : "Não foi possível ler o CRC.", true);
+  }
+});
 // [78-ui-geracao] UI: modal de cabine, build() e fiacao de eventos de carga
 
 // Popup bloqueante: um <select> por trecho aereo, pre-preenchido com o
@@ -4242,9 +4708,11 @@ function renderQuote(result) {
   window._lastQuote = finalQuote;
 
   const out = buildEmail(finalQuote);
+  // CRC no rodape: reabre esta cotacao (com o markup) na calculadora. Ver 62-core-crc.
+  const emailHtml = out.html + crcFooterHtml(currentCRC());
   $("subjectPill").textContent = "Assunto: " + out.subject;
-  $("preview").innerHTML    = out.html;
-  $("preview").dataset.html = out.html;
+  $("preview").innerHTML    = emailHtml;
+  $("preview").dataset.html = emailHtml;
   // Revela a coluna da previa. Sem cotacao gerada o formulario usa a largura toda.
   document.body.classList.add("has-preview");
 
@@ -4426,6 +4894,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
   $("markupInfo").textContent=""; $("ravInfo").textContent="";
+  $("crcInput").value=""; $("crcMsg").textContent=""; $("crcMsg").classList.remove("warn");
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;
@@ -4443,6 +4912,7 @@ enhanceAccessibility();
 
 document.querySelector("main").addEventListener("input", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.closest("[data-nodraft]")) return;
   if(event.target.id === "maskAll"){
     $("maskSplitStatus").textContent = event.target.value.trim() ? "Conteúdo pronto para identificar" : "Aguardando conteúdo";
     $("maskSplitStatus").classList.remove("warn");
@@ -4459,6 +4929,7 @@ document.querySelector("main").addEventListener("input", (event)=>{
 });
 document.querySelector("main").addEventListener("change", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.closest("[data-nodraft]")) return;
   if(event.target.id === "fldCabine"){
     event.target.dataset.source = "MANUAL";
   }

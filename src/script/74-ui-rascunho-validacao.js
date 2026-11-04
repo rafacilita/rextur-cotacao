@@ -7,7 +7,8 @@ function updateDraftPill(text){
 
 function collectDraftControls(){
   const controls = {};
-  document.querySelectorAll("main input[id], main select[id], main textarea[id]").forEach(el => {
+  // [data-nodraft] fica de fora (ex.: a caixa onde se cola o CRC nao e estado da cotacao).
+  document.querySelectorAll("main input[id]:not([data-nodraft]), main select[id]:not([data-nodraft]), main textarea[id]:not([data-nodraft])").forEach(el => {
     controls[el.id] = (el.type === "checkbox" || el.type === "radio")
       ? { checked: !!el.checked }
       : { value: el.value };
@@ -59,6 +60,19 @@ function restoreDraft(){
     return false;
   }
 
+  applyDraftPayload(payload);
+
+  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
+  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
+    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
+    : "Rascunho restaurado");
+  setStatus("Rascunho restaurado. Gere a prévia.");
+  return true;
+}
+
+// Escreve na tela um estado no formato do rascunho ({controls, fxMeta, cabineSource}).
+// Usado pelo rascunho local e pelo CRC (77-ui-crc).
+function applyDraftPayload(payload){
   const entries = Object.entries(payload.controls);
   entries.filter(([id]) => !id.startsWith("name_")).forEach(([id, state]) => {
     const el = $(id);
@@ -88,13 +102,6 @@ function restoreDraft(){
   }
   if($("maskAll")) $("maskAll").value = "";
   renderFxHint();
-
-  const savedAt = payload.savedAt ? new Date(payload.savedAt) : null;
-  updateDraftPill(savedAt && !Number.isNaN(savedAt.getTime())
-    ? "Salvo " + savedAt.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})
-    : "Rascunho restaurado");
-  setStatus("Rascunho restaurado. Gere a prévia.");
-  return true;
 }
 
 function clearValidationMarks(){

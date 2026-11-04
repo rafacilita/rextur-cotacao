@@ -119,9 +119,11 @@ function renderQuote(result) {
   window._lastQuote = finalQuote;
 
   const out = buildEmail(finalQuote);
+  // CRC no rodape: reabre esta cotacao (com o markup) na calculadora. Ver 62-core-crc.
+  const emailHtml = out.html + crcFooterHtml(currentCRC());
   $("subjectPill").textContent = "Assunto: " + out.subject;
-  $("preview").innerHTML    = out.html;
-  $("preview").dataset.html = out.html;
+  $("preview").innerHTML    = emailHtml;
+  $("preview").dataset.html = emailHtml;
   // Revela a coluna da previa. Sem cotacao gerada o formulario usa a largura toda.
   document.body.classList.add("has-preview");
 
@@ -303,6 +305,7 @@ $("btnClear").addEventListener("click", ()=>{
   $("gdsDetected").textContent="—";
   ["kFare","kEquiv","kTaxes","kTotal"].forEach(id=>$(id).textContent="—");
   $("markupInfo").textContent=""; $("ravInfo").textContent="";
+  $("crcInput").value=""; $("crcMsg").textContent=""; $("crcMsg").classList.remove("warn");
   window._lastQuote = null;
   previewDirty = false;
   validationActivated = false;
@@ -320,6 +323,7 @@ enhanceAccessibility();
 
 document.querySelector("main").addEventListener("input", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.closest("[data-nodraft]")) return;
   if(event.target.id === "maskAll"){
     $("maskSplitStatus").textContent = event.target.value.trim() ? "Conteúdo pronto para identificar" : "Aguardando conteúdo";
     $("maskSplitStatus").classList.remove("warn");
@@ -336,6 +340,7 @@ document.querySelector("main").addEventListener("input", (event)=>{
 });
 document.querySelector("main").addEventListener("change", (event)=>{
   if(!event.target.matches("input,select,textarea")) return;
+  if(event.target.closest("[data-nodraft]")) return;
   if(event.target.id === "fldCabine"){
     event.target.dataset.source = "MANUAL";
   }

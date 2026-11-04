@@ -40,6 +40,19 @@
       </div>
 
       <div class="bd">
+        <details class="subcard crcBlock" id="crcBlock">
+          <summary>Abrir cotação enviada (CRC)</summary>
+          <div class="field" style="margin-top:10px;">
+            <label for="crcInput">Código CRC ou o e-mail inteiro</label>
+            <textarea id="crcInput" data-nodraft rows="3" spellcheck="false" placeholder="Cole aqui o e-mail da cotação (ou só o código CRC1-… do rodapé)"></textarea>
+            <div class="help">A cotação é refeita na tela como foi enviada, inclusive o markup.</div>
+          </div>
+          <div class="btnrow" style="margin-top:8px;">
+            <button id="btnLoadCRC" class="secondary" type="button">Carregar CRC</button>
+          </div>
+          <div class="hint" id="crcMsg" role="status" aria-live="polite"></div>
+        </details>
+
         <div class="subcard paxBlock">
           <h3>Passageiros <span class="tag tagReq">Obrigatório</span></h3>
           <div class="row3">
