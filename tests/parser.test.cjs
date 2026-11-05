@@ -931,7 +931,7 @@ test("buildEmail nao le o DOM: pagamento viaja pelo modelo", () => {
   assert.ok(shown.startsWith(again.html), "a previa comeca exatamente com o e-mail do nucleo");
   const rodape = shown.slice(again.html.length);
   assert.match(rodape, /^<table [^>]*width="680"/, "rodape do CRC em tabela de largura fixa");
-  assert.match(rodape.replace(/<br>/g, "").replace(/<[^>]+>/g, "").trim(), /^CRC2-[A-Za-z0-9\-_]+$/);
+  assert.match(rodape.replace(/<br>/g, "").replace(/<[^>]+>/g, "").trim(), /^CRC1-[A-Za-z0-9\-_]+$/);
   assert.equal(app.document.getElementById("subjectPill").textContent, "sentinela");
   app.close();
 });

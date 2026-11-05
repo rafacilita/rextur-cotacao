@@ -219,11 +219,12 @@ test("CRC que para na validacao nao deixa na tela a previa de outra cotacao", ()
   ruim.close(); b.close();
 });
 
-// ───────── CRC2: deflate proprio, rodape em linhas, leitura do CRC1 antigo ─────────
+// ───────── CRC1: deflate proprio + dicionario congelado, rodape em linhas ─────────
 const zlib = require("node:zlib");
 const vm = require("node:vm");
+const crypto = require("node:crypto");
 const coreCrc = vm.createContext({});
-vm.runInContext(readFileSync(join(root, "src", "script", "62-core-crc.js"), "utf8"), coreCrc);
+for (const f of ["61-core-crc-dicionario.js", "62-core-crc.js"]) vm.runInContext(readFileSync(join(root, "src", "script", f), "utf8"), coreCrc);
 const noCore = (expr, vars) => { Object.assign(coreCrc, vars); return vm.runInContext(expr, coreCrc); };
 
 test("deflate do CRC conversa com o zlib nos dois sentidos (exemplos reais, UTF-8 e dados extremos)", () => {
@@ -231,37 +232,48 @@ test("deflate do CRC conversa com o zlib nos dois sentidos (exemplos reais, UTF-
   amostras.push(Buffer.from("Cotação INTER — São Paulo → México ✈ 😀"), Buffer.from("a"), Buffer.from("ABCDEFGH".repeat(3000)), Buffer.alloc(50000));
   let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   amostras.push(Buffer.from(Array.from({ length: 2000 }, () => Math.floor(rnd() * 256))));
+  const dict = Buffer.from(noCore("crcDict()", {}));
   for (const buf of amostras) {
-    const meu = noCore("crcDeflate(__b)", { __b: Array.from(buf) });
-    assert.ok(Buffer.from(zlib.inflateRawSync(Buffer.from(meu))).equals(buf), "o zlib le o que o CRC gerou");
-    for (const level of [0, 1, 9]) {
-      const volta = noCore("crcInflate(__b)", { __b: Array.from(zlib.deflateRawSync(buf, { level })) });
-      assert.ok(Buffer.from(volta).equals(buf), "o CRC le o que o zlib gerou (nivel " + level + ")");
+    for (const [rotulo, d] of [["sem dicionario", null], ["com dicionario", dict]]) {
+      const meu = noCore("crcDeflate(__b, __d)", { __b: Array.from(buf), __d: d ? Array.from(d) : undefined });
+      assert.ok(Buffer.from(zlib.inflateRawSync(Buffer.from(meu), d ? { dictionary: d } : {})).equals(buf), "o zlib le o que o CRC gerou (" + rotulo + ")");
+      assert.ok(Buffer.from(noCore("crcInflate(__b, __d)", { __b: meu, __d: d ? Array.from(d) : undefined })).equals(buf), "ida e volta propria (" + rotulo + ")");
+      for (const level of [0, 1, 9]) {
+        const z = zlib.deflateRawSync(buf, d ? { level, dictionary: d } : { level });
+        const volta = noCore("crcInflate(__b, __d)", { __b: Array.from(z), __d: d ? Array.from(d) : undefined });
+        assert.ok(Buffer.from(volta).equals(buf), "o CRC le o que o zlib gerou (" + rotulo + ", nivel " + level + ")");
+      }
     }
   }
 });
 
-test("CRC2 e bem menor que o CRC1 antigo (mesmo conteudo) e tem o prefixo novo", () => {
-  const a = cotar(blocos("sabre_adt_chd_inf_bagagem_distinta_am.txt").join("\n\n"));
+// Se este teste falhar, o dicionario mudou: TODO CRC1 ja enviado deixaria de abrir. Nao atualize o hash --
+// crie um formato novo (CRC2-) com o dicionario novo e mantenha o CRC1 legivel.
+test("dicionario do CRC1 e congelado (SHA-256 travado)", () => {
+  const dict = noCore("CRC_DICT_V1", {});
+  assert.equal(crypto.createHash("sha256").update(dict, "utf8").digest("hex"), "804a028564990e06ce04694ffb556e066a13d588050a2354800e051410379016");
+  assert.ok(dict.length < 20000, "dicionario enxuto (cabe na janela de 32 KB junto com os dados)");
+});
+
+test("o dicionario reduz o CRC de forma real, sem perder nada (prefixo CRC1)", () => {
+  const a = cotar(blocos("sabre_adt_chd_inf_bagagem_distinta_am.txt").join("\n\n"), { markup: "8" });
   const code = crcDe(a);
-  assert.match(code, /^CRC2-/);
-  const payload = a.buildCRCPayload({ controls: a.collectDraftControls(), defaults: a.CRC_DEFAULTS, fxMeta: a.readFxMeta(), cabineSource: "", cabins: null });
-  const antigo = "CRC1-" + a.eval("LZString").compressToEncodedURIComponent(JSON.stringify(payload));
-  assert.ok(code.length < antigo.length * 0.75, `CRC2 ${code.length} vs CRC1 ${antigo.length}`);
+  assert.match(code, /^CRC1-/);
+  const semDic = a.eval(`(function(){ const j = crcUtf8Bytes(JSON.stringify(buildCRCPayload({ controls: collectDraftControls(), defaults: CRC_DEFAULTS, fxMeta: readFxMeta(), cabineSource: "", cabins: null }))); return CRC_PREFIX + crcB64Encode(crcCheck(j).concat(crcDeflate(j))); })()`);
+  assert.ok(code.length < semDic.length * 0.9, `com dicionario ${code.length} vs sem ${semDic.length}`);
   a.close();
 });
 
-test("CRC1 (formato antigo, ja enviado em e-mails) continua abrindo", () => {
-  const a = cotar(blocos("sabre_tarifa_xt.txt").join("\n\n"), { markup: "12", loc: "ANTIGO" });
-  const payload = a.buildCRCPayload({ controls: a.collectDraftControls(), defaults: a.CRC_DEFAULTS, fxMeta: a.readFxMeta(), cabineSource: "", cabins: null });
-  const antigo = "CRC1-" + a.eval("LZString").compressToEncodedURIComponent(JSON.stringify(payload));
-  const b = carregar("Segue o aceite.\n" + antigo + "\nAtt.");
-  assert.equal($(b, "fldLOC").value, "ANTIGO");
-  assert.equal($(b, "fldMarkup").value, "12");
-  a.close(); b.close();
+test("codigo de outro formato e recusado com mensagem clara, sem mexer na tela", () => {
+  const b = novoApp();
+  $(b, "fldLOC").value = "MANTER";
+  carregar("CRC2-AAAAAAAAAAAAAAAAAAAAAAAA", b);                 // prefixo que nao existe
+  assert.match($(b, "crcMsg").textContent, /Nenhum código CRC/);
+  assert.equal($(b, "fldLOC").value, "MANTER");
+  b.close();
 });
 
-test("caractere trocado no meio do CRC2 e detectado (nao abre cotacao errada)", () => {
+test("caractere trocado no meio do CRC1 e detectado (nao abre cotacao errada)", () => {
   const a = cotar(blocos("amadeus_adt_chd_inf.txt").join("\n\n"));
   const code = crcDe(a);
   for (const pos of [8, Math.floor(code.length / 3), Math.floor(code.length / 2), code.length - 6]) {

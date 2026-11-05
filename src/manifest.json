@@ -9,6 +9,7 @@
     "src/script/50-core-modelo.js",
     "src/script/55-core-calculo-cotacao.js",
     "src/script/60-core-email.js",
+    "src/script/61-core-crc-dicionario.js",
     "src/script/62-core-crc.js",
     "src/script/70-ui-base.js",
     "src/script/72-ui-cambio-bcb.js",

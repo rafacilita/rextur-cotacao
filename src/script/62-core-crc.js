@@ -8,258 +8,16 @@
 // o colaborador anterior rentabilizou a emissao. O codigo e so compactado (reversivel), nao
 // criptografado.
 //
-// Formato atual "CRC2-": base64url( 2 bytes de verificacao + deflate(JSON utf-8) ) -- cerca de metade do
-// tamanho do formato anterior. Formato anterior "CRC1-": LZString do JSON; continua sendo LIDO, porque
-// ja saiu em e-mails. Prefixo proprio (e nao CRR) para a Reemissao e a Cotacao nunca lerem o codigo uma da outra.
-
-// ----- LZ-String (copiado da Calculadora de Reemissao, que usa o mesmo formato no CRR4) -----
-// Implementacao baseada em lz-string (pieroxy, MIT). Hoje so e usado para LER o CRC1 antigo
-// (decompressFromEncodedURIComponent); o CRC novo usa o deflate abaixo.
-const LZString = (function(){
-  const f = String.fromCharCode;
-  const keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
-  const baseReverseDic = {};
-
-  function getBaseValue(alphabet, character) {
-    if(!baseReverseDic[alphabet]) {
-      baseReverseDic[alphabet] = {};
-      for (let i=0; i<alphabet.length; i++) baseReverseDic[alphabet][alphabet.charAt(i)] = i;
-    }
-    return baseReverseDic[alphabet][character];
-  }
-
-  function _compress(uncompressed, bitsPerChar, getCharFromInt) {
-    if (uncompressed == null) return "";
-    let i, value;
-    const context_dictionary = {};
-    const context_dictionaryToCreate = {};
-    let context_c = "";
-    let context_wc = "";
-    let context_w = "";
-    let context_enlargeIn = 2;
-    let context_dictSize = 3;
-    let context_numBits = 2;
-    const context_data = [];
-    let context_data_val = 0;
-    let context_data_position = 0;
-
-    function writeBit(bit){
-      context_data_val = (context_data_val << 1) | bit;
-      if (context_data_position === bitsPerChar - 1) {
-        context_data_position = 0;
-        context_data.push(getCharFromInt(context_data_val));
-        context_data_val = 0;
-      } else {
-        context_data_position++;
-      }
-    }
-    function writeBits(numBits, val){
-      for (i=0;i<numBits;i++){
-        writeBit(val & 1);
-        val >>= 1;
-      }
-    }
-
-    for (let ii=0; ii<uncompressed.length; ii++){
-      context_c = uncompressed.charAt(ii);
-      if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
-        context_dictionary[context_c] = context_dictSize++;
-        context_dictionaryToCreate[context_c] = true;
-      }
-
-      context_wc = context_w + context_c;
-      if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
-        context_w = context_wc;
-      } else {
-        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
-          if (context_w.charCodeAt(0) < 256) {
-            writeBits(context_numBits, 0);
-            value = context_w.charCodeAt(0);
-            writeBits(8, value);
-          } else {
-            writeBits(context_numBits, 1);
-            value = context_w.charCodeAt(0);
-            writeBits(16, value);
-          }
-          context_enlargeIn--;
-          if (context_enlargeIn === 0) {
-            context_enlargeIn = Math.pow(2, context_numBits);
-            context_numBits++;
-          }
-          delete context_dictionaryToCreate[context_w];
-        } else {
-          value = context_dictionary[context_w];
-          writeBits(context_numBits, value);
-        }
-
-        context_enlargeIn--;
-        if (context_enlargeIn === 0) {
-          context_enlargeIn = Math.pow(2, context_numBits);
-          context_numBits++;
-        }
-
-        context_dictionary[context_wc] = context_dictSize++;
-        context_w = String(context_c);
-      }
-    }
-
-    if (context_w !== "") {
-      if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
-        if (context_w.charCodeAt(0) < 256) {
-          writeBits(context_numBits, 0);
-          value = context_w.charCodeAt(0);
-          writeBits(8, value);
-        } else {
-          writeBits(context_numBits, 1);
-          value = context_w.charCodeAt(0);
-          writeBits(16, value);
-        }
-        context_enlargeIn--;
-        if (context_enlargeIn === 0) {
-          context_enlargeIn = Math.pow(2, context_numBits);
-          context_numBits++;
-        }
-        delete context_dictionaryToCreate[context_w];
-      } else {
-        value = context_dictionary[context_w];
-        writeBits(context_numBits, value);
-      }
-
-      context_enlargeIn--;
-      if (context_enlargeIn === 0) {
-        context_enlargeIn = Math.pow(2, context_numBits);
-        context_numBits++;
-      }
-    }
-
-    writeBits(context_numBits, 2);
-
-    while (true) {
-      context_data_val = (context_data_val << 1);
-      if (context_data_position === bitsPerChar - 1) {
-        context_data.push(getCharFromInt(context_data_val));
-        break;
-      } else context_data_position++;
-    }
-
-    return context_data.join("");
-  }
-
-  function _decompress(length, resetValue, getNextValue) {
-    const dictionary = [];
-    let next;
-    let enlargeIn = 4;
-    let dictSize = 4;
-    let numBits = 3;
-    let entry = "";
-    const result = [];
-    let i;
-    let w;
-    let bits, resb, maxpower, power;
-    const data = { val: getNextValue(0), position: resetValue, index: 1 };
-
-    for (i=0; i<3; i++) dictionary[i] = i;
-
-    function readBits(nbits){
-      bits = 0;
-      maxpower = Math.pow(2, nbits);
-      power = 1;
-      while (power !== maxpower) {
-        resb = data.val & data.position;
-        data.position >>= 1;
-        if (data.position === 0) {
-          data.position = resetValue;
-          data.val = getNextValue(data.index++);
-        }
-        bits |= (resb > 0 ? 1 : 0) * power;
-        power <<= 1;
-      }
-      return bits;
-    }
-
-    next = readBits(2);
-    switch (next) {
-      case 0:
-        w = f(readBits(8));
-        break;
-      case 1:
-        w = f(readBits(16));
-        break;
-      case 2:
-        return "";
-      default:
-        return null;
-    }
-
-    dictionary[3] = w;
-    result.push(w);
-
-    while (true) {
-      if (data.index > length) return null;
-
-      const c = readBits(numBits);
-
-      switch (c) {
-        case 0:
-          dictionary[dictSize++] = f(readBits(8));
-          next = dictSize - 1;
-          enlargeIn--;
-          break;
-        case 1:
-          dictionary[dictSize++] = f(readBits(16));
-          next = dictSize - 1;
-          enlargeIn--;
-          break;
-        case 2:
-          return result.join("");
-        default:
-          next = c;
-      }
-
-      if (enlargeIn === 0) {
-        enlargeIn = Math.pow(2, numBits);
-        numBits++;
-      }
-
-      if (dictionary[next]) {
-        entry = dictionary[next];
-      } else {
-        if (next === dictSize) entry = w + w.charAt(0);
-        else return null;
-      }
-      result.push(entry);
-
-      dictionary[dictSize++] = w + entry.charAt(0);
-      enlargeIn--;
-
-      w = entry;
-
-      if (enlargeIn === 0) {
-        enlargeIn = Math.pow(2, numBits);
-        numBits++;
-      }
-    }
-  }
-
-  return {
-    compressToEncodedURIComponent: function(input){
-      if (input == null) return "";
-      return _compress(input, 6, function(a){ return keyStrUriSafe.charAt(a); });
-    },
-    decompressFromEncodedURIComponent: function(input){
-      if (input == null) return "";
-      if (input === "") return null;
-      input = input.replace(/ /g, "+");
-      return _decompress(input.length, 32, function(index){ return getBaseValue(keyStrUriSafe, input.charAt(index)); });
-    }
-  };
-})();
+// Formato "CRC1-": base64url( 2 bytes de verificacao + deflate(JSON utf-8, com o dicionario CRC_DICT_V1) ).
+// O CRC ainda nao tinha circulado quando o formato foi fechado, por isso o formato definitivo e o CRC1.
+// Prefixo proprio (e nao CRR) para a Reemissao e a Cotacao nunca lerem o codigo uma da outra.
 
 // ----- Deflate minimo (RFC 1951), sincrono, sem dependencia -----
-// Por que existe: o LZString (acima) e LZW e comprime mal texto repetido, e o texto colado do GDS
-// se repete (itinerario completo + mascaras, linhas de regras, cabecalhos). O deflate (o mesmo
-// metodo do ZIP) deixa o codigo cerca de metade do tamanho. CompressionStream existe nos
-// navegadores, mas e assincrono e nao existe em jsdom/vm -- aqui precisa ser sincrono.
+// Por que existe: o LZString (LZW) comprime mal texto repetido, e o texto colado do GDS se repete
+// (itinerario completo + mascaras, linhas de regras, cabecalhos). O deflate (o mesmo metodo do ZIP)
+// deixa o codigo cerca de metade do tamanho, e o dicionario de vocabulario do GDS (61-core-crc-dicionario)
+// tira mais ~25-30%. CompressionStream existe nos navegadores, mas e assincrono e nao existe em
+// jsdom/vm -- aqui precisa ser sincrono.
 // Compressor: LZ77 com cadeia de hash + Huffman (escolhe o menor entre bloco fixo e dinamico).
 // Descompressor: completo (armazenado, fixo e dinamico). Validado contra o zlib em tests/crc.test.cjs.
 
@@ -302,15 +60,20 @@ function crcCanonCodes(len){
 function crcSymFor(base, v){ let i = base.length - 1; while(base[i] > v) i--; return i; }
 
 // bytes (array de 0..255) -> bytes deflate (raw, sem cabecalho zlib)
-function crcDeflate(data){
+// dict (opcional): bytes que o descompressor tambem conhece; o LZ77 pode referenciar o dicionario como se
+// fosse texto ja visto, o que encurta muito texto padronizado de GDS.
+function crcDeflate(payload, dict){
+  const pre = dict ? dict.length : 0;
+  const data = pre ? dict.concat(payload) : payload;
   const n = data.length;
-  if(n === 0) return [3, 0];
+  if(payload.length === 0) return [3, 0];
   // 1) LZ77
   const head = new Int32Array(1 << 15).fill(-1), prev = new Int32Array(n);
   const hash = (p) => ((data[p] << 10) ^ (data[p + 1] << 5) ^ data[p + 2]) & 0x7fff;
   const insert = (p) => { if(p + 2 < n){ const h = hash(p); prev[p] = head[h]; head[h] = p; } };
   const L = [], D = [];   // literal: L=byte, D=0 | par: L=comprimento, D=distancia
-  let i = 0;
+  for(let k = 0; k < pre; k++) insert(k);
+  let i = pre;
   while(i < n){
     let bestLen = 0, bestDist = 0;
     if(i + 2 < n){
@@ -406,9 +169,10 @@ function crcDeflate(data){
 }
 
 // bytes deflate (raw) -> array de bytes. Lanca Error se o fluxo estiver cortado ou invalido.
-function crcInflate(src){
+function crcInflate(src, dict){
   let pos = 0, bb = 0, bc = 0;
-  const out = [];
+  const pre = dict ? dict.length : 0;
+  const out = pre ? dict.slice() : [];
   const bits = (nb) => {
     while(bc < nb){
       if(pos >= src.length) throw new Error("fim inesperado");
@@ -496,7 +260,7 @@ function crcInflate(src){
       if(out.length > 4000000) throw new Error("tamanho absurdo");
     }
   } while(!final);
-  return out;
+  return pre ? out.slice(pre) : out;
 }
 
 // ----- texto <-> bytes (UTF-8 manual: TextEncoder nao existe em jsdom/vm) e base64 url-safe -----
@@ -562,11 +326,11 @@ function crcCheck(bytes){
 }
 
 // ----- CRC -----
-// Formato atual "CRC2-": base64url( [2 bytes de verificacao] + deflate(JSON utf-8) ).
-// Formato anterior "CRC1-": LZString do JSON. Continua sendo LIDO (cotacoes ja enviadas).
-const CRC_PREFIX = "CRC2-";
-const CRC_PREFIX_LEGADO = "CRC1-";
+const CRC_PREFIX = "CRC1-";
 const CRC_VERSION = 1;
+// O dicionario (61-core-crc-dicionario.js) e congelado; os bytes sao calculados na primeira vez que precisam.
+let _crcDictBytes = null;
+function crcDict(){ return _crcDictBytes || (_crcDictBytes = crcUtf8Bytes(CRC_DICT_V1)); }
 
 // Textos colados do GDS: quando dois campos tem o MESMO texto (ex.: PNR + tarifa colados
 // juntos no itinerario e na mascara), o segundo vira so uma referencia ao primeiro.
@@ -611,14 +375,14 @@ function buildCRCPayload(state){
 
 function encodeCRC(payload){
   const json = crcUtf8Bytes(JSON.stringify(payload));
-  return CRC_PREFIX + crcB64Encode(crcCheck(json).concat(crcDeflate(json)));
+  return CRC_PREFIX + crcB64Encode(crcCheck(json).concat(crcDeflate(json, crcDict())));
 }
 
 // Aceita o codigo puro ou o e-mail inteiro (resposta da agencia, encaminhamento), com
 // quebras de linha no meio e o ">" que alguns clientes poem no inicio da linha citada.
 function extractCRC(text){
   const compact = String(text || "").replace(/\r?\n[ \t]*(?:>[ \t]*)*/g, "").replace(/\s+/g, "");
-  const m = compact.match(/CRC[12]-[A-Za-z0-9+\-$_]+/i);
+  const m = compact.match(/CRC1-[A-Za-z0-9+\-$_]+/i);
   return m ? m[0].slice(0, 5).toUpperCase() + m[0].slice(5) : null;
 }
 
@@ -634,17 +398,11 @@ function decodeCRC(text){
   const danificado = new Error("CRC incompleto ou danificado. Copie o código inteiro do rodapé do e-mail.");
   let payload = null;
   try {
-    let json = null;
-    if (code.startsWith(CRC_PREFIX_LEGADO)) {
-      json = LZString.decompressFromEncodedURIComponent(code.slice(5));
-    } else {
-      const bytes = crcB64Decode(code.slice(5));
-      const raw = crcInflate(bytes.slice(2));
-      const chk = crcCheck(raw);
-      if (chk[0] !== bytes[0] || chk[1] !== bytes[1]) throw danificado;
-      json = crcUtf8Str(raw);
-    }
-    payload = json ? JSON.parse(json) : null;
+    const bytes = crcB64Decode(code.slice(5));
+    const raw = crcInflate(bytes.slice(2), crcDict());
+    const chk = crcCheck(raw);
+    if (chk[0] !== bytes[0] || chk[1] !== bytes[1]) throw danificado;
+    payload = JSON.parse(crcUtf8Str(raw));
   } catch (e) { payload = null; }
   if (!payload || typeof payload !== "object" || !payload.c || typeof payload.c !== "object") throw danificado;
   if (payload.v !== CRC_VERSION) throw new Error("Versão de CRC não suportada por esta calculadora.");
