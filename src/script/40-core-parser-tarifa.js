@@ -157,15 +157,45 @@ function normalizeBagAllowance(v){
   return s;
 }
 
+function cleanFareFamilyName(v){
+  const s =String(v || "").replace(/\[CTRL\]/gi, " ").replace(/Â¥|¥|¤|Â¤/g, " ").trim();
+  const parts = s.split("-");
+  return parts.length === 2 && parts[0].toUpperCase() === parts[1].toUpperCase() ? parts[0] : s;
+}
+
+// Familia tarifaria POR TRECHO (Amadeus: "FARE FAMILY:FC1:1-2:CLASICA", "...:FC2:3:PREMIER").
+// O numero e a posicao do trecho AEREO precificado (a mesma ordem usada em bagSegs; ARNK
+// nao conta). Devolve [{ name, segs:[1,2] }] na ordem em que a familia aparece, agrupando
+// trechos nao consecutivos da mesma familia. Linha sem lista de trechos (ex.: Sabre
+// "BRANDED FARE") nao entra: o chamador cai no comportamento so-por-nome.
+function extractFareFamilySegments(pricingRaw){
+  const byName = new Map();
+  for(const l of trimLines(pricingRaw)){
+    const m = String(l).match(/FARE\s+FAMILY\s*:\s*(.+)$/i);
+    if(!m) continue;
+    const parts = m[1].split(":").map(x => x.trim()).filter(Boolean);
+    if(parts.length < 3) continue;
+    const name = cleanFareFamilyName(parts[parts.length - 1]);
+    const spec = parts[parts.length - 2];
+    if(!name || !/^\d+(?:\s*[-,]\s*\d+)*$/.test(spec)) continue;
+    const segs = [];
+    for(const piece of spec.split(",")){
+      const r = piece.split("-").map(x => parseInt(x, 10));
+      if(r.length === 2 && r[0] <= r[1] && r[1] - r[0] < 50) for(let n = r[0]; n <= r[1]; n++) segs.push(n);
+      else if(r.length === 1) segs.push(r[0]);
+    }
+    if(!segs.length) continue;
+    if(!byName.has(name)) byName.set(name, []);
+    for(const n of segs) if(!byName.get(name).includes(n)) byName.get(name).push(n);
+  }
+  return Array.from(byName, ([name, segs]) => ({ name, segs: segs.sort((a, b) => a - b) }));
+}
+
 function extractFareFamilies(pricingRaw){
   const lines = trimLines(pricingRaw);
   const found = [];
   const add = (v) => {
-    const s = String(v || "").replace(/\[CTRL\]/gi, " ").replace(/Â¥|¥|¤|Â¤/g, " ").trim();
-    const parts = s.split("-");
-    const normalized = parts.length === 2 && parts[0].toUpperCase() === parts[1].toUpperCase()
-      ? parts[0]
-      : s;
+    const normalized = cleanFareFamilyName(v);
     if(normalized && !found.includes(normalized)) found.push(normalized);
   };
 
@@ -308,7 +338,7 @@ function parsePricingAmadeus(pricingRaw){
     taxesSource = classified.taxesSource;
     taxLinesBRL = classified.taxLinesBRL;
   }
-  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, totalSource, taxesSource, taxLinesBRL};
+  return {fareCur,fareAmt,equivBRL:equiv,taxesBRL:taxes,totalBRL:total, bag, bagSegs, fareFamily: fareFamilies[0] || null, fareFamilies, fareFamilySegs: extractFareFamilySegments(pricingRaw), totalSource, taxesSource, taxLinesBRL};
 }
 
 // ─── BAGAGEM DIRECIONAL DO SABRE ──────────────────────────────────────────────
