@@ -52,7 +52,8 @@ for (const nome of ["amadeus_adt_chd_inf.txt", "sabre_adt_chd_inf.txt", "amadeus
 test("a largura vem de uma constante unica (EMAIL_W) no gerador do e-mail", () => {
   const src = readFileSync(join(root, "src", "script", "60-core-email.js"), "utf8");
   assert.match(src, /const EMAIL_W = \d+;/);
-  assert.equal((src.match(/width="\$\{EMAIL_W\}"/g) || []).length, 5, "as 5 tabelas principais usam EMAIL_W");
+  assert.equal((src.match(/width="\$\{EMAIL_W\}"/g) || []).length, 6, "as 5 tabelas principais + fixedTable (barras, notas e total) usam EMAIL_W");
+  assert.doesNotMatch(src, /<div style="margin-top:\d+px; (?:padding|font-size)/, "barras e notas nao sao mais <div> soltas (o Outlook ignora a largura de div)");
   assert.doesNotMatch(src, /<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%; font-size:/, "sem tabela principal em 100%");
 });
 

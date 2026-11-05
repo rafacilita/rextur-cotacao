@@ -88,25 +88,32 @@ test("parser: lista de trechos aceita virgula, e familia repetida em trechos sep
   app.close();
 });
 
-test("e-mail: cada voo com a sua familia, na linha discreta de Condicoes", () => {
+test("e-mail: cada voo com a sua familia, numa nota pequena e cinza sob o itinerario (fora de Condicoes)", () => {
   const app = cotar({ ADT: FXR });
   const t = texto(app);
-  assert.match(t, /Família tarifária\s*CLASICA: AM 15 GRU-MEX, AM 200 MEX-GDL; PREMIER: AM 201 GDL-MEX; PREMIERONE: AM 14 MEX-GRU/);
+  assert.match(t, /Família tarifária:\s*CLASICA: AM 15 GRU-MEX, AM 200 MEX-GDL; PREMIER: AM 201 GDL-MEX; PREMIERONE: AM 14 MEX-GRU/);
   assert.doesNotMatch(t, /ADT: CLASICA \| ADT: PREMIER/, "a lista antiga so de nomes sai");
+
+  // discreta: nao e linha de rotulo em negrito da tabela de Condicoes, e vem depois do itinerario e antes dos valores
+  const h = app.document.getElementById("preview").dataset.html;
+  assert.doesNotMatch(h, /<b>Família tarifária<\/b>/, "nao e mais uma linha de destaque em Condicoes");
+  const iNota = h.indexOf("Família tarifária:");
+  assert.ok(h.indexOf("Itinerário") < iNota && iNota < h.indexOf("Valores por passageiro"), "nota entre o itinerario e os valores");
+  assert.match(h.slice(h.lastIndexOf("<td", iNota), iNota), /font-size:11px; color:#5a6a7d/, "11px e cinza");
   app.close();
 });
 
 test("e-mail: uma familia so continua igual a antes (so o nome)", () => {
   const um = FXR.replace(/FARE FAMILY:FC1:1-2:CLASICA[^\n]*\nFARE FAMILY:FC2:3:PREMIER[^\n]*\nFARE FAMILY:FC3:4:PREMIERONE[^\n]*/, "FARE FAMILY:FC1:1-4:CLASICA");
   const app = cotar({ ADT: um });
-  assert.match(texto(app), /Família tarifária\s*ADT: CLASICA/);
+  assert.match(texto(app), /Família tarifária:\s*ADT: CLASICA/);
   assert.doesNotMatch(texto(app), /CLASICA: AM 15/);
   app.close();
 });
 
 test("e-mail: ADT e CHD com a mesma divisao aparecem uma vez; divisoes diferentes levam o tipo", () => {
   const igual = cotar({ ADT: FXR, CHD: FXR });
-  const m = texto(igual).match(/Família tarifária\s*(.*?)(?:Cabine|Forma de pagamento|Condição|Assentos|$)/);
+  const m = texto(igual).match(/Família tarifária:\s*(.*?)\s*Valores por passageiro/s);
   assert.ok(m && !/ADT —|CHD —/.test(m[1]), m && m[1]);
   igual.close();
 

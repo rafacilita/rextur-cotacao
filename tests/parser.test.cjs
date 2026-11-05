@@ -929,7 +929,9 @@ test("buildEmail nao le o DOM: pagamento viaja pelo modelo", () => {
   // A previa = e-mail do nucleo + rodape do CRC (montado pela UI, ver 77-ui-crc).
   const shown = app.document.getElementById("preview").dataset.html;
   assert.ok(shown.startsWith(again.html), "a previa comeca exatamente com o e-mail do nucleo");
-  assert.match(shown.slice(again.html.length), /^<p [^>]*>CRC1-[A-Za-z0-9+\-$]+<\/p>$/);
+  const rodape = shown.slice(again.html.length);
+  assert.match(rodape, /^<table [^>]*width="680"/, "rodape do CRC em tabela de largura fixa");
+  assert.match(rodape.replace(/<br>/g, "").replace(/<[^>]+>/g, "").trim(), /^CRC1-[A-Za-z0-9\-_]+$/);
   assert.equal(app.document.getElementById("subjectPill").textContent, "sentinela");
   app.close();
 });

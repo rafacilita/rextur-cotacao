@@ -55,7 +55,7 @@ function cotar(raw, extra = {}) {
   app.build();
   return app;
 }
-const crcDe = (app) => (previewText(app).match(/CRC1-[A-Za-z0-9+\-$]+/) || [null])[0];
+const crcDe = (app) => (previewText(app).match(/CRC[12]-[A-Za-z0-9+\-$_]+/) || [null])[0];
 const telaDe = (app) => JSON.parse(JSON.stringify(app.collectDraftControls()));
 const fxDe = (app) => JSON.parse(JSON.stringify(app.readFxMeta()));
 
@@ -101,7 +101,7 @@ test("markup volta e aparece na mensagem de quem reabre (objetivo: conferir a re
   const raw = blocos("sabre_origem_exterior_eur_virada_ano.txt").join("\n\n");
   const a = cotar(raw, { markup: "10" });
   assert.match($(a, "markupInfo").textContent, /Markup embutido/);
-  assert.doesNotMatch(previewText(a).replace(/CRC1-\S+/, ""), /markup/i, "fora o codigo, o e-mail continua sem citar markup");
+  assert.doesNotMatch(previewText(a).replace(/CRC[12]-\S+/, ""), /markup/i, "fora o codigo, o e-mail continua sem citar markup");
   const b = carregar(crcDe(a));
   assert.equal($(b, "fldMarkup").value, "10");
   assert.equal($(b, "markupInfo").textContent, $(a, "markupInfo").textContent);
@@ -217,4 +217,103 @@ test("CRC que para na validacao nao deixa na tela a previa de outra cotacao", ()
   assert.equal(previewHtml(b), "", "previa antiga removida");
   assert.equal($(b, "preview").innerHTML, "");
   ruim.close(); b.close();
+});
+
+// ───────── CRC1: deflate proprio + dicionario congelado, rodape em linhas ─────────
+const zlib = require("node:zlib");
+const vm = require("node:vm");
+const crypto = require("node:crypto");
+const coreCrc = vm.createContext({});
+for (const f of ["61-core-crc-dicionario.js", "62-core-crc.js"]) vm.runInContext(readFileSync(join(root, "src", "script", f), "utf8"), coreCrc);
+const noCore = (expr, vars) => { Object.assign(coreCrc, vars); return vm.runInContext(expr, coreCrc); };
+
+test("deflate do CRC conversa com o zlib nos dois sentidos (exemplos reais, UTF-8 e dados extremos)", () => {
+  const amostras = fixtures.map((f) => readFileSync(join(root, "exemplos_gds", f)));
+  amostras.push(Buffer.from("Cotação INTER — São Paulo → México ✈ 😀"), Buffer.from("a"), Buffer.from("ABCDEFGH".repeat(3000)), Buffer.alloc(50000));
+  let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  amostras.push(Buffer.from(Array.from({ length: 2000 }, () => Math.floor(rnd() * 256))));
+  const dict = Buffer.from(noCore("crcDict()", {}));
+  for (const buf of amostras) {
+    for (const [rotulo, d] of [["sem dicionario", null], ["com dicionario", dict]]) {
+      const meu = noCore("crcDeflate(__b, __d)", { __b: Array.from(buf), __d: d ? Array.from(d) : undefined });
+      assert.ok(Buffer.from(zlib.inflateRawSync(Buffer.from(meu), d ? { dictionary: d } : {})).equals(buf), "o zlib le o que o CRC gerou (" + rotulo + ")");
+      assert.ok(Buffer.from(noCore("crcInflate(__b, __d)", { __b: meu, __d: d ? Array.from(d) : undefined })).equals(buf), "ida e volta propria (" + rotulo + ")");
+      for (const level of [0, 1, 9]) {
+        const z = zlib.deflateRawSync(buf, d ? { level, dictionary: d } : { level });
+        const volta = noCore("crcInflate(__b, __d)", { __b: Array.from(z), __d: d ? Array.from(d) : undefined });
+        assert.ok(Buffer.from(volta).equals(buf), "o CRC le o que o zlib gerou (" + rotulo + ", nivel " + level + ")");
+      }
+    }
+  }
+});
+
+// Se este teste falhar, o dicionario mudou: TODO CRC1 ja enviado deixaria de abrir. Nao atualize o hash --
+// crie um formato novo (CRC2-) com o dicionario novo e mantenha o CRC1 legivel.
+test("dicionario do CRC1 e congelado (SHA-256 travado)", () => {
+  const dict = noCore("CRC_DICT_V1", {});
+  assert.equal(crypto.createHash("sha256").update(dict, "utf8").digest("hex"), "804a028564990e06ce04694ffb556e066a13d588050a2354800e051410379016");
+  assert.ok(dict.length < 20000, "dicionario enxuto (cabe na janela de 32 KB junto com os dados)");
+});
+
+test("o dicionario reduz o CRC de forma real, sem perder nada (prefixo CRC1)", () => {
+  const a = cotar(blocos("sabre_adt_chd_inf_bagagem_distinta_am.txt").join("\n\n"), { markup: "8" });
+  const code = crcDe(a);
+  assert.match(code, /^CRC1-/);
+  const semDic = a.eval(`(function(){ const j = crcUtf8Bytes(JSON.stringify(buildCRCPayload({ controls: collectDraftControls(), defaults: CRC_DEFAULTS, fxMeta: readFxMeta(), cabineSource: "", cabins: null }))); return CRC_PREFIX + crcB64Encode(crcCheck(j).concat(crcDeflate(j))); })()`);
+  assert.ok(code.length < semDic.length * 0.9, `com dicionario ${code.length} vs sem ${semDic.length}`);
+  a.close();
+});
+
+test("codigo de outro formato e recusado com mensagem clara, sem mexer na tela", () => {
+  const b = novoApp();
+  $(b, "fldLOC").value = "MANTER";
+  carregar("CRC2-AAAAAAAAAAAAAAAAAAAAAAAA", b);                 // prefixo que nao existe
+  assert.match($(b, "crcMsg").textContent, /Nenhum código CRC/);
+  assert.equal($(b, "fldLOC").value, "MANTER");
+  b.close();
+});
+
+test("caractere trocado no meio do CRC1 e detectado (nao abre cotacao errada)", () => {
+  const a = cotar(blocos("amadeus_adt_chd_inf.txt").join("\n\n"));
+  const code = crcDe(a);
+  for (const pos of [8, Math.floor(code.length / 3), Math.floor(code.length / 2), code.length - 6]) {
+    const troca = code[pos] === "A" ? "B" : "A";
+    const ruim = code.slice(0, pos) + troca + code.slice(pos + 1);
+    const b = novoApp();
+    $(b, "fldLOC").value = "MANTER";
+    carregar(ruim, b);
+    assert.match($(b, "crcMsg").textContent, /incompleto ou danificado/, "posicao " + pos);
+    assert.equal($(b, "fldLOC").value, "MANTER", "tela intacta");
+    b.close();
+  }
+  a.close();
+});
+
+test("rodape do CRC: tabela de 680px, linhas curtas, e o texto copiado do e-mail (com quebras) reabre a cotacao", () => {
+  const a = cotar(blocos("amadeus_adt_chd_inf.txt").join("\n\n"));
+  const h = previewHtml(a);
+  const rodape = h.slice(h.lastIndexOf('<table role="presentation" width="680"'));
+  assert.match(rodape, /^<table role="presentation" width="680"[^>]*width:680px[^>]*max-width:680px/);
+  const linhas = rodape.replace(/<\/?(table|tr)[^>]*>/g, "").replace(/<td[^>]*>|<\/td>/g, "").split("<br>");
+  assert.ok(linhas.length >= 2, "o codigo foi quebrado em linhas");
+  assert.ok(linhas.every((l) => l.length <= 110), "linhas de ate 110 caracteres");
+  // como o Outlook entrega ao copiar: uma linha por <br>, as vezes com ">" de citacao
+  const comoCopiado = "Em 04/11, Fulano escreveu:\n" + linhas.map((l) => "> " + l).join("\n");
+  const b = carregar(comoCopiado);
+  assert.equal($(b, "crcMsg").classList.contains("warn"), false, $(b, "crcMsg").textContent);
+  assert.equal(previewHtml(b), previewHtml(a));
+  a.close(); b.close();
+});
+
+test("e-mail sem <div> solta: barras, notas e total sao tabelas de largura fixa (o Outlook ignora a largura de div)", () => {
+  const a = cotar(blocos("sabre_adt_chd_inf.txt").join("\n\n"), { rc: "25", rav: "7" });
+  const d = new JSDOM("<body>" + previewHtml(a) + "</body>").window.document;
+  const raiz = d.body.firstElementChild;                       // div da fonte
+  const filhos = Array.from(raiz.firstElementChild.children);  // div de 680px
+  assert.ok(filhos.length >= 8);
+  for (const el of filhos) {
+    assert.equal(el.tagName, "TABLE", "filho direto do e-mail e " + el.tagName + ": " + el.outerHTML.slice(0, 80));
+    assert.equal(el.getAttribute("width"), "680");
+  }
+  a.close();
 });
