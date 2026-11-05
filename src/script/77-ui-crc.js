@@ -17,10 +17,14 @@ function currentCRC(){
   }));
 }
 
-// Mesmo estilo do rodape do CRR4 na Reemissao (8px, cinza claro). break-all: o codigo
-// e uma palavra so e, sem isso, alargaria o e-mail.
+// Mesmo estilo do rodape do CRR4 na Reemissao (8px, cinza claro), mas numa tabela de largura
+// fixa e com o codigo quebrado em linhas de CRC_LINHA caracteres: o codigo e uma palavra so, e o
+// Outlook nao quebra palavra (word-break e ignorado) -- sem isso ele alargaria o e-mail.
+// A leitura (extractCRC) ja ignora as quebras de linha e o ">" de citacao.
+const CRC_LINHA = 110;
 function crcFooterHtml(code){
-  return `<p style="margin:6px 0 0; font-size:8px; color:#bbb; word-break:break-all; width:680px; max-width:680px;">${escapeHtml(code)}</p>`;
+  const linhas = code.match(new RegExp(".{1," + CRC_LINHA + "}", "g")) || [code];
+  return `<table role="presentation" width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; mso-table-lspace:0pt; mso-table-rspace:0pt;"><tr><td style="padding:6px 0 0 0; border:0; font-size:8px; line-height:11px; color:#bbb;">${linhas.map(escapeHtml).join("<br>")}</td></tr></table>`;
 }
 
 function setCRCMsg(text, warn = false){

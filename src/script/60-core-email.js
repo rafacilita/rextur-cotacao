@@ -1,6 +1,11 @@
 // [60-core-email] NUCLEO: montagem do e-mail/HTML de saida (puro, sem DOM)
 // Sem DOM/window/localStorage: roda em qualquer motor JS (ver tests/core-sem-dom.test.cjs).
 
+// Largura FIXA do e-mail (px). Com width="100%" o Outlook (motor do Word) ignora a largura da div e
+// trata a tabela como "Autoajuste a janela": ela estica, fica espacosa e atrapalha escrever texto antes/depois.
+// Vale para TUDO que vai no e-mail (tabelas, barras, notas e o rodape do CRC). Para mudar, mude so aqui.
+const EMAIL_W = 680;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // buildEmail — agora recebe QuoteModel
 // Compat layer no topo mapeia quote → variáveis internas.
@@ -23,10 +28,7 @@ function buildEmail(quote) {
   const paxNames        = quote.passengers.names;
   const itinSegs        = quote.itinerary;
   const prices          = quote.pricing;
-  // Largura FIXA das tabelas do e-mail (px). Com width="100%" o Outlook (motor do Word) ignora a largura da div e
-  // trata a tabela como "Autoajuste a janela": ela estica, fica espacosa e atrapalha escrever texto antes/depois.
-  // Para mudar a largura, mude so aqui.
-  const EMAIL_W = 680;
+  // (a largura fixa do e-mail, EMAIL_W, esta no topo deste arquivo)
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Cabines divergem entre trechos (pos-confirmacao do popup, com fallback na
@@ -58,8 +60,16 @@ function buildEmail(quote) {
     + SWIRL.map(c => `<td width="25%" style="width:25%; height:3px; line-height:3px; font-size:0; background-color:${c};">&nbsp;</td>`).join("")
     + `</tr></table>`;
   const cell = `border:1px solid ${LINE}; padding:8px 10px;`;
-  const sectionBar = (text) =>
-    `<div style="margin-top:16px; padding:8px 16px; background:${SECTION}; border:1px solid ${LINE}; border-left:3px solid ${ACCENT}; font-weight:700; font-size:12px; letter-spacing:.03em; color:${INK}; text-transform:uppercase;">${text}</div>`;
+  // Tudo que fica fora de uma tabela (barras de secao, notas, total) tambem e uma tabela de largura FIXA:
+  // o Outlook ignora a largura de <div> e esticaria esses blocos ate a borda da janela.
+  const fixedTable = (rows) =>
+    `<table role="presentation" width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; mso-table-lspace:0pt; mso-table-rspace:0pt;">${rows}</table>`;
+  // Espaco vertical em linha de tabela (margin-top em tabela nao e confiavel no Outlook).
+  const spacerRow = (px) => `<tr><td style="height:${px}px; line-height:${px}px; font-size:1px; padding:0; border:0;">&nbsp;</td></tr>`;
+  const sectionBar = (text) => fixedTable(spacerRow(16)
+    + `<tr><td style="padding:8px 16px; background:${SECTION}; border:1px solid ${LINE}; border-left:3px solid ${ACCENT}; font-weight:700; font-size:12px; letter-spacing:.03em; color:${INK}; text-transform:uppercase;">${text}</td></tr>`);
+  const noteBlock = (innerHtml, { top = 8, size = 12 } = {}) => fixedTable(spacerRow(top)
+    + `<tr><td style="padding:0; border:0; font-size:${size}px; color:${MUTED};">${innerHtml}</td></tr>`);
 
   // bagSegs vem indexado por trecho AEREO precificado, mas itinSegs inclui
   // linhas de superficie (ARNK). Sem essa projecao a coluna BAG desalinha.
@@ -244,8 +254,9 @@ function buildEmail(quote) {
     const iguais = porTipo.length === typesPresent.length && porTipo.every(p => p[1] === porTipo[0][1]);
     return iguais ? porTipo[0][1] : porTipo.map(([t, txt]) => `${t} — ${txt}`).join(" | ");
   })();
-  if(fareFamilyLine) optItems.push(["Família tarifária", escapeHtml(fareFamilyLine)]);
-  else if(fareFamilies.length) optItems.push(["Família tarifária", escapeHtml(fareFamilies.join(" | "))]);
+  // Informacao para a consolidacao, nao para a agencia: fica numa nota pequena e cinza sob o
+  // itinerario (e nao como linha de destaque em Condicoes).
+  const fareFamilyText = fareFamilyLine || fareFamilies.join(" | ");
   if(cabine && !cabineMista) optItems.push(["Cabine", escapeHtml(cabine)]);
   if(pay.methods.length) optItems.push(["Forma de pagamento", escapeHtml(pay.methods.join(", ")) + (pay.link ? ` — link: ${escapeHtml(pay.link)}` : "")]);
   if(condicao) optItems.push(["Condição", escapeHtml(condicao)]);
@@ -354,7 +365,7 @@ function buildEmail(quote) {
     ` : ""}
 
     ${sectionBar("Itinerário")}
-    ${(!typesPresent.length) ? "" : `<div style="${cell} border-top:none; font-size:12px; color:${MUTED};">${bagSameAcrossTypes ? "Franquia de bagagem por trecho de voo." : "Franquia de bagagem por trecho de voo, podendo variar entre os tipos de passageiro."}</div>`}
+    ${(!typesPresent.length) ? "" : fixedTable(`<tr><td style="${cell} border-top:none; font-size:12px; color:${MUTED};">${bagSameAcrossTypes ? "Franquia de bagagem por trecho de voo." : "Franquia de bagagem por trecho de voo, podendo variar entre os tipos de passageiro."}</td></tr>`)}
     <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; margin-bottom:4px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
       <tr>
         <th style="${cell} background:${SECTION}; color:${INK}; text-align:left;">Voo</th>
@@ -366,17 +377,16 @@ function buildEmail(quote) {
       </tr>
       ${itinRows || `<tr><td colspan="${itinColspan}" style="${cell}">Cole o itinerário para exibir os trechos.</td></tr>`}
     </table>
+    ${fareFamilyText ? noteBlock(`Família tarifária: ${escapeHtml(fareFamilyText)}`, { top: 2, size: 11 }) : ""}
 
     ${sectionBar("Valores por passageiro")}
     <table width="${EMAIL_W}" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:${EMAIL_W}px; max-width:${EMAIL_W}px; font-size:13px; border-top:none; mso-table-lspace:0pt; mso-table-rspace:0pt;">
       ${valuesHead}
       ${valuesRows || `<tr><td colspan="${valuesColspan}" style="${cell}">Cole as máscaras para exibir os valores.</td></tr>`}
     </table>
-    ${includeRC ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.</div>` : ``}${includeRAV ? `<div style="margin-top:8px; font-size:12px; color:${MUTED};">A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.</div>` : ``}
+    ${includeRC ? noteBlock(`O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.`) : ``}${includeRAV ? noteBlock(`A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.`) : ``}
 
-    <div style="margin-top:14px; font-size:13px;">
-      <b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}
-    </div>
+    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
   </div>
   </div>`.trim();
 

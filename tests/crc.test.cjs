@@ -55,7 +55,7 @@ function cotar(raw, extra = {}) {
   app.build();
   return app;
 }
-const crcDe = (app) => (previewText(app).match(/CRC1-[A-Za-z0-9+\-$]+/) || [null])[0];
+const crcDe = (app) => (previewText(app).match(/CRC[12]-[A-Za-z0-9+\-$_]+/) || [null])[0];
 const telaDe = (app) => JSON.parse(JSON.stringify(app.collectDraftControls()));
 const fxDe = (app) => JSON.parse(JSON.stringify(app.readFxMeta()));
 
@@ -101,7 +101,7 @@ test("markup volta e aparece na mensagem de quem reabre (objetivo: conferir a re
   const raw = blocos("sabre_origem_exterior_eur_virada_ano.txt").join("\n\n");
   const a = cotar(raw, { markup: "10" });
   assert.match($(a, "markupInfo").textContent, /Markup embutido/);
-  assert.doesNotMatch(previewText(a).replace(/CRC1-\S+/, ""), /markup/i, "fora o codigo, o e-mail continua sem citar markup");
+  assert.doesNotMatch(previewText(a).replace(/CRC[12]-\S+/, ""), /markup/i, "fora o codigo, o e-mail continua sem citar markup");
   const b = carregar(crcDe(a));
   assert.equal($(b, "fldMarkup").value, "10");
   assert.equal($(b, "markupInfo").textContent, $(a, "markupInfo").textContent);
@@ -217,4 +217,91 @@ test("CRC que para na validacao nao deixa na tela a previa de outra cotacao", ()
   assert.equal(previewHtml(b), "", "previa antiga removida");
   assert.equal($(b, "preview").innerHTML, "");
   ruim.close(); b.close();
+});
+
+// ───────── CRC2: deflate proprio, rodape em linhas, leitura do CRC1 antigo ─────────
+const zlib = require("node:zlib");
+const vm = require("node:vm");
+const coreCrc = vm.createContext({});
+vm.runInContext(readFileSync(join(root, "src", "script", "62-core-crc.js"), "utf8"), coreCrc);
+const noCore = (expr, vars) => { Object.assign(coreCrc, vars); return vm.runInContext(expr, coreCrc); };
+
+test("deflate do CRC conversa com o zlib nos dois sentidos (exemplos reais, UTF-8 e dados extremos)", () => {
+  const amostras = fixtures.map((f) => readFileSync(join(root, "exemplos_gds", f)));
+  amostras.push(Buffer.from("Cotação INTER — São Paulo → México ✈ 😀"), Buffer.from("a"), Buffer.from("ABCDEFGH".repeat(3000)), Buffer.alloc(50000));
+  let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  amostras.push(Buffer.from(Array.from({ length: 2000 }, () => Math.floor(rnd() * 256))));
+  for (const buf of amostras) {
+    const meu = noCore("crcDeflate(__b)", { __b: Array.from(buf) });
+    assert.ok(Buffer.from(zlib.inflateRawSync(Buffer.from(meu))).equals(buf), "o zlib le o que o CRC gerou");
+    for (const level of [0, 1, 9]) {
+      const volta = noCore("crcInflate(__b)", { __b: Array.from(zlib.deflateRawSync(buf, { level })) });
+      assert.ok(Buffer.from(volta).equals(buf), "o CRC le o que o zlib gerou (nivel " + level + ")");
+    }
+  }
+});
+
+test("CRC2 e bem menor que o CRC1 antigo (mesmo conteudo) e tem o prefixo novo", () => {
+  const a = cotar(blocos("sabre_adt_chd_inf_bagagem_distinta_am.txt").join("\n\n"));
+  const code = crcDe(a);
+  assert.match(code, /^CRC2-/);
+  const payload = a.buildCRCPayload({ controls: a.collectDraftControls(), defaults: a.CRC_DEFAULTS, fxMeta: a.readFxMeta(), cabineSource: "", cabins: null });
+  const antigo = "CRC1-" + a.eval("LZString").compressToEncodedURIComponent(JSON.stringify(payload));
+  assert.ok(code.length < antigo.length * 0.75, `CRC2 ${code.length} vs CRC1 ${antigo.length}`);
+  a.close();
+});
+
+test("CRC1 (formato antigo, ja enviado em e-mails) continua abrindo", () => {
+  const a = cotar(blocos("sabre_tarifa_xt.txt").join("\n\n"), { markup: "12", loc: "ANTIGO" });
+  const payload = a.buildCRCPayload({ controls: a.collectDraftControls(), defaults: a.CRC_DEFAULTS, fxMeta: a.readFxMeta(), cabineSource: "", cabins: null });
+  const antigo = "CRC1-" + a.eval("LZString").compressToEncodedURIComponent(JSON.stringify(payload));
+  const b = carregar("Segue o aceite.\n" + antigo + "\nAtt.");
+  assert.equal($(b, "fldLOC").value, "ANTIGO");
+  assert.equal($(b, "fldMarkup").value, "12");
+  a.close(); b.close();
+});
+
+test("caractere trocado no meio do CRC2 e detectado (nao abre cotacao errada)", () => {
+  const a = cotar(blocos("amadeus_adt_chd_inf.txt").join("\n\n"));
+  const code = crcDe(a);
+  for (const pos of [8, Math.floor(code.length / 3), Math.floor(code.length / 2), code.length - 6]) {
+    const troca = code[pos] === "A" ? "B" : "A";
+    const ruim = code.slice(0, pos) + troca + code.slice(pos + 1);
+    const b = novoApp();
+    $(b, "fldLOC").value = "MANTER";
+    carregar(ruim, b);
+    assert.match($(b, "crcMsg").textContent, /incompleto ou danificado/, "posicao " + pos);
+    assert.equal($(b, "fldLOC").value, "MANTER", "tela intacta");
+    b.close();
+  }
+  a.close();
+});
+
+test("rodape do CRC: tabela de 680px, linhas curtas, e o texto copiado do e-mail (com quebras) reabre a cotacao", () => {
+  const a = cotar(blocos("amadeus_adt_chd_inf.txt").join("\n\n"));
+  const h = previewHtml(a);
+  const rodape = h.slice(h.lastIndexOf('<table role="presentation" width="680"'));
+  assert.match(rodape, /^<table role="presentation" width="680"[^>]*width:680px[^>]*max-width:680px/);
+  const linhas = rodape.replace(/<\/?(table|tr)[^>]*>/g, "").replace(/<td[^>]*>|<\/td>/g, "").split("<br>");
+  assert.ok(linhas.length >= 2, "o codigo foi quebrado em linhas");
+  assert.ok(linhas.every((l) => l.length <= 110), "linhas de ate 110 caracteres");
+  // como o Outlook entrega ao copiar: uma linha por <br>, as vezes com ">" de citacao
+  const comoCopiado = "Em 04/11, Fulano escreveu:\n" + linhas.map((l) => "> " + l).join("\n");
+  const b = carregar(comoCopiado);
+  assert.equal($(b, "crcMsg").classList.contains("warn"), false, $(b, "crcMsg").textContent);
+  assert.equal(previewHtml(b), previewHtml(a));
+  a.close(); b.close();
+});
+
+test("e-mail sem <div> solta: barras, notas e total sao tabelas de largura fixa (o Outlook ignora a largura de div)", () => {
+  const a = cotar(blocos("sabre_adt_chd_inf.txt").join("\n\n"), { rc: "25", rav: "7" });
+  const d = new JSDOM("<body>" + previewHtml(a) + "</body>").window.document;
+  const raiz = d.body.firstElementChild;                       // div da fonte
+  const filhos = Array.from(raiz.firstElementChild.children);  // div de 680px
+  assert.ok(filhos.length >= 8);
+  for (const el of filhos) {
+    assert.equal(el.tagName, "TABLE", "filho direto do e-mail e " + el.tagName + ": " + el.outerHTML.slice(0, 80));
+    assert.equal(el.getAttribute("width"), "680");
+  }
+  a.close();
 });
