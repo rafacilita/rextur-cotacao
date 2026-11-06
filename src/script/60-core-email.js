@@ -386,7 +386,7 @@ function buildEmail(quote) {
     </table>
     ${includeRC ? noteBlock(`O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.`) : ``}${includeRAV ? noteBlock(`A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.`) : ``}
 
-    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado do grupo:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
+    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
   </div>
   </div>`.trim();
 
