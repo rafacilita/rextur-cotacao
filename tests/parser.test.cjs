@@ -893,8 +893,9 @@ test("total do grupo no e-mail bate com o KPI e com totals.group", () => {
   assert.equal(app._lastQuote.totals.group.grandTotal, 44826.60);
 
   const preview = app.document.getElementById("preview").textContent.replace(/\s+/g, " ");
-  const idx = preview.indexOf("Total estimado do grupo");
+  const idx = preview.indexOf("Total estimado da cotação");
   assert.ok(idx >= 0);
+  assert.ok(!preview.includes("Total estimado do grupo"), "o texto antigo ('do grupo') nao aparece mais");
   const trecho = preview.slice(idx, idx + 50);
   // Antes da correcao o e-mail mostrava 44.826,58 e a tela 44.826,60.
   assert.match(trecho, /44\.826,60/);
