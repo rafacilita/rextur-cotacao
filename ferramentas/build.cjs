@@ -24,6 +24,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 const RAIZ = path.join(__dirname, "..");
 const MANIFEST_PATH = path.join(RAIZ, "src", "manifest.json");
@@ -38,7 +39,11 @@ function montar() {
   const body = ler(manifest.body);
   const foot = ler(manifest.foot);
   const scriptContent = manifest.script.map(ler).join("");
-  return head + body + scriptContent + foot;
+  const comMarcador = head + body + scriptContent + foot;
+  // Id do build: 7 primeiros hex do SHA-256 da fonte com o marcador ainda no lugar. Deterministico
+  // (mesma fonte => mesmo id), entao o --check segue valendo. So aparece no meta e no rodape.
+  const id = crypto.createHash("sha256").update(head + body + foot + scriptContent).digest("hex").slice(0, 7);
+  return comMarcador.split("__BUILD_ID__").join(id);
 }
 
 function main() {

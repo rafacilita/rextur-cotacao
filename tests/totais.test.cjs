@@ -106,3 +106,17 @@ test("A4: markup e RAV arredondam meio centavo para cima", () => {
   assert.equal(c._lastQuote.totals.byType.CHD.equivPerPax, 107.21);
   c.close();
 });
+
+test("B: id do build existe (7 hex), bate com meta e rodape, e nao entra no e-mail", () => {
+  const meta = html.match(/<meta name="build" content="([^"]*)"/);
+  assert.ok(meta, "meta build ausente");
+  assert.match(meta[1], /^[0-9a-f]{7}$/);
+  assert.equal(html.includes("__BUILD_ID__"), false, "marcador nao substituido");
+  const app = cotacao({ chd: 1, maskCHD: RAW });
+  assert.equal(app.document.getElementById("buildId").textContent.trim(), "build " + meta[1]);
+  assert.equal(app.document.querySelector('meta[name="build"]').content, meta[1]);
+  assert.equal(app.document.getElementById("preview").innerHTML.includes(meta[1]), false);
+  assert.equal(app.document.getElementById("preview").dataset.html.includes(meta[1]), false);
+  assert.equal(app.document.getElementById("subjectPill").textContent.includes(meta[1]), false);
+  app.close();
+});
