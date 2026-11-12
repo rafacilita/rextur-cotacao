@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="build" content="717727c" />
+  <meta name="build" content="d446a03" />
   <title>Calculadora de Cotação INTER – Nova Emissão</title>
   <link rel="icon" href="icone.jpg" />
   <style>
@@ -1054,7 +1054,7 @@
   </div>
 </main>
 
-<div id="buildId" style="text-align:center; font-size:10px; color:#c4c9d1; padding:8px 0 14px;">build 717727c</div>
+<div id="buildId" style="text-align:center; font-size:10px; color:#c4c9d1; padding:8px 0 14px;">build d446a03</div>
 
 <dialog id="cabinModal" class="cabinModal">
   <form method="dialog">
@@ -2259,7 +2259,8 @@ function splitAmadeusPricingMasks(raw){
     if(!command) return;
     let next = index + 1;
     while(next < lines.length && !lines[next].trim()) next++;
-    if(new RegExp(`^\\s*${command[1]}\\s+`).test(lines[next] || "")) starts.push(index);
+    // "03" sozinho na linha tambem abre bloco: o INF nao tem nome proprio no FQQ (vai junto do adulto).
+    if(new RegExp(`^\\s*${command[1]}(?:\\s+|$)`).test(lines[next] || "")) starts.push(index);
   });
 
   const masks = { ADT: "", CHD: "", INF: "" };

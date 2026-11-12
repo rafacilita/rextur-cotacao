@@ -45,6 +45,25 @@ test("A1b: linha Sabre com duas ou mais colunas de taxa soma as colunas (antes f
   app.close();
 });
 
+test("A5: Amadeus colado junto, INF com a linha '03' sem nome: CHD e INF ficam cada um com a sua tarifa", () => {
+  const app = createApp();
+  const $ = (id) => app.document.getElementById(id);
+  const bs = Array.from(readFileSync(join(root, "exemplos_gds", "amadeus_adt_chd_inf_bagagem_distinta_am.txt"), "utf8").matchAll(/```text\s*([\s\S]*?)```/gi), (m) => m[1].trim());
+  $("itin").value = bs[0];
+  $("maskAll").value = bs.join("\n\n");
+  app.applyCombinedPricingInput({ overwrite: true, announce: false });
+  assert.match($("maskCHD").value, /^FQQ02\b/);
+  assert.doesNotMatch($("maskCHD").value, /FQQ03/);
+  assert.match($("maskINF").value, /^FQQ03\b/);
+  $("qADT").value = "1"; $("qCHD").value = "1"; $("qINF").value = "1"; app.refreshPaxUI();
+  app.setFxRate(5.4321, { source: "BCB" }, false);
+  app.build();
+  const bt = app._lastQuote.totals.byType;
+  assert.deepEqual([bt.CHD.equivPerPax, bt.CHD.taxesPerPax, bt.CHD.totalPerPax], [11912.61, 1108.22, 13020.83]);
+  assert.deepEqual([bt.INF.equivPerPax, bt.INF.taxesPerPax, bt.INF.totalPerPax], [1729.49, 351.51, 2081]);
+  app.close();
+});
+
 // ---- helpers de cotacao (fixture Sabre: tarifa 13.673,45 + taxas 1.217,05 = 14.890,50) ----
 function fixture(name) {
   const m = readFileSync(join(root, "exemplos_gds", name), "utf8").match(/```text\s*([\s\S]*?)```/i);
