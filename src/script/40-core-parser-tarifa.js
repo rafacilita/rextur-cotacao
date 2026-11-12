@@ -89,7 +89,8 @@ function splitAmadeusPricingMasks(raw){
     if(!command) return;
     let next = index + 1;
     while(next < lines.length && !lines[next].trim()) next++;
-    if(new RegExp(`^\\s*${command[1]}\\s+`).test(lines[next] || "")) starts.push(index);
+    // "03" sozinho na linha tambem abre bloco: o INF nao tem nome proprio no FQQ (vai junto do adulto).
+    if(new RegExp(`^\\s*${command[1]}(?:\\s+|$)`).test(lines[next] || "")) starts.push(index);
   });
 
   const masks = { ADT: "", CHD: "", INF: "" };
