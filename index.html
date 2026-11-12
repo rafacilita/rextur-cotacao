@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="build" content="db92934" />
+  <meta name="build" content="717727c" />
   <title>Calculadora de Cotação INTER – Nova Emissão</title>
   <link rel="icon" href="icone.jpg" />
   <style>
@@ -1054,7 +1054,7 @@
   </div>
 </main>
 
-<div id="buildId" style="text-align:center; font-size:10px; color:#c4c9d1; padding:8px 0 14px;">build db92934</div>
+<div id="buildId" style="text-align:center; font-size:10px; color:#c4c9d1; padding:8px 0 14px;">build 717727c</div>
 
 <dialog id="cabinModal" class="cabinModal">
   <form method="dialog">
@@ -5023,6 +5023,42 @@ $("btnBuild").addEventListener("click", async ()=>{
   catch(e){ console.error(e); setStatus("Erro ao gerar", true); showError(e); }
 });
 
+// Texto simples do e-mail (a versao "text/plain" do botao copiar): o HTML e lido por um documento
+// separado (sem carregar nada), entao entidades como &mdash; e &amp; viram o caractere; blocos e
+// linhas de tabela viram linhas de texto, e celulas da mesma linha ficam separadas por " | ".
+// O rodape do CRC sai em varias linhas (uma por <br>): a leitura do CRC ja junta as linhas.
+const PLAIN_BLOCK_TAGS = /^(DIV|P|TABLE|TBODY|THEAD|TFOOT|TR|H[1-6]|UL|OL|LI|SECTION|HEADER|FOOTER)$/;
+function emailPlainText(html){
+  const doc = document.implementation.createHTMLDocument("");
+  doc.body.innerHTML = String(html || "");
+  let out = "";
+  // inCell: bloco dentro de celula de uma linha com varias colunas (ex.: voo + rota no itinerario)
+  // vira espaco, para a linha da tabela continuar sendo uma linha de texto.
+  const walk = (node, inCell) => {
+    if(node.nodeType === 3){ out += node.nodeValue.replace(/\s+/g, " "); return; }   // \s inclui o espaco nao separavel
+    if(node.nodeType !== 1) return;
+    const tag = node.tagName.toUpperCase();
+    if(tag === "BR"){ out += "\n"; return; }
+    if(tag === "SCRIPT" || tag === "STYLE") return;
+    const isCell = tag === "TD" || tag === "TH";
+    const sep = PLAIN_BLOCK_TAGS.test(tag) ? (inCell ? " " : "\n") : "";
+    out += sep;
+    if(isCell && node.previousElementSibling) out += " | ";
+    const multiCol = isCell && node.parentElement && node.parentElement.children.length > 1;
+    node.childNodes.forEach(c => walk(c, inCell || multiCol));
+    out += sep;
+  };
+  walk(doc.body, false);
+  return out.split("\n")
+    .map(l => l.replace(/ {2,}/g, " ").trim()
+      .replace(/^(?:\|\s*)+|(?:\s*\|)+$/g, "")      // celulas vazias nas pontas
+      .replace(/(?:\s*\|\s*){2,}/g, " | ")           // celulas vazias no meio
+      .trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 $("btnCopy").addEventListener("click", async ()=>{
   if(previewDirty){
     setStatus("Gere a prévia novamente antes de copiar", true);
@@ -5031,7 +5067,7 @@ $("btnCopy").addEventListener("click", async ()=>{
   const html = $("preview").dataset.html || $("preview").innerHTML || "";
   if(!html.trim()){ setStatus("Nada pra copiar (gere a prévia)", true); return; }
   try{
-    const textFallback = html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    const textFallback = emailPlainText(html);
     if(navigator.clipboard && window.ClipboardItem){
       const blobHtml=new Blob([html],{type:"text/html"});
       const blobText=new Blob([textFallback],{type:"text/plain"});
