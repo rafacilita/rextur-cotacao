@@ -57,3 +57,37 @@ test("A2: com todos os tipos preenchidos o total continua aparecendo", () => {
   assert.match(preview(app), /Total estimado da cotação: R\$ 29\.781,00 \(1 adulto, 1 criança\)/);
   app.close();
 });
+
+// linha por passageiro x quantidade tem de somar exatamente o total do grupo
+const RAW_050 = RAW.replace("BRL14890.50CNN", "BRL14891.00CNN"); // taxas lidas nao fecham com o total por R$ 0,50
+test("A3: taxas que nao fecham por centavos => linha usa o total do GDS e linha x qtd = total", () => {
+  assert.notEqual(RAW_050, RAW);
+  const app = cotacao({ chd: 2, maskCHD: RAW_050 });
+  const p = preview(app);
+  assert.match(p, /Criança × 2[\s\S]*?R\$ 14\.891,00\s*Total estimado|Criança × 2[\s\S]*?R\$ 14\.891,00/);
+  assert.doesNotMatch(p, /R\$ 14\.890,50/);
+  assert.match(p, /Total estimado da cotação: R\$ 29\.782,00/);
+  app.close();
+});
+
+test("A3: com RC a linha tambem e o total do GDS + RC e linha x qtd = total", () => {
+  const app = cotacao({ chd: 2, maskCHD: RAW_050, rc: "10" });
+  const t = app._lastQuote.totals;
+  const linha = t.byType.CHD.totalPerPax;
+  assert.equal(+(linha * 2).toFixed(2), t.group.grandTotal);
+  const p = preview(app);
+  const fmt = (n) => "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  assert.ok(p.includes(fmt(linha)), "linha " + fmt(linha));
+  assert.ok(p.includes("Total estimado da cotação: " + fmt(t.group.grandTotal)));
+  app.close();
+});
+
+test("A3: com RAV a linha tambem e o total do GDS + RAV e linha x qtd = total", () => {
+  const app = cotacao({ chd: 2, maskCHD: RAW_050, rav: "5" });
+  const t = app._lastQuote.totals;
+  const linha = t.byType.CHD.totalPerPax;
+  assert.equal(+(linha * 2).toFixed(2), t.group.grandTotal);
+  const fmt = (n) => "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  assert.ok(preview(app).includes(fmt(linha)));
+  app.close();
+});

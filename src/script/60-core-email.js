@@ -290,10 +290,12 @@ function buildEmail(quote) {
   const PAX_LABEL = { ADT: "Adulto", CHD: "Criança", INF: "Bebê" };
 
   const valuesRows = rows.map(r => {
-    // totalPerPax ja inclui o RC arredondado por passageiro.
-    const finalTotal = includeRC
-      ? (r.totalPerPax != null ? r.totalPerPax : null)
-      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : r.totalPerPax);
+    // Linha e total do grupo usam a MESMA base: o total do GDS (fonte de verdade) + markup + RC + RAV,
+    // que e totalPerPax. Assim linha x quantidade soma exatamente o total do grupo, mesmo quando as
+    // taxas lidas nao fecham com o GDS por centavos. So sem total do GDS cai na soma tarifa + taxas.
+    const finalTotal = r.totalPerPax != null
+      ? r.totalPerPax
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRC ? (r.rcPerPax || 0) : 0) + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : null);
     return `
     <tr>
       <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
