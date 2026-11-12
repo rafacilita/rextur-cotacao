@@ -412,7 +412,7 @@ function parsePricingSabre(pricingRaw){
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
   for(const line of lines){
     const normalized = String(line).replace(/[¥¤]/g, " ").trim();
-    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3})?\s+BRL\s*([0-9][0-9.,]*)\s*(?:ADT|CNN|CHD|INF)?\b/i);
+    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3})?\s+BRL\s*([0-9][0-9.,]*)\s*(?:[A-Z]{3}|[A-Z][0-9]{2})?\b/i);
     if(m){
       const equivBRL = parseAmountAny(m[3]);
       const totalBRL = parseAmountAny(m[5]);
