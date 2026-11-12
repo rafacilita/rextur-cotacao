@@ -209,6 +209,10 @@ function buildEmail(quote) {
     ? modelTotals.group.grandTotal
     : null;
 
+  // Algum tipo com passageiros sem valores: o total do grupo seria parcial, entao a linha nao e emitida
+  // (o operador e avisado em applyValidations).
+  const totalParcial = rows.some(r => r.grandTotal == null);
+
   // Descrição legível da composição do grupo, para quem lê o e-mail sem
   // precisar conhecer os códigos ADT/CHD/INF do GDS.
   const pluralize = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
@@ -286,10 +290,12 @@ function buildEmail(quote) {
   const PAX_LABEL = { ADT: "Adulto", CHD: "Criança", INF: "Bebê" };
 
   const valuesRows = rows.map(r => {
-    // totalPerPax ja inclui o RC arredondado por passageiro.
-    const finalTotal = includeRC
-      ? (r.totalPerPax != null ? r.totalPerPax : null)
-      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : r.totalPerPax);
+    // Linha e total do grupo usam a MESMA base: o total do GDS (fonte de verdade) + markup + RC + RAV,
+    // que e totalPerPax. Assim linha x quantidade soma exatamente o total do grupo, mesmo quando as
+    // taxas lidas nao fecham com o GDS por centavos. So sem total do GDS cai na soma tarifa + taxas.
+    const finalTotal = r.totalPerPax != null
+      ? r.totalPerPax
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRC ? (r.rcPerPax || 0) : 0) + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : null);
     return `
     <tr>
       <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
@@ -386,7 +392,7 @@ function buildEmail(quote) {
     </table>
     ${includeRC ? noteBlock(`O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.`) : ``}${includeRAV ? noteBlock(`A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.`) : ``}
 
-    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
+    ${totalParcial ? `` : fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
   </div>
   </div>`.trim();
 

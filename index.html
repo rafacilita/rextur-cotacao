@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="build" content="2054cc8" />
   <title>Calculadora de Cotação INTER – Nova Emissão</title>
   <link rel="icon" href="icone.jpg" />
   <style>
@@ -1052,6 +1053,8 @@
     </section>
   </div>
 </main>
+
+<div id="buildId" style="text-align:center; font-size:10px; color:#c4c9d1; padding:8px 0 14px;">build 2054cc8</div>
 
 <dialog id="cabinModal" class="cabinModal">
   <form method="dialog">
@@ -2579,7 +2582,7 @@ function parsePricingSabre(pricingRaw){
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
   for(const line of lines){
     const normalized = String(line).replace(/[¥¤]/g, " ").trim();
-    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3})?\s+BRL\s*([0-9][0-9.,]*)\s*(?:ADT|CNN|CHD|INF)?\b/i);
+    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3})?\s+BRL\s*([0-9][0-9.,]*)\s*(?:[A-Z]{3}|[A-Z][0-9]{2})?\b/i);
     if(m){
       const equivBRL = parseAmountAny(m[3]);
       const totalBRL = parseAmountAny(m[5]);
@@ -2786,7 +2789,10 @@ function applyTotalsByPax(q) {
   // o resultado e identico ao de antes (as chaves novas so existem quando um deles esta em uso).
   const markupPct = parsePercent(q.commercial.markupPct);
   const ravPct    = parsePercent(q.commercial.ravPct);
-  const withMarkup = (v) => (markupPct && v != null) ? +(v * (1 + markupPct / 100)).toFixed(2) : v;
+  // Arredonda em centavos inteiros, meio centavo para cima, com folga para o erro de ponto flutuante
+  // (toFixed errava para baixo: 101,40 + 7,5% = 109,005 virava 109,00).
+  const roundCents = (x) => Math.round(x * 100 + 1e-7) / 100;
+  const withMarkup = (v) => (markupPct && v != null) ? roundCents(v * (1 + markupPct / 100)) : v;
   const extras    = !!(markupPct || ravPct);
 
   const byType = {};
@@ -2834,7 +2840,7 @@ function applyTotalsByPax(q) {
     const equiv        = mkApplies ? withMarkup(pr.equivBRL) : (pr.equivBRL ?? null);
     const fareAmt      = mkApplies ? withMarkup(pr.fareAmt ?? null) : (pr.fareAmt ?? null);
     const markupPerPax = mkApplies ? +(equiv - pr.equivBRL).toFixed(2) : 0;
-    const ravPerPax    = (ravPct && equiv != null) ? +(equiv * ravPct / 100).toFixed(2) : null;
+    const ravPerPax    = (ravPct && equiv != null) ? roundCents(equiv * ravPct / 100) : null;
     const ravAdd       = ravPerPax || 0;
 
     const fareTotal  = equiv != null ? +(equiv * qty).toFixed(2) : null;
@@ -2985,6 +2991,17 @@ function applyValidations(q) {
         );
       }
     }
+  }
+
+  // Soma parcial nunca vai para a agencia: se algum tipo com passageiros ficou sem valores,
+  // o e-mail sai sem a linha "Total estimado da cotacao" (ver buildEmail).
+  const semValores = paxOrder.filter(({ type, qty }) => {
+    if (qty <= 0) return false;
+    const pr = q.pricing[type];
+    return !pr || pr.totalBRL == null;
+  }).map(o => o.type);
+  if (semValores.length) {
+    q.meta.warnings.push(`${semValores.join(', ')}: sem valores. O e-mail sai SEM a linha "Total estimado da cotação" (não é enviada soma parcial). Cole as máscaras que faltam.`);
   }
 
   // Status do segmento: o aviso vai para o operador, nunca para o e-mail do cliente.
@@ -3458,6 +3475,10 @@ function buildEmail(quote) {
     ? modelTotals.group.grandTotal
     : null;
 
+  // Algum tipo com passageiros sem valores: o total do grupo seria parcial, entao a linha nao e emitida
+  // (o operador e avisado em applyValidations).
+  const totalParcial = rows.some(r => r.grandTotal == null);
+
   // Descrição legível da composição do grupo, para quem lê o e-mail sem
   // precisar conhecer os códigos ADT/CHD/INF do GDS.
   const pluralize = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
@@ -3535,10 +3556,12 @@ function buildEmail(quote) {
   const PAX_LABEL = { ADT: "Adulto", CHD: "Criança", INF: "Bebê" };
 
   const valuesRows = rows.map(r => {
-    // totalPerPax ja inclui o RC arredondado por passageiro.
-    const finalTotal = includeRC
-      ? (r.totalPerPax != null ? r.totalPerPax : null)
-      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : r.totalPerPax);
+    // Linha e total do grupo usam a MESMA base: o total do GDS (fonte de verdade) + markup + RC + RAV,
+    // que e totalPerPax. Assim linha x quantidade soma exatamente o total do grupo, mesmo quando as
+    // taxas lidas nao fecham com o GDS por centavos. So sem total do GDS cai na soma tarifa + taxas.
+    const finalTotal = r.totalPerPax != null
+      ? r.totalPerPax
+      : (r.equivPerPax != null && r.taxesPerPax != null ? +(r.equivPerPax + r.taxesPerPax + (includeRC ? (r.rcPerPax || 0) : 0) + (includeRAV ? (r.ravPerPax || 0) : 0)).toFixed(2) : null);
     return `
     <tr>
       <td style="${cell} font-weight:600;">${PAX_LABEL[r.type] || r.type} × ${r.qty}</td>
@@ -3635,7 +3658,7 @@ function buildEmail(quote) {
     </table>
     ${includeRC ? noteBlock(`O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.`) : ``}${includeRAV ? noteBlock(`A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.`) : ``}
 
-    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
+    ${totalParcial ? `` : fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
   </div>
   </div>`.trim();
 
