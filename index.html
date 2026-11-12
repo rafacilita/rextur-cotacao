@@ -4032,8 +4032,12 @@ function encodeCRC(payload){
 // Aceita o codigo puro ou o e-mail inteiro (resposta da agencia, encaminhamento), com
 // quebras de linha no meio e o ">" que alguns clientes poem no inicio da linha citada.
 function extractCRC(text){
-  const compact = String(text || "").replace(/\r?\n[ \t]*(?:>[ \t]*)*/g, "").replace(/\s+/g, "");
-  const m = compact.match(/CRC1-[A-Za-z0-9+\-$_]+/i);
+  // Caracteres invisiveis (largura zero, BOM, hifen opcional) que alguns clientes de e-mail inserem no meio do codigo.
+  const compact = String(text || "").replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "")
+    .replace(/\r?\n[ \t]*(?:>[ \t]*)*/g, "").replace(/\s+/g, "");
+  // Alfabeto do CRC1 = base64url (A-Z a-z 0-9 - _). "+" e "$" NAO fazem parte dele: se entrassem na busca, uma assinatura
+  // logo apos o codigo (ex.: "+55 11 ...") seria lida como se fosse o codigo e o CRC "falharia".
+  const m = compact.match(/CRC1-[A-Za-z0-9\-_]+/i);
   return m ? m[0].slice(0, 5).toUpperCase() + m[0].slice(5) : null;
 }
 
