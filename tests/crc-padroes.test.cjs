@@ -99,6 +99,22 @@ test("CRC1: os campos de nome continuam com o padrao name_<TIPO>_<n>", () => {
   app.close();
 });
 
+test("CRC de tela diferente: campo que nao existe ou opcao que a lista nao tem gera aviso (nao some calado)", () => {
+  const app = novoApp();
+  const $ = (id) => app.document.getElementById(id);
+  const code = app.eval(`encodeCRC({ v: 1, c: { fldLOC: "ABC123", campoQueSumiu: "x", payParcel: "13x" } })`);
+  $("crcInput").value = code;
+  $("btnLoadCRC").click();
+  const msg = $("crcMsg").textContent;
+  assert.equal($("fldLOC").value, "ABC123", "o resto da cotacao abre");
+  assert.ok($("crcMsg").classList.contains("warn"), msg);
+  assert.match(msg, /2 campos do código não existem nesta versão/);
+  assert.match(msg, /campoQueSumiu/);
+  assert.match(msg, /payParcel/);
+  assert.doesNotMatch(msg, /fldLOC/);
+  app.close();
+});
+
 test("CRC1: as listas que mudam a leitura (textos referenciados e campos fora do codigo) sao as mesmas", () => {
   const app = novoApp();
   // CRC_TEXT_FIELDS: o "r" do CRC aponta um campo para outro com o mesmo texto; mudar a lista muda o significado do "r".

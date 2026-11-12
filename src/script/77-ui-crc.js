@@ -36,7 +36,8 @@ function setCRCMsg(text, warn = false){
 // Reabre a cotacao do CRC: a tela inteira passa a ser a do codigo (o que nao veio nele
 // volta ao padrao) e a previa e gerada de novo.
 function loadCRC(text){
-  const st = expandCRCPayload(decodeCRC(text), CRC_DEFAULTS);   // lanca Error com mensagem
+  const payload = decodeCRC(text);                              // lanca Error com mensagem
+  const st = expandCRCPayload(payload, CRC_DEFAULTS);
 
   // O cambio do CRC e o da cotacao original: cancela a consulta ao BCB que a abertura
   // da pagina pode ter deixado em andamento (ela sobrescreveria um cambio de origem BCB).
@@ -48,6 +49,7 @@ function loadCRC(text){
   document.querySelectorAll('main input[id^="name_"]').forEach(el => {
     if(!(el.id in st.controls)) el.value = "";
   });
+  const perdidos = crcCamposNaoAplicados(payload, st.controls);
   $("maskSplitStatus").textContent = "Aguardando conteúdo";
   $("maskSplitStatus").classList.remove("warn");
 
@@ -72,8 +74,25 @@ function loadCRC(text){
   const mkTxt = mk
     ? `Markup: ${mk}%${g.markupTotal > 0 ? " (" + moneyBRL(g.markupTotal) + " no grupo)" : ""}.`
     : "Sem markup.";
-  setCRCMsg(`Cotação reaberta${loc ? " (LOC " + loc + ")" : ""}. ${mkTxt}`);
+  const avisoPerdidos = perdidos.length
+    ? ` Atenção: ${perdidos.length === 1 ? "1 campo do código não existe" : perdidos.length + " campos do código não existem"} nesta versão da calculadora (${perdidos.join(", ")}). Confira a cotação antes de usar.`
+    : "";
+  setCRCMsg(`Cotação reaberta${loc ? " (LOC " + loc + ")" : ""}. ${mkTxt}${avisoPerdidos}`, perdidos.length > 0);
   return st;
+}
+
+// Campos que vieram no codigo (c ou r) e nao ficaram na tela: id que nao existe mais, ou valor que a
+// lista nao aceita (o select fica em outra opcao). So acontece com CRC de uma versao com tela diferente.
+function crcCamposNaoAplicados(payload, controls){
+  const ids = Object.keys(payload.c || {}).concat(Object.keys(payload.r || {}));
+  const norm = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n");
+  return ids.filter((id, i) => ids.indexOf(id) === i && !CRC_SKIP_FIELDS.includes(id)).filter(id => {
+    const el = $(id), st = controls[id];
+    if(!el) return true;
+    if(!st) return false;
+    if("checked" in st) return !!el.checked !== !!st.checked;
+    return norm(el.value) !== norm(st.value);
+  });
 }
 
 $("btnLoadCRC").addEventListener("click", ()=>{
