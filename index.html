@@ -2987,6 +2987,17 @@ function applyValidations(q) {
     }
   }
 
+  // Soma parcial nunca vai para a agencia: se algum tipo com passageiros ficou sem valores,
+  // o e-mail sai sem a linha "Total estimado da cotacao" (ver buildEmail).
+  const semValores = paxOrder.filter(({ type, qty }) => {
+    if (qty <= 0) return false;
+    const pr = q.pricing[type];
+    return !pr || pr.totalBRL == null;
+  }).map(o => o.type);
+  if (semValores.length) {
+    q.meta.warnings.push(`${semValores.join(', ')}: sem valores. O e-mail sai SEM a linha "Total estimado da cotação" (não é enviada soma parcial). Cole as máscaras que faltam.`);
+  }
+
   // Status do segmento: o aviso vai para o operador, nunca para o e-mail do cliente.
   // Precisa rodar aqui dentro para que o aviso conte em warnCount e derrube a confianca.
   const segments = Array.isArray(q.itinerary) ? q.itinerary : [];
@@ -3458,6 +3469,10 @@ function buildEmail(quote) {
     ? modelTotals.group.grandTotal
     : null;
 
+  // Algum tipo com passageiros sem valores: o total do grupo seria parcial, entao a linha nao e emitida
+  // (o operador e avisado em applyValidations).
+  const totalParcial = rows.some(r => r.grandTotal == null);
+
   // Descrição legível da composição do grupo, para quem lê o e-mail sem
   // precisar conhecer os códigos ADT/CHD/INF do GDS.
   const pluralize = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
@@ -3635,7 +3650,7 @@ function buildEmail(quote) {
     </table>
     ${includeRC ? noteBlock(`O RC é cobrado <b>por passageiro</b>, em USD, e somado ao total em BRL.`) : ``}${includeRAV ? noteBlock(`A RAV (comissão da agência) é de <b>${escapeHtml(String(+parsePercent(quote.commercial.ravPct).toFixed(2)).replace(".", ","))}%</b> sobre a tarifa, por passageiro, e já está somada ao total.`) : ``}
 
-    ${fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
+    ${totalParcial ? `` : fixedTable(spacerRow(14) + `<tr><td style="padding:0; border:0; font-size:13px; color:${INK};"><b>Total estimado da cotação:</b> ${groupTotal != null ? moneyBRL(groupTotal) : "—"}${noteParts.length ? ` (${escapeHtml(noteParts.join(", "))})` : ""}</td></tr>`)}
   </div>
   </div>`.trim();
 

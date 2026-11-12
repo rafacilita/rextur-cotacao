@@ -364,6 +364,17 @@ function applyValidations(q) {
     }
   }
 
+  // Soma parcial nunca vai para a agencia: se algum tipo com passageiros ficou sem valores,
+  // o e-mail sai sem a linha "Total estimado da cotacao" (ver buildEmail).
+  const semValores = paxOrder.filter(({ type, qty }) => {
+    if (qty <= 0) return false;
+    const pr = q.pricing[type];
+    return !pr || pr.totalBRL == null;
+  }).map(o => o.type);
+  if (semValores.length) {
+    q.meta.warnings.push(`${semValores.join(', ')}: sem valores. O e-mail sai SEM a linha "Total estimado da cotação" (não é enviada soma parcial). Cole as máscaras que faltam.`);
+  }
+
   // Status do segmento: o aviso vai para o operador, nunca para o e-mail do cliente.
   // Precisa rodar aqui dentro para que o aviso conte em warnCount e derrube a confianca.
   const segments = Array.isArray(q.itinerary) ? q.itinerary : [];
