@@ -153,6 +153,28 @@ test("codigo quebrado em linhas e com '>' de citacao ainda e lido", () => {
   a.close(); b.close();
 });
 
+test("assinatura com '+55' logo apos o codigo e caractere invisivel no meio nao quebram a leitura", () => {
+  const raw = blocos("sabre_tarifa_xt.txt").join("\n\n");
+  const a = cotar(raw);
+  const code = crcDe(a);
+  const linhas = code.match(/.{1,110}/g).join("\n");
+  const casos = {
+    "assinatura com +55 sem @#": linhas + "\n\nRafael\nConsultor\n+55 11 3000-0000",
+    "assinatura com $ no texto": linhas + "\n$ 100,00 em aberto",
+    "espaco de largura zero no meio": code.slice(0, 30) + "\u200B" + code.slice(30),
+    "hifen opcional (soft hyphen) no meio": code.slice(0, 40) + "\u00AD" + code.slice(40),
+    "BOM no inicio e no meio": "\uFEFF" + code.slice(0, 50) + "\uFEFF" + code.slice(50),
+  };
+  for (const [rotulo, texto] of Object.entries(casos)) {
+    const b = carregar(texto);
+    assert.equal($(b, "crcMsg").classList.contains("warn"), false, rotulo + ": " + $(b, "crcMsg").textContent);
+    assert.equal($(b, "fldLOC").value, "XYZ789", rotulo);
+    assert.equal(previewHtml(b), previewHtml(a), rotulo + ": e-mail refeito identico");
+    b.close();
+  }
+  a.close();
+});
+
 test("erros: CRR da Reemissao, codigo cortado e texto sem codigo nao mexem na tela", () => {
   const raw = blocos("sabre_tarifa_xt.txt").join("\n\n");
   const a = cotar(raw);
