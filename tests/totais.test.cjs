@@ -91,3 +91,18 @@ test("A3: com RAV a linha tambem e o total do GDS + RAV e linha x qtd = total", 
   assert.ok(preview(app).includes(fmt(linha)));
   app.close();
 });
+
+test("A4: markup e RAV arredondam meio centavo para cima", () => {
+  // 101,40 com 7,5% = 109,005 -> 109,01 ; 102,10 com 5% = 107,205 -> 107,21
+  const mk = RAW.replace("BRL13673.45", "BRL101.40").replace("1217.05XT", "0.00XT").replace("BRL14890.50CNN", "BRL101.40CNN");
+  const a = cotacao({ chd: 1, maskCHD: mk, markup: "7,5" });
+  assert.equal(a._lastQuote.totals.byType.CHD.equivPerPax, 109.01);
+  a.close();
+  const rv = RAW.replace("BRL13673.45", "BRL102.10").replace("1217.05XT", "0.00XT").replace("BRL14890.50CNN", "BRL102.10CNN");
+  const b = cotacao({ chd: 1, maskCHD: rv, rav: "5" });
+  assert.equal(b._lastQuote.totals.byType.CHD.ravPerPax, 5.11);
+  b.close();
+  const c = cotacao({ chd: 1, maskCHD: rv, markup: "5" });
+  assert.equal(c._lastQuote.totals.byType.CHD.equivPerPax, 107.21);
+  c.close();
+});

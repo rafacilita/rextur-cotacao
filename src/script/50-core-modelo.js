@@ -163,7 +163,10 @@ function applyTotalsByPax(q) {
   // o resultado e identico ao de antes (as chaves novas so existem quando um deles esta em uso).
   const markupPct = parsePercent(q.commercial.markupPct);
   const ravPct    = parsePercent(q.commercial.ravPct);
-  const withMarkup = (v) => (markupPct && v != null) ? +(v * (1 + markupPct / 100)).toFixed(2) : v;
+  // Arredonda em centavos inteiros, meio centavo para cima, com folga para o erro de ponto flutuante
+  // (toFixed errava para baixo: 101,40 + 7,5% = 109,005 virava 109,00).
+  const roundCents = (x) => Math.round(x * 100 + 1e-7) / 100;
+  const withMarkup = (v) => (markupPct && v != null) ? roundCents(v * (1 + markupPct / 100)) : v;
   const extras    = !!(markupPct || ravPct);
 
   const byType = {};
@@ -211,7 +214,7 @@ function applyTotalsByPax(q) {
     const equiv        = mkApplies ? withMarkup(pr.equivBRL) : (pr.equivBRL ?? null);
     const fareAmt      = mkApplies ? withMarkup(pr.fareAmt ?? null) : (pr.fareAmt ?? null);
     const markupPerPax = mkApplies ? +(equiv - pr.equivBRL).toFixed(2) : 0;
-    const ravPerPax    = (ravPct && equiv != null) ? +(equiv * ravPct / 100).toFixed(2) : null;
+    const ravPerPax    = (ravPct && equiv != null) ? roundCents(equiv * ravPct / 100) : null;
     const ravAdd       = ravPerPax || 0;
 
     const fareTotal  = equiv != null ? +(equiv * qty).toFixed(2) : null;
