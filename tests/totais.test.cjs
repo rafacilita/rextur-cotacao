@@ -21,6 +21,30 @@ test("A1: linha Sabre com codigo de passageiro fora da lista le o total inteiro"
   app.close();
 });
 
+test("A1b: linha Sabre com duas ou mais colunas de taxa soma as colunas (antes ficava tudo em branco)", () => {
+  const app = createApp();
+  const casos = [
+    ["USD614.00       BRL3088.60      959.73XT          BRL4048.33ADT", 959.73],
+    ["USD614.00       BRL3088.60      64.56BR    895.17XT          BRL4048.33ADT", 959.73],
+    ["USD614.00       BRL3088.60      64.56BR    500.00YQ   395.17XT   BRL4048.33ADT", 959.73],
+    ["USD614.00       BRL3088.60      64.56BR    895.17YQ          BRL4048.33ADT", 959.73],
+    ["USD614.00   BRL3088.60   BRL64.56BR   BRL895.17XT   BRL4048.33CNN", 959.73],
+    ["USD614.00       BRL3088.60      64.56BR    895.17XT          BRL4048.33C06", 959.73],
+  ];
+  for (const [raw, taxas] of casos) {
+    const p = app.parsePricingSabre(raw);
+    assert.equal(p.equivBRL, 3088.6, raw);
+    assert.equal(p.taxesBRL, taxas, raw);
+    assert.equal(p.totalBRL, 4048.33, raw);
+    assert.equal(p.taxesSource, "READ", raw);
+  }
+  // sem coluna de taxa: continua derivando pela diferenca
+  const semTaxa = app.parsePricingSabre("USD500.00   BRL2750.00   BRL3200.00ADT");
+  assert.equal(semTaxa.taxesBRL, 450);
+  assert.equal(semTaxa.totalBRL, 3200);
+  app.close();
+});
+
 // ---- helpers de cotacao (fixture Sabre: tarifa 13.673,45 + taxas 1.217,05 = 14.890,50) ----
 function fixture(name) {
   const m = readFileSync(join(root, "exemplos_gds", name), "utf8").match(/```text\s*([\s\S]*?)```/i);

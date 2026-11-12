@@ -412,13 +412,16 @@ function parsePricingSabre(pricingRaw){
   const bag = uniq.length===0 ? null : (uniq.length===1 ? uniq[0] : "VAR");
   for(const line of lines){
     const normalized = String(line).replace(/[¥¤]/g, " ").trim();
-    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)(?:\s+(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3})?\s+BRL\s*([0-9][0-9.,]*)\s*(?:[A-Z]{3}|[A-Z][0-9]{2})?\b/i);
+    // Entre o equivalente e o total vem zero, uma ou VARIAS colunas de taxa (ex.: "64.56BR   895.17XT"):
+    // m[4] e o trecho inteiro das colunas, somadas abaixo.
+    const m = normalized.match(/^([A-Z]{3})\s*([0-9][0-9.,]*)\s+BRL\s*([0-9][0-9.,]*)((?:\s+(?:BRL\s*)?[0-9][0-9.,]*\s*[A-Z0-9]{2,3})*)\s+BRL\s*([0-9][0-9.,]*)\s*(?:[A-Z]{3}|[A-Z][0-9]{2})?\b/i);
     if(m){
       const equivBRL = parseAmountAny(m[3]);
       const totalBRL = parseAmountAny(m[5]);
-      const taxesRead = m[4] != null;
+      const taxCols = [...String(m[4] || "").matchAll(/(?:BRL\s*)?([0-9][0-9.,]*)\s*[A-Z0-9]{2,3}/gi)].map(c => parseAmountAny(c[1]));
+      const taxesRead = taxCols.length > 0 && taxCols.every(v => v != null);
       const taxesBRL = taxesRead
-        ? parseAmountAny(m[4])
+        ? +taxCols.reduce((a, v) => a + v, 0).toFixed(2)
         : (equivBRL != null && totalBRL != null ? Math.max(0, +(totalBRL - equivBRL).toFixed(2)) : null);
       let taxesSource = null, taxLinesBRL = null;
       if(taxesRead){ taxesSource = "READ"; }
